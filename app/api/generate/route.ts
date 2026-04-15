@@ -79,7 +79,7 @@ async function generateWithGemini(prompt: string, referenceImages: string[] = []
   throw new Error(`Image generation failed: ${lastError}`)
 }
 
-// ── Build a detailed prompt from brand + persona context ─────────────────
+// ── Build prompt depending on what images are provided ────────────────────
 function buildPrompt(
   concept: string,
   persona: { name: string; angle: string; hook?: string },
@@ -89,33 +89,44 @@ function buildPrompt(
 ): string {
   const lines: string[] = []
 
-  lines.push('Generate a social media ad creative image.')
+  if (hasReferenceImage && hasProductImages) {
+    // Both reference and product - strongest instruction
+    lines.push('I am giving you TWO types of images:')
+    lines.push('1. The FIRST image is a REFERENCE AD. Replicate its EXACT layout, background, text placement, composition, and visual style.')
+    lines.push('2. The REMAINING image(s) are PRODUCT PHOTOS. Swap the product in the reference with THIS product.')
+    lines.push('')
+    lines.push('Your job: Recreate the reference ad but with the provided product and the text below.')
+  } else if (hasReferenceImage) {
+    // Reference only
+    lines.push('I am giving you a REFERENCE AD IMAGE.')
+    lines.push('Replicate its EXACT layout, background, text placement, colors, font style, and composition.')
+    lines.push('Change ONLY the text to what I specify below. Keep everything else the same.')
+  } else if (hasProductImages) {
+    // Product only
+    lines.push('I am giving you PRODUCT PHOTOS.')
+    lines.push('Create a social media ad featuring this EXACT product. Do not change or invent a different product.')
+  } else {
+    lines.push('Create a social media ad creative image.')
+  }
+
   lines.push('')
-
-  if (hasReferenceImage) {
-    lines.push('IMPORTANT: I attached a reference image. Copy its exact layout, style, colors, and composition. Recreate it with the details below.')
-    lines.push('')
-  }
-
-  if (hasProductImages) {
-    lines.push('IMPORTANT: I attached product photos. Use this EXACT product in the image. Do not invent a different product.')
-    lines.push('')
-  }
-
-  lines.push(`HEADLINE TEXT ON IMAGE: "${persona.hook || persona.angle}"`)
+  lines.push(`HEADLINE TEXT TO PUT ON THE IMAGE: "${persona.hook || persona.angle}"`)
   lines.push(`CTA BUTTON TEXT: "Shop Now"`)
-  lines.push(`PERSONA: ${persona.name}`)
-  lines.push(`ANGLE: ${persona.angle}`)
   lines.push('')
+  lines.push(`Target audience: ${persona.name}`)
+  lines.push(`Ad angle: ${persona.angle}`)
 
   if (brandContext) {
-    lines.push(`BRAND: ${brandContext}`)
-    lines.push('')
+    lines.push(`Brand: ${brandContext}`)
   }
 
-  lines.push(`SCENE: ${concept}`)
+  if (!hasReferenceImage) {
+    lines.push('')
+    lines.push(`Scene/concept: ${concept}`)
+  }
+
   lines.push('')
-  lines.push('The image MUST include readable text. Put the headline text prominently on the image. Include a CTA button. Make it look like a real paid social ad. Professional quality, clean typography.')
+  lines.push('The output MUST be a polished social media ad with readable headline text and a CTA button.')
 
   return lines.join('\n')
 }
@@ -207,18 +218,22 @@ export async function POST(req: NextRequest) {
       brandContext = parts.join('. ')
     }
 
-    // Collect all reference images to send to Gemini
+    // Reference image FIRST, then product images
+    // Order matters - the prompt tells Gemini "first image is reference, remaining are product"
     const imageInputs: string[] = []
-    if (referenceImage && referenceImage.startsWith('data:image/')) {
+    const hasRef = referenceImage && referenceImage.startsWith('data:image/')
+    const validProducts = (productImages || []).filter((img: string) => img?.startsWith('data:image/')).slice(0, 3)
+    const hasProducts = validProducts.length > 0
+
+    if (hasRef) {
       imageInputs.push(referenceImage)
-      console.log('Reference image included, size:', Math.round(referenceImage.length / 1024), 'KB')
+      console.log('Reference image: YES, size:', Math.round(referenceImage.length / 1024), 'KB')
     }
-    if (productImages?.length) {
-      const validProducts = productImages.filter((img: string) => img?.startsWith('data:image/')).slice(0, 3)
+    if (hasProducts) {
       imageInputs.push(...validProducts)
-      console.log('Product images included:', validProducts.length)
+      console.log('Product images:', validProducts.length)
     }
-    console.log('Total images being sent to Gemini:', imageInputs.length)
+    console.log('Total images to Gemini:', imageInputs.length, '| Has ref:', !!hasRef, '| Has products:', hasProducts)
 
     // Generate one image per persona
     const results = []
@@ -228,8 +243,8 @@ export async function POST(req: NextRequest) {
           concept,
           persona,
           brandContext,
-          !!referenceImage,
-          !!productImages?.length
+          !!hasRef,
+          hasProducts
         )
         const imageDataUrl = await generateWithGemini(prompt, imageInputs)
         const imageUrl = await uploadToStorage(supabase, imageDataUrl, brandId)
