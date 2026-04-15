@@ -1,100 +1,136 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { BrandAnalysis } from '@/lib/types'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+export const maxDuration = 60
 
 const BRAND_ANALYSIS_PROMPT = `You are a professional brand strategist analyzing brand assets.
-Examine the provided image (logo, brand guidelines, or brand materials).
+Examine the provided file (logo, brand guidelines, or brand materials).
 
-Extract the following information and respond in this exact JSON format:
+Extract the following information and respond in this EXACT JSON format with no other text:
 {
-  "colors": ["#hex1", "#hex2", ...],
-  "fonts": ["Font Name 1", "Font Name 2", ...],
+  "colors": ["#hex1", "#hex2", "#hex3"],
+  "fonts": ["Font Name 1", "Font Name 2"],
   "tone": "2-3 sentence description of the brand's tone, voice, and personality",
   "styleNotes": "2-3 sentence description of the visual style, aesthetic, and design approach",
   "logoDescription": "Brief description of the logo mark if visible"
 }
 
-For colors: identify the primary, secondary, and accent colors. Return as hex codes.
+For colors: identify the primary, secondary, and accent colors. Return as hex codes. Find at least 3.
 For fonts: identify font families used. If unclear, describe the style (e.g., "Clean sans-serif, similar to Helvetica").
-Be specific and actionable — creative teams will use this to match the brand in AI-generated ads.`
+Be specific and actionable — creative teams will use this to match the brand in AI-generated ads.
+Respond ONLY with the JSON object, no markdown, no explanation.`
 
-async function analyzeImageAsBase64(file: File): Promise<BrandAnalysis> {
+async function analyzeWithGemini(file: File): Promise<BrandAnalysis> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
+
   const bytes = await file.arrayBuffer()
   const base64 = Buffer.from(bytes).toString('base64')
-  const mediaType = (file.type as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp') || 'image/png'
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-6',
-    max_tokens: 1024,
-    messages: [{
-      role: 'user',
-      content: [
+  // Map file types to Gemini mime types
+  let mimeType = file.type || 'image/png'
+  if (mimeType === 'application/pdf') mimeType = 'application/pdf'
+
+  const models = ['gemini-2.5-flash-preview-04-17', 'gemini-2.0-flash']
+  let lastError = ''
+
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
-          type: 'image',
-          source: { type: 'base64', media_type: mediaType, data: base64 },
-        },
-        { type: 'text', text: BRAND_ANALYSIS_PROMPT },
-      ],
-    }],
-  })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: base64,
+                  },
+                },
+                { text: BRAND_ANALYSIS_PROMPT },
+              ],
+            }],
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 1024,
+            },
+          }),
+        }
+      )
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('Could not parse brand analysis response')
-  return JSON.parse(jsonMatch[0]) as BrandAnalysis
+      if (!res.ok) {
+        const errText = await res.text()
+        lastError = `${model}: ${res.status} ${errText.slice(0, 200)}`
+        continue
+      }
+
+      const data = await res.json()
+      const textPart = data.candidates?.[0]?.content?.parts?.find(
+        (p: { text?: string }) => p.text
+      )
+
+      if (!textPart?.text) {
+        lastError = `${model}: No text in response`
+        continue
+      }
+
+      const jsonMatch = textPart.text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('Could not parse brand analysis response')
+      return JSON.parse(jsonMatch[0]) as BrandAnalysis
+    } catch (e: unknown) {
+      lastError = `${model}: ${e instanceof Error ? e.message : String(e)}`
+    }
+  }
+
+  throw new Error(`Brand analysis failed: ${lastError}`)
 }
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json({ error: 'GEMINI_API_KEY not configured. Add it in Vercel environment variables.' }, { status: 500 })
     }
 
     const formData = await req.formData()
     let brandId = formData.get('brandId') as string
+    const brandName = formData.get('brandName') as string || 'Fulton'
     const logoFile = formData.get('logo') as File | null
     const guidelinesFile = formData.get('guidelines') as File | null
 
     // Auto-create brand for demo mode
     if (!brandId || brandId === 'demo') {
-      const { data: existing } = await supabase.from('brands').select('id').eq('name', 'Fulton').limit(1).single()
+      const { data: existing } = await supabase.from('brands').select('id').eq('name', brandName).limit(1).single()
       if (existing) {
         brandId = existing.id
       } else {
-        const { data: newBrand } = await supabase.from('brands').insert({ name: 'Fulton', color: '#1B4332', url: 'https://walkfulton.com' }).select('id').single()
+        const { data: newBrand } = await supabase.from('brands').insert({ name: brandName, color: '#2B4EFF' }).select('id').single()
         brandId = newBrand?.id || 'demo'
       }
     }
-    if (!logoFile && !guidelinesFile) return NextResponse.json({ error: 'At least one file required' }, { status: 400 })
+
+    if (!logoFile && !guidelinesFile) {
+      return NextResponse.json({ error: 'Upload at least a logo or brand guidelines file' }, { status: 400 })
+    }
 
     // File size limit: 20MB
     const MAX_SIZE = 20 * 1024 * 1024
     if (logoFile && logoFile.size > MAX_SIZE) return NextResponse.json({ error: 'Logo file too large (max 20MB)' }, { status: 400 })
     if (guidelinesFile && guidelinesFile.size > MAX_SIZE) return NextResponse.json({ error: 'Guidelines file too large (max 20MB)' }, { status: 400 })
 
-    // Prefer guidelines for brand analysis if both uploaded; use logo as fallback
+    // Analyze the primary file (prefer guidelines, fallback to logo)
     const primaryFile = guidelinesFile || logoFile!
+    const analysis = await analyzeWithGemini(primaryFile)
 
-    // For PDFs, we'd need PDF-to-image conversion. For now, we handle image files.
-    // If the file is a PDF, return a helpful message.
-    if (primaryFile.type === 'application/pdf') {
-      return NextResponse.json({
-        error: 'PDF brand guides: please export a screenshot/PNG of the key brand guide page and upload that instead. Full PDF parsing coming soon.',
-      }, { status: 422 })
-    }
-
-    const analysis = await analyzeImageAsBase64(primaryFile)
-
-    // If logo was also uploaded, analyze it separately and merge
+    // If both files uploaded, also analyze the logo and merge colors
     if (logoFile && guidelinesFile) {
       try {
-        const logoAnalysis = await analyzeImageAsBase64(logoFile)
-        // Merge: use guidelines colors but add logo colors if different
+        const logoAnalysis = await analyzeWithGemini(logoFile)
         const allColors = [...new Set([...analysis.colors, ...logoAnalysis.colors])].slice(0, 8)
         analysis.colors = allColors
         if (!analysis.logoDescription) analysis.logoDescription = logoAnalysis.logoDescription
@@ -122,15 +158,15 @@ export async function POST(req: NextRequest) {
     const updatePayload: Record<string, unknown> = {
       brand_colors: analysis.colors,
       brand_fonts: analysis.fonts,
-      tone_notes: `${analysis.tone} ${analysis.styleNotes}`.trim(),
+      tone_notes: `${analysis.tone} ${analysis.styleNotes || ''}`.trim(),
     }
     if (logoUrl) updatePayload.logo_url = logoUrl
 
     await supabase.from('brands').update(updatePayload).eq('id', brandId)
 
-    return NextResponse.json({ analysis, logoUrl })
-  } catch (e: any) {
+    return NextResponse.json({ analysis, logoUrl, brandId })
+  } catch (e: unknown) {
     console.error('Brand analyze error:', e)
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
 }
