@@ -39,6 +39,10 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
   const handleGuidelinesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > 4 * 1024 * 1024) {
+      onToast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 4MB — try exporting key pages as PNG instead.`, 'error')
+      return
+    }
     setGuidelinesFile(file)
     onToast(`${file.name} uploaded — click "Re-analyze with Gemini" to extract`, 'info')
   }

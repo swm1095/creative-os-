@@ -16,7 +16,14 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const systemPrompt = `You are an expert direct-response copywriter for performance advertising. Generate ad copy variants that drive conversions.
+    const systemPrompt = `You are an expert direct-response copywriter for performance advertising at Hype10 agency.
+
+CURRENT CLIENT: Fulton — Premium supportive footwear & insoles
+Brand Tone: Empathetic & credibly science-backed. Lead with pain-point empathy, pivot to science.
+Key Features: Cork arch support, deep heel cup, all-day comfort, medical-grade materials.
+Top Performers: "Cheaper than PT" (7.6x ROAS), "Science-Backed" (5.1x ROAS)
+DO: Lead with specific pain points, empathetic language, feature close-ups, cost comparisons
+DON'T: Medical cure claims, clinical imagery, off-brand colors, generic wellness language
 
 Rules:
 - Headlines: 5-10 words, punchy, specific to the persona's pain point
@@ -24,7 +31,7 @@ Rules:
 - CTA: 2-4 words, action-oriented, creates urgency
 - Match the requested tone exactly
 - Write for the specified platform's format and character limits
-${brandContext ? `\nBrand context: ${brandContext}` : ''}
+${brandContext ? `\nAdditional brand context: ${brandContext}` : ''}
 
 Respond with EXACTLY this JSON format, no other text:
 {
@@ -37,7 +44,7 @@ Respond with EXACTLY this JSON format, no other text:
 }`
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       system: systemPrompt,
       messages: [{
