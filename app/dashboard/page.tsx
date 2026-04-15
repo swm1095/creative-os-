@@ -21,6 +21,7 @@ import BrandView from '@/components/views/BrandView'
 import ChatView from '@/components/views/ChatView'
 import CopyView from '@/components/views/CopyView'
 import PerformanceView from '@/components/views/PerformanceView'
+import ResizeView from '@/components/views/ResizeView'
 
 export default function DashboardPage() {
   const { brands, activeBrand, setActiveBrand, createBrand, updateBrand } = useBrands()
@@ -31,6 +32,8 @@ export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewId>('hub')
   const [showBrandModal, setShowBrandModal] = useState(false)
   const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null)
+  const [lastGeneratedFormats, setLastGeneratedFormats] = useState<Record<string, string>>({})
+  const [lastGeneratedHeadline, setLastGeneratedHeadline] = useState('')
   const [globalDragging, setGlobalDragging] = useState(false)
   const [droppedFiles, setDroppedFiles] = useState<File[]>([])
   const dragCounter = useRef(0)
@@ -123,9 +126,9 @@ export default function DashboardPage() {
                 .map(r => ({
                   id: crypto.randomUUID(),
                   brand_id: activeBrand?.id || '',
-                  title: `${r.persona.name} — ${r.persona.angle.slice(0, 30)}`,
+                  title: `${r.persona.name} - ${r.persona.angle.slice(0, 30)}`,
                   image_url: r.imageUrl,
-                  format: '1x1' as const,
+                  format: '9x16' as const,
                   generator: 'gemini' as const,
                   qc_spelling: 'pending' as const,
                   qc_brand: 'pending' as const,
@@ -133,9 +136,18 @@ export default function DashboardPage() {
                   created_at: new Date().toISOString(),
                 }))
               addCreatives(newCreatives)
+
+              // Store format URLs for resize view
+              const firstResult = results[0]
+              if (firstResult?.formats) {
+                setLastGeneratedFormats(firstResult.formats as Record<string, string>)
+                setLastGeneratedHeadline(firstResult.persona?.hook || firstResult.persona?.angle || '')
+              }
             }}
           />
         )
+      case 'resize':
+        return <ResizeView formats={lastGeneratedFormats} headline={lastGeneratedHeadline} onToast={addToast} />
       case 'qc':
         return <QCView imageUrl={selectedCreative?.image_url} onToast={addToast} />
       case 'brand':

@@ -23,6 +23,7 @@ export const TOOLS: ToolDef[] = [
     views: [
       { id: 'image-dashboard', label: 'Dashboard' },
       { id: 'generate', label: 'Generate' },
+      { id: 'resize', label: 'Resize' },
       { id: 'qc', label: 'QC' },
       { id: 'brand', label: 'Brand Kit' },
       { id: 'integrations', label: 'Integrations' },

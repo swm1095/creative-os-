@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Brand, BrandAnalysis } from '@/lib/types'
 import { DEFAULT_BRAND } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ImagePreview from '@/components/ui/ImagePreview'
 
 interface BrandViewProps {
   brand: Brand | null
@@ -14,19 +15,44 @@ interface BrandViewProps {
   onBrandUpdate: (brandId: string, updates: Partial<Brand>) => void
 }
 
+interface BrandAsset {
+  name: string
+  url: string
+  size: number
+  created?: string
+}
+
 export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewProps) {
   const [analyzing, setAnalyzing] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null)
-  const [productImages, setProductImages] = useState<{ file: File; preview: string }[]>([])
+  const [savedAssets, setSavedAssets] = useState<BrandAsset[]>([])
+  const [pendingAssets, setPendingAssets] = useState<{ file: File; preview: string }[]>([])
+  const [saving, setSaving] = useState(false)
+  const [loadingAssets, setLoadingAssets] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const logoRef = useRef<HTMLInputElement>(null)
   const guidelinesRef = useRef<HTMLInputElement>(null)
-  const productRef = useRef<HTMLInputElement>(null)
+  const assetRef = useRef<HTMLInputElement>(null)
 
   const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
   const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
   const tone = brand?.tone_notes || DEFAULT_BRAND.tone
+
+  // Load saved assets from Supabase
+  const loadAssets = useCallback(async () => {
+    if (!brand?.id) return
+    setLoadingAssets(true)
+    try {
+      const res = await fetch(`/api/brand-assets?brandId=${brand.id}`)
+      const data = await res.json()
+      if (data.assets) setSavedAssets(data.assets)
+    } catch { /* silent fail */ }
+    setLoadingAssets(false)
+  }, [brand?.id])
+
+  useEffect(() => { loadAssets() }, [loadAssets])
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -46,7 +72,44 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
       return
     }
     setGuidelinesFile(file)
-    onToast(`${file.name} uploaded — click "Re-analyze with Gemini" to extract`, 'info')
+    onToast(`${file.name} uploaded - click "Re-analyze with Gemini" to extract`, 'info')
+  }
+
+  const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        setPendingAssets(prev => [...prev, { file, preview: ev.target?.result as string }])
+      }
+      reader.readAsDataURL(file)
+    })
+    if (files.length) onToast(`${files.length} file${files.length > 1 ? 's' : ''} added - click Save to upload`, 'info')
+  }
+
+  const handleSaveAssets = async () => {
+    if (!pendingAssets.length) { onToast('No new assets to save', 'info'); return }
+    if (!brand?.id) { onToast('No brand selected', 'error'); return }
+
+    setSaving(true)
+    onToast(`Saving ${pendingAssets.length} asset${pendingAssets.length > 1 ? 's' : ''}...`, 'info')
+
+    try {
+      const formData = new FormData()
+      formData.append('brandId', brand.id)
+      pendingAssets.forEach(a => formData.append('files', a.file))
+
+      const res = await fetch('/api/brand-assets', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      onToast(`${data.count} asset${data.count > 1 ? 's' : ''} saved to brand library`, 'success')
+      setPendingAssets([])
+      loadAssets() // refresh the saved list
+    } catch (err: unknown) {
+      onToast(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setSaving(false)
   }
 
   const handleAnalyze = async () => {
@@ -80,7 +143,7 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
           logo_url: data.logoUrl || brand.logo_url,
         })
       }
-      onToast('Brand analysis complete — colors, fonts, and tone extracted', 'success')
+      onToast('Brand analysis complete - colors, fonts, and tone extracted', 'success')
     } catch (err: unknown) {
       onToast(`Analysis failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
@@ -88,8 +151,8 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
   }
 
   return (
-    <div className="animate-fadeIn grid grid-cols-[1fr_300px] gap-4">
-      {/* Left — Brand Profile */}
+    <div className="animate-fadeIn grid grid-cols-[1fr_320px] gap-4">
+      {/* Left - Brand Profile */}
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -149,21 +212,90 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
         {/* Do / Don't */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-green-light border border-green/20 rounded-lg p-4">
-            <div className="text-xs font-bold text-green mb-2">✓ DO</div>
+            <div className="text-xs font-bold text-green mb-2">DO</div>
             <ul className="space-y-1.5">
-              {DEFAULT_BRAND.dos.map((d, i) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}
+              {DEFAULT_BRAND.dos.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
             </ul>
           </div>
           <div className="bg-red-light border border-red/20 rounded-lg p-4">
-            <div className="text-xs font-bold text-red mb-2">✕ DON'T</div>
+            <div className="text-xs font-bold text-red mb-2">DON'T</div>
             <ul className="space-y-1.5">
-              {DEFAULT_BRAND.donts.map((d, i) => <li key={i} className="text-xs text-text-secondary">• {d}</li>)}
+              {DEFAULT_BRAND.donts.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
             </ul>
           </div>
         </div>
+
+        {/* Asset Library */}
+        <div>
+          <SectionHeader
+            title="Brand Asset Library"
+            subtitle={`${savedAssets.length} saved asset${savedAssets.length !== 1 ? 's' : ''}`}
+            action={
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => assetRef.current?.click()}>+ Add Files</Button>
+                {pendingAssets.length > 0 && (
+                  <Button size="sm" onClick={handleSaveAssets} disabled={saving}>
+                    {saving ? <><LoadingSpinner size={12} /> Saving...</> : `Save ${pendingAssets.length} File${pendingAssets.length > 1 ? 's' : ''}`}
+                  </Button>
+                )}
+              </div>
+            }
+          />
+          <input ref={assetRef} type="file" accept="image/*,.pdf,.svg" multiple className="hidden" onChange={handleAssetUpload} />
+
+          {/* Pending uploads (not yet saved) */}
+          {pendingAssets.length > 0 && (
+            <div className="mb-4">
+              <div className="text-2xs font-bold text-amber uppercase tracking-wider mb-2">Unsaved - click Save to upload</div>
+              <div className="grid grid-cols-4 gap-2">
+                {pendingAssets.map((asset, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border-2 border-dashed border-amber group">
+                    <img src={asset.preview} alt="" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => setPendingAssets(prev => prev.filter((_, idx) => idx !== i))}
+                      className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >
+                      x
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
+                      <div className="text-2xs text-white truncate">{asset.file.name}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Saved assets from Supabase */}
+          {loadingAssets ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size={20} />
+            </div>
+          ) : savedAssets.length > 0 ? (
+            <div className="grid grid-cols-4 gap-2">
+              {savedAssets.map((asset, i) => (
+                <div
+                  key={i}
+                  className="relative aspect-square rounded-lg overflow-hidden border border-border cursor-pointer hover:border-fulton/40 transition-colors group"
+                  onClick={() => setPreviewImage(asset.url)}
+                >
+                  <img src={asset.url} alt={asset.name} className="w-full h-full object-cover" />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="text-2xs text-white truncate">{asset.name}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-surface border border-border rounded-lg p-6 text-center">
+              <div className="text-xl mb-2">📁</div>
+              <div className="text-xs text-text-dim">No saved assets yet. Upload product photos, logos, and brand materials.</div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Right — Upload & Analyze */}
+      {/* Right - Upload & Analyze */}
       <div className="space-y-4">
         <Card title="Update Brand Kit" subtitle="Upload assets for Gemini analysis">
           <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
@@ -201,50 +333,9 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
             {analyzing ? <><LoadingSpinner size={14} /> Analyzing...</> : 'Re-analyze with Gemini'}
           </Button>
         </Card>
-
-        {/* Product Image Library */}
-        <Card title="Product Images" subtitle="Upload product shots for use in ad generation">
-          <input
-            ref={productRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const files = Array.from(e.target.files || [])
-              files.forEach(file => {
-                const reader = new FileReader()
-                reader.onload = (ev) => {
-                  setProductImages(prev => [...prev, { file, preview: ev.target?.result as string }])
-                }
-                reader.readAsDataURL(file)
-              })
-              if (files.length) onToast(`${files.length} product image${files.length > 1 ? 's' : ''} added`, 'success')
-            }}
-          />
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {productImages.map((img, i) => (
-              <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border group">
-                <img src={img.preview} alt="" className="w-full h-full object-cover" />
-                <button
-                  onClick={() => setProductImages(prev => prev.filter((_, idx) => idx !== i))}
-                  className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                >
-                  x
-                </button>
-              </div>
-            ))}
-            <button
-              onClick={() => productRef.current?.click()}
-              className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center hover:border-fulton/40 transition-colors cursor-pointer"
-            >
-              <span className="text-lg">+</span>
-              <span className="text-2xs text-text-dim">Add</span>
-            </button>
-          </div>
-          <div className="text-2xs text-text-dim">These images can be used as source material when generating ad creatives.</div>
-        </Card>
       </div>
+
+      <ImagePreview src={previewImage || ''} open={!!previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   )
 }

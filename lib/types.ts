@@ -99,6 +99,11 @@ export interface GenerateResult {
   imageUrl: string
   error?: string
   jobId?: string
+  formats?: {
+    '9x16'?: string
+    '4x5'?: string
+    '1x1'?: string
+  }
 }
 
 // ── Brand Analysis ───────────────────────────────────────────
