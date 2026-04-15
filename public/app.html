@@ -4698,12 +4698,10 @@ function reanalyzeBrand() {
         return { hex: hex, label: '' };
       });
       // Re-render color swatches
-      var colorSwatches = document.getElementById('brand-color-swatches');
+      var colorSwatches = document.getElementById('brand-colors-display');
       if (colorSwatches) {
         colorSwatches.innerHTML = brandState.colors.map(function(c) {
-          return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px">' +
-            '<div style="width:40px;height:40px;border-radius:50%;background:' + c.hex + ';border:2px solid rgba(255,255,255,0.08)"></div>' +
-            '<span style="font-size:10px;font-family:monospace;color:var(--gray-500)">' + c.hex + '</span></div>';
+          return '<div class="color-swatch"><div class="swatch-circle" style="background:' + c.hex + '"></div><div class="swatch-hex">' + c.hex + '</div></div>';
         }).join('');
       }
     }
@@ -4712,17 +4710,17 @@ function reanalyzeBrand() {
       brandState.fonts = analysis.fonts.map(function(name) {
         return { name: name, use: '' };
       });
-      var fontTags = document.getElementById('brand-font-tags');
+      var fontTags = document.getElementById('brand-fonts-display');
       if (fontTags) {
         fontTags.innerHTML = brandState.fonts.map(function(f) {
-          return '<span class="font-tag">' + f.name + '</span>';
+          return '<div class="font-tag">' + f.name + '</div>';
         }).join('');
       }
     }
 
     if (analysis.tone) {
       brandState.tone = analysis.tone;
-      var toneBox = document.getElementById('brand-tone-box');
+      var toneBox = document.getElementById('brand-tone-display');
       if (toneBox) toneBox.textContent = analysis.tone + (analysis.styleNotes ? ' ' + analysis.styleNotes : '');
     }
 
