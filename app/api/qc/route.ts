@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase-server'
+import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { QCNote, QCResult, QCStatus } from '@/lib/types'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -117,8 +117,6 @@ function computeOverall(spelling: QCNote, brand: QCNote, claims: QCNote): QCStat
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured. Add it in your .env.local file.' }, { status: 500 })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { createServiceClient as createClient } from '@/lib/supabase-server'
 
 // ──────────────────────────────────────────────────────────────────────────
 // POST /api/creatomate
@@ -93,8 +93,6 @@ async function pollRender(apiKey: string, renderId: string): Promise<string> {
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const apiKey = process.env.CREATOMATE_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'CREATOMATE_API_KEY not configured' }, { status: 500 })

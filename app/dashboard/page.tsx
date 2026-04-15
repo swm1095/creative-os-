@@ -27,16 +27,17 @@ export default function DashboardPage() {
   const [showQC, setShowQC] = useState<Creative | null>(null)
   const [showBrandUpload, setShowBrandUpload] = useState(false)
 
+  const DEMO_USER_ID = '00000000-0000-0000-0000-000000000000'
+
   // Load user and brands
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user?.email) setUserEmail(user.email)
+      setUserEmail(user?.email || 'demo@hype10agency.com')
 
       const { data: brandsData } = await supabase
         .from('brands')
         .select('*, creatives(count)')
-        .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
 
       if (brandsData) {
@@ -74,7 +75,7 @@ export default function DashboardPage() {
   const handleCreateBrand = async (name: string, url: string): Promise<Brand> => {
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('brands').insert({
-      name, url, user_id: user?.id, color: '#2B4EFF'
+      name, url, user_id: user?.id || DEMO_USER_ID, color: '#2B4EFF'
     }).select().single()
     if (error) throw new Error(error.message)
     const newBrand = { ...data, creative_count: 0 }

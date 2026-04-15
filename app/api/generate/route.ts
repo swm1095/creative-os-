@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { GenerateRequest, GenerateResult } from '@/lib/types'
 
 // ── Aspect ratio maps ──────────────────────────────────────────────────────
@@ -215,8 +215,6 @@ async function generate(
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body: GenerateRequest & {
       sourceImageUrl?: string  // for image-to-image (Kling)
@@ -271,7 +269,7 @@ export async function POST(req: NextRequest) {
         const title = `${concept.slice(0, 40)} — ${persona.name}`
         await supabase.from('creatives').insert({
           brand_id: brandId,
-          user_id: user.id,
+          user_id: '00000000-0000-0000-0000-000000000000',
           title,
           concept,
           persona: persona.name,
