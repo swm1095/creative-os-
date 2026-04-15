@@ -1,0 +1,48 @@
+'use client'
+
+import { Creative, ViewId } from '@/lib/types'
+import { MOCK_STATS } from '@/lib/constants'
+import StatCard from '@/components/ui/StatCard'
+import SectionHeader from '@/components/ui/SectionHeader'
+import CreativeCard from '@/components/ui/CreativeCard'
+import Button from '@/components/ui/Button'
+
+interface ImageDashboardViewProps {
+  creatives: Creative[]
+  onNavigate: (view: ViewId) => void
+  onSelectCreative: (creative: Creative) => void
+}
+
+export default function ImageDashboardView({ creatives, onNavigate, onSelectCreative }: ImageDashboardViewProps) {
+  return (
+    <div className="animate-fadeIn">
+      <div className="grid grid-cols-4 gap-3.5 mb-6">
+        <StatCard label="Total Creatives" value={creatives.length || MOCK_STATS.totalCreatives} change={`↑ ${MOCK_STATS.weeklyCreatives} this week`} />
+        <StatCard label="QC Pass Rate" value={`${MOCK_STATS.qcPassRate}%`} change="↑ 2% vs last batch" />
+        <StatCard label="Active Brands" value={MOCK_STATS.activeBrands} change="2 updated today" changeColor="text-blue" />
+        <StatCard label="Formats Generated" value="567" change="3 formats per creative" changeColor="text-text-dim" />
+      </div>
+
+      <SectionHeader
+        title="Recent Creatives"
+        subtitle="Latest generated assets"
+        action={<Button variant="ghost" size="sm" onClick={() => onNavigate('generate')}>+ New Generation</Button>}
+      />
+
+      {creatives.length > 0 ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-3.5 mb-6">
+          {creatives.slice(0, 12).map(c => (
+            <CreativeCard key={c.id} creative={c} onClick={() => onSelectCreative(c)} />
+          ))}
+        </div>
+      ) : (
+        <div className="bg-surface border border-border rounded-lg p-8 text-center mb-6">
+          <div className="text-3xl mb-3">🖼</div>
+          <div className="text-sm font-bold mb-1">No creatives yet</div>
+          <div className="text-xs text-text-dim mb-4">Generate your first AI-powered ad creative</div>
+          <Button onClick={() => onNavigate('generate')}>Generate Creatives</Button>
+        </div>
+      )}
+    </div>
+  )
+}

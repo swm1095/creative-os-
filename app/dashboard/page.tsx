@@ -1,237 +1,185 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase-client'
-import { Brand, Creative, Job, GenerateResult, QCResult, BrandAnalysis } from '@/lib/types'
-import Sidebar from '@/components/Sidebar'
-import Gallery from '@/components/Gallery'
-import GeneratePanel from '@/components/GeneratePanel'
-import ResizeViewer from '@/components/ResizeViewer'
-import QCPanel from '@/components/QCPanel'
-import BrandUpload from '@/components/BrandUpload'
-import IntegrationsView from '@/components/IntegrationsView'
+import { useState, useCallback } from 'react'
+import { ToolId, ViewId, Creative } from '@/lib/types'
+import { TOOLS } from '@/lib/constants'
+import { useBrands } from '@/lib/hooks/use-brands'
+import { useCreatives } from '@/lib/hooks/use-creatives'
+import { useToast } from '@/lib/hooks/use-toast'
+import Sidebar from '@/components/layout/Sidebar'
+import Topbar from '@/components/layout/Topbar'
+import ToastContainer from '@/components/ui/Toast'
+import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
+
+// Views
+import HubView from '@/components/views/HubView'
+import ImageDashboardView from '@/components/views/ImageDashboardView'
+import GenerateView from '@/components/views/GenerateView'
+import QCView from '@/components/views/QCView'
+import BrandView from '@/components/views/BrandView'
+import ChatView from '@/components/views/ChatView'
+import CopyView from '@/components/views/CopyView'
+import PerformanceView from '@/components/views/PerformanceView'
 
 export default function DashboardPage() {
-  const supabase = createClient()
+  const { brands, activeBrand, setActiveBrand, createBrand, updateBrand } = useBrands()
+  const { creatives, addCreatives } = useCreatives(activeBrand?.id)
+  const { toasts, addToast, dismissToast } = useToast()
 
-  const [userEmail, setUserEmail] = useState('')
-  const [brands, setBrands] = useState<Brand[]>([])
-  const [activeBrand, setActiveBrand] = useState<Brand | null>(null)
-  const [creatives, setCreatives] = useState<Creative[]>([])
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [loading, setLoading] = useState(true)
+  const [currentTool, setCurrentTool] = useState<ToolId>(null)
+  const [activeView, setActiveView] = useState<ViewId>('hub')
+  const [showBrandModal, setShowBrandModal] = useState(false)
+  const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null)
 
-  const [view, setView] = useState<'gallery' | 'integrations'>('gallery')
-  const [showGenerate, setShowGenerate] = useState(false)
-  const [showResize, setShowResize] = useState<Creative | null>(null)
-  const [showQC, setShowQC] = useState<Creative | null>(null)
-  const [showBrandUpload, setShowBrandUpload] = useState(false)
-
-  const DEMO_USER_ID = '00000000-0000-0000-0000-000000000000'
-
-  // Load user and brands
-  useEffect(() => {
-    const init = async () => {
-      setUserEmail('demo@hype10agency.com')
-
-      const { data: brandsData } = await supabase
-        .from('brands')
-        .select('*, creatives(count)')
-        .order('created_at', { ascending: false })
-
-      if (brandsData) {
-        const withCount = brandsData.map(b => ({
-          ...b,
-          creative_count: b.creatives?.[0]?.count || 0,
-        }))
-        setBrands(withCount)
-        if (withCount.length > 0) setActiveBrand(withCount[0])
-      }
-      setLoading(false)
-    }
-    init()
+  const navigate = useCallback((tool: ToolId, view: ViewId) => {
+    setCurrentTool(tool)
+    setActiveView(view)
   }, [])
 
-  // Load creatives when brand changes
-  useEffect(() => {
-    if (!activeBrand) { setCreatives([]); setJobs([]); return }
-    const loadBrandData = async () => {
-      const [cRes, jRes] = await Promise.all([
-        supabase.from('creatives').select('*').eq('brand_id', activeBrand.id).order('created_at', { ascending: false }).limit(50),
-        supabase.from('jobs').select('*').eq('brand_id', activeBrand.id).order('created_at', { ascending: false }).limit(20),
-      ])
-      if (cRes.data) setCreatives(cRes.data)
-      if (jRes.data) setJobs(jRes.data)
+  // Get topbar title based on current view
+  const getTopbar = () => {
+    if (activeView === 'hub') return { title: 'HyperCreate', subtitle: `Welcome back, Sam · ${brands.length} brands active` }
+    const tool = TOOLS.find(t => t.id === currentTool)
+    const viewDef = tool?.views.find(v => v.id === activeView)
+    const brandPrefix = activeBrand ? `${activeBrand.name} ` : ''
+    return {
+      title: `${brandPrefix}${tool?.name || viewDef?.label || 'Dashboard'}`,
+      subtitle: viewDef?.label || '',
     }
-    loadBrandData()
-  }, [activeBrand])
-
-  const handleBrandSelect = (brand: Brand) => {
-    setActiveBrand(brand)
-    setView('gallery')
   }
 
-  const handleCreateBrand = async (name: string, url: string): Promise<Brand> => {
-    const { data, error } = await supabase.from('brands').insert({
-      name, url, user_id: DEMO_USER_ID, color: '#2B4EFF'
-    }).select().single()
-    if (error) throw new Error(error.message)
-    const newBrand = { ...data, creative_count: 0 }
-    setBrands(prev => [newBrand, ...prev])
-    setActiveBrand(newBrand)
-    return newBrand
-  }
+  const topbar = getTopbar()
 
-  const handleGenerateComplete = (results: GenerateResult[]) => {
-    // Add generated creatives to gallery
-    const newCreatives: Creative[] = results
-      .filter(r => r.imageUrl)
-      .map(r => ({
-        id: crypto.randomUUID(),
-        brand_id: activeBrand!.id,
-        user_id: '',
-        title: `${r.persona.name} — ${r.persona.angle.slice(0, 30)}`,
-        concept: '',
-        persona: r.persona.name,
-        angle: r.persona.angle,
-        image_url: r.imageUrl,
-        format: '1x1',
-        generator: 'ideogram',
-        qc_spelling: 'pending',
-        qc_brand: 'pending',
-        qc_claims: 'pending',
-        created_at: new Date().toISOString(),
-      }))
-    setCreatives(prev => [...newCreatives, ...prev])
-    setShowGenerate(false)
-  }
+  // Brand context string for AI features
+  const brandContext = activeBrand
+    ? `Brand: ${activeBrand.name}. ${activeBrand.tone_notes || ''} Colors: ${(activeBrand.brand_colors || []).join(', ')}`
+    : ''
 
-  const handleQCComplete = (result: QCResult, creativeId: string) => {
-    setCreatives(prev => prev.map(c =>
-      c.id === creativeId ? {
-        ...c,
-        qc_spelling: result.spelling.status,
-        qc_brand: result.brand.status,
-        qc_claims: result.claims.status,
-        qc_notes: [result.spelling, result.brand, result.claims],
-      } : c
-    ))
-  }
-
-  const handleBrandAnalysis = (analysis: BrandAnalysis, brandId: string) => {
-    setBrands(prev => prev.map(b => b.id === brandId ? {
-      ...b,
-      brand_colors: analysis.colors,
-      brand_fonts: analysis.fonts,
-      tone_notes: analysis.tone,
-    } : b))
-    if (activeBrand?.id === brandId) {
-      setActiveBrand(prev => prev ? {
-        ...prev,
-        brand_colors: analysis.colors,
-        brand_fonts: analysis.fonts,
-        tone_notes: analysis.tone,
-      } : prev)
+  // Render active view
+  const renderView = () => {
+    switch (activeView) {
+      case 'hub':
+        return <HubView onNavigate={navigate} />
+      case 'image-dashboard':
+        return (
+          <ImageDashboardView
+            creatives={creatives}
+            onNavigate={(view) => navigate(currentTool, view)}
+            onSelectCreative={(c) => { setSelectedCreative(c); navigate(currentTool, 'qc') }}
+          />
+        )
+      case 'generate':
+        return (
+          <GenerateView
+            brandId={activeBrand?.id}
+            onToast={addToast}
+            onGenerated={(results) => {
+              const newCreatives: Creative[] = results
+                .filter(r => r.imageUrl)
+                .map(r => ({
+                  id: crypto.randomUUID(),
+                  brand_id: activeBrand?.id || '',
+                  title: `${r.persona.name} — ${r.persona.angle.slice(0, 30)}`,
+                  image_url: r.imageUrl,
+                  format: '1x1' as const,
+                  generator: 'gemini' as const,
+                  qc_spelling: 'pending' as const,
+                  qc_brand: 'pending' as const,
+                  qc_claims: 'pending' as const,
+                  created_at: new Date().toISOString(),
+                }))
+              addCreatives(newCreatives)
+            }}
+          />
+        )
+      case 'qc':
+        return <QCView imageUrl={selectedCreative?.image_url} onToast={addToast} />
+      case 'brand':
+        return <BrandView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
+      case 'chat':
+        return <ChatView brandContext={brandContext} onToast={addToast} />
+      case 'copy':
+        return <CopyView brandContext={brandContext} onToast={addToast} />
+      case 'performance':
+        return <PerformanceView />
+      case 'coming-soon':
+        return (
+          <div className="animate-fadeIn flex flex-col items-center justify-center py-24 text-center">
+            <div className="text-5xl mb-4">🚧</div>
+            <h2 className="text-2xl font-black mb-2">Coming Soon</h2>
+            <p className="text-sm text-text-dim max-w-md">This tool is under development. Check back soon.</p>
+          </div>
+        )
+      default:
+        return <HubView onNavigate={navigate} />
     }
-    setShowBrandUpload(false)
-  }
-
-  const handleCreativeClick = (creative: Creative) => {
-    // Open a context menu or action panel
-    // For now: right-click would be ideal, but we'll show a quick action bar
-    setShowQC(creative)
-  }
-
-  if (loading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--gray-50)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ width: 32, height: 32, border: '3px solid var(--border)', borderTopColor: 'var(--blue)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', margin: '0 auto 12px' }}/>
-          <div style={{ fontSize: 13, color: 'var(--gray-500)' }}>Loading CreativeOS...</div>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-        {/* Sidebar */}
-        <Sidebar
-          brands={brands}
-          activeBrandId={activeBrand?.id || null}
-          activeView={view}
-          userEmail={userEmail}
-          onBrandSelect={handleBrandSelect}
-          onViewChange={setView}
-          onAddBrand={() => setShowBrandUpload(true)}
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar
+        currentTool={currentTool}
+        activeView={activeView}
+        activeBrand={activeBrand}
+        brands={brands}
+        onNavigate={navigate}
+        onBrandSelect={setActiveBrand}
+        onShowBrandModal={() => setShowBrandModal(true)}
+      />
+
+      <main className="ml-sidebar flex-1 h-screen overflow-y-auto flex flex-col">
+        <Topbar
+          title={topbar.title}
+          subtitle={topbar.subtitle}
+          actions={
+            activeView === 'hub' ? (
+              <Button onClick={() => navigate('hypeimage', 'generate')}>Launch HyperImage →</Button>
+            ) : activeView === 'image-dashboard' ? (
+              <Button onClick={() => navigate(currentTool, 'generate')}>+ New Generation</Button>
+            ) : undefined
+          }
         />
 
-        {/* Main area */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {view === 'gallery' ? (
-            <Gallery
-              brand={activeBrand}
-              creatives={creatives}
-              jobs={jobs}
-              onGenerate={() => activeBrand ? setShowGenerate(true) : setShowBrandUpload(true)}
-              onCreativeClick={handleCreativeClick}
-            />
-          ) : (
-            <IntegrationsView/>
-          )}
+        <div className="flex-1 px-7 py-6">
+          {renderView()}
         </div>
-      </div>
+      </main>
 
-      {/* Overlays */}
-      {showGenerate && activeBrand && (
-        <GeneratePanel
-          brand={activeBrand}
-          onClose={() => setShowGenerate(false)}
-          onComplete={handleGenerateComplete}
-        />
-      )}
-
-      {showResize && (
-        <ResizeViewer
-          creative={showResize}
-          onClose={() => setShowResize(null)}
-        />
-      )}
-
-      {showQC && (
-        <div>
-          {/* Quick action bar above QC panel */}
-          <div style={{
-            position: 'fixed', bottom: 0, left: 220, right: 0, zIndex: 350,
-            background: 'white', borderTop: '1px solid var(--border)',
-            padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 12
-          }}>
-            <img src={showQC.image_url} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)' }}/>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{showQC.title}</div>
-            </div>
-            <button className="btn-ghost" onClick={() => { setShowQC(null); setShowResize(showQC) }}>↔ Resize</button>
-            <button className="btn-primary" onClick={() => {}}>Run QC</button>
-            <button onClick={() => setShowQC(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--gray-500)' }}>×</button>
-          </div>
-          <QCPanel
-            creative={showQC}
-            onClose={() => setShowQC(null)}
-            onQCComplete={handleQCComplete}
-          />
+      {/* Brand selector modal */}
+      <Modal open={showBrandModal} onClose={() => setShowBrandModal(false)} title="Switch Brand" subtitle="Select active client" maxWidth="max-w-sm">
+        <div className="space-y-2">
+          {brands.map(b => (
+            <button
+              key={b.id}
+              onClick={() => { setActiveBrand(b); setShowBrandModal(false) }}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
+                activeBrand?.id === b.id ? 'bg-fulton-light border border-fulton' : 'bg-page border border-border hover:border-text-subtle'
+              }`}
+            >
+              <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
+                {b.name.charAt(0)}
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-bold">{b.name}</div>
+                <div className="text-2xs text-text-dim">{b.creative_count || 0} creatives</div>
+              </div>
+              {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
+            </button>
+          ))}
+          <button
+            onClick={async () => {
+              const brand = await createBrand('New Brand')
+              if (brand) { setShowBrandModal(false); addToast('Brand created', 'success') }
+            }}
+            className="w-full px-3 py-2.5 border border-dashed border-border rounded-lg text-sm text-text-dim hover:text-text-primary hover:border-text-subtle transition-all text-center"
+          >
+            + Add Brand
+          </button>
         </div>
-      )}
+      </Modal>
 
-      {showBrandUpload && (
-        <BrandUpload
-          brand={activeBrand}
-          onClose={() => setShowBrandUpload(false)}
-          onAnalysisComplete={handleBrandAnalysis}
-          onCreateBrand={handleCreateBrand}
-        />
-      )}
-    </>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+    </div>
   )
 }
