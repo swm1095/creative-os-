@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { composeAd } from '@/lib/compose-ad'
 
 export const maxDuration = 60
 
@@ -90,43 +91,34 @@ function buildPrompt(
   const lines: string[] = []
 
   if (hasReferenceImage && hasProductImages) {
-    // Both reference and product - strongest instruction
     lines.push('I am giving you TWO types of images:')
-    lines.push('1. The FIRST image is a REFERENCE AD. Replicate its EXACT layout, background, text placement, composition, and visual style.')
-    lines.push('2. The REMAINING image(s) are PRODUCT PHOTOS. Swap the product in the reference with THIS product.')
+    lines.push('1. The FIRST image is a REFERENCE AD. Replicate its EXACT layout, background, lighting, composition, and visual style.')
+    lines.push('2. The REMAINING image(s) are PRODUCT PHOTOS. Feature this EXACT product in the scene, replacing whatever product is in the reference.')
     lines.push('')
-    lines.push('Your job: Recreate the reference ad but with the provided product and the text below.')
+    lines.push('Recreate the reference image composition with the provided product.')
   } else if (hasReferenceImage) {
-    // Reference only
-    lines.push('I am giving you a REFERENCE AD IMAGE.')
-    lines.push('Replicate its EXACT layout, background, text placement, colors, font style, and composition.')
-    lines.push('Change ONLY the text to what I specify below. Keep everything else the same.')
+    lines.push('I am giving you a REFERENCE IMAGE.')
+    lines.push('Replicate its EXACT layout, background, lighting, colors, and composition.')
+    lines.push('Create a new version matching the same visual style.')
   } else if (hasProductImages) {
-    // Product only
     lines.push('I am giving you PRODUCT PHOTOS.')
-    lines.push('Create a social media ad featuring this EXACT product. Do not change or invent a different product.')
+    lines.push('Create a beautiful product photograph featuring this EXACT product. Do not invent a different product.')
   } else {
-    lines.push('Create a social media ad creative image.')
+    lines.push('Create a product lifestyle photograph.')
   }
 
   lines.push('')
-  lines.push(`HEADLINE TEXT TO PUT ON THE IMAGE: "${persona.hook || persona.angle}"`)
-  lines.push(`CTA BUTTON TEXT: "Shop Now"`)
-  lines.push('')
   lines.push(`Target audience: ${persona.name}`)
-  lines.push(`Ad angle: ${persona.angle}`)
+  lines.push(`Mood/feeling: ${persona.angle}`)
 
   if (brandContext) {
     lines.push(`Brand: ${brandContext}`)
   }
 
-  if (!hasReferenceImage) {
-    lines.push('')
-    lines.push(`Scene/concept: ${concept}`)
-  }
-
   lines.push('')
-  lines.push('The output MUST be a polished social media ad with readable headline text and a CTA button.')
+  lines.push(`Scene: ${concept}`)
+  lines.push('')
+  lines.push('IMPORTANT: Do NOT add any text, words, logos, buttons, or typography to the image. Generate ONLY the photograph/visual. Text will be added separately. The image should be a clean visual with no overlaid text of any kind.')
 
   return lines.join('\n')
 }
@@ -246,8 +238,24 @@ export async function POST(req: NextRequest) {
           !!hasRef,
           hasProducts
         )
-        const imageDataUrl = await generateWithGemini(prompt, imageInputs)
-        const imageUrl = await uploadToStorage(supabase, imageDataUrl, brandId)
+
+        // Step 1: Generate clean image with Gemini (no text)
+        const rawImageDataUrl = await generateWithGemini(prompt, imageInputs)
+
+        // Step 2: Composite headline, CTA, and brand name using Sharp
+        const rawBase64 = rawImageDataUrl.split(',')[1]
+        const rawBuffer = Buffer.from(rawBase64, 'base64')
+
+        const composedBuffer = await composeAd({
+          imageBuffer: rawBuffer,
+          headline: persona.hook || persona.angle,
+          cta: 'Shop Now',
+          brandName: brand?.name?.toUpperCase() || 'FULTON',
+          brandColor: brand?.color || '#1B4332',
+        })
+
+        const composedDataUrl = `data:image/png;base64,${composedBuffer.toString('base64')}`
+        const imageUrl = await uploadToStorage(supabase, composedDataUrl, brandId)
 
         const title = `${persona.name} - ${persona.angle.slice(0, 30)}`
         await supabase.from('creatives').insert({
