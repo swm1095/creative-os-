@@ -56,11 +56,20 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData()
-    const brandId = formData.get('brandId') as string
+    let brandId = formData.get('brandId') as string
     const logoFile = formData.get('logo') as File | null
     const guidelinesFile = formData.get('guidelines') as File | null
 
-    if (!brandId) return NextResponse.json({ error: 'brandId required' }, { status: 400 })
+    // Auto-create brand for demo mode
+    if (!brandId || brandId === 'demo') {
+      const { data: existing } = await supabase.from('brands').select('id').eq('name', 'Fulton').limit(1).single()
+      if (existing) {
+        brandId = existing.id
+      } else {
+        const { data: newBrand } = await supabase.from('brands').insert({ name: 'Fulton', color: '#1B4332', url: 'https://walkfulton.com' }).select('id').single()
+        brandId = newBrand?.id || 'demo'
+      }
+    }
     if (!logoFile && !guidelinesFile) return NextResponse.json({ error: 'At least one file required' }, { status: 400 })
 
     // File size limit: 20MB
