@@ -19,8 +19,10 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null)
+  const [productImages, setProductImages] = useState<{ file: File; preview: string }[]>([])
   const logoRef = useRef<HTMLInputElement>(null)
   const guidelinesRef = useRef<HTMLInputElement>(null)
+  const productRef = useRef<HTMLInputElement>(null)
 
   const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
   const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
@@ -198,6 +200,49 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
           <Button onClick={handleAnalyze} disabled={analyzing} variant="secondary" className="w-full justify-center">
             {analyzing ? <><LoadingSpinner size={14} /> Analyzing...</> : 'Re-analyze with Gemini'}
           </Button>
+        </Card>
+
+        {/* Product Image Library */}
+        <Card title="Product Images" subtitle="Upload product shots for use in ad generation">
+          <input
+            ref={productRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || [])
+              files.forEach(file => {
+                const reader = new FileReader()
+                reader.onload = (ev) => {
+                  setProductImages(prev => [...prev, { file, preview: ev.target?.result as string }])
+                }
+                reader.readAsDataURL(file)
+              })
+              if (files.length) onToast(`${files.length} product image${files.length > 1 ? 's' : ''} added`, 'success')
+            }}
+          />
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            {productImages.map((img, i) => (
+              <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border group">
+                <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                <button
+                  onClick={() => setProductImages(prev => prev.filter((_, idx) => idx !== i))}
+                  className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => productRef.current?.click()}
+              className="aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center hover:border-fulton/40 transition-colors cursor-pointer"
+            >
+              <span className="text-lg">+</span>
+              <span className="text-2xs text-text-dim">Add</span>
+            </button>
+          </div>
+          <div className="text-2xs text-text-dim">These images can be used as source material when generating ad creatives.</div>
         </Card>
       </div>
     </div>

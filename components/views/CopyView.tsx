@@ -13,41 +13,89 @@ interface CopyViewProps {
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
 }
 
+const CONTENT_TYPES = [
+  { id: 'ad-copy', label: 'Ad Copy', desc: 'Headlines, body, CTA for paid ads' },
+  { id: 'ugc-script', label: 'UGC Script', desc: 'Talking points for creator videos' },
+  { id: 'static-headlines', label: 'Static Headlines', desc: 'Bold text for image ads' },
+  { id: 'video-script', label: 'Video Script', desc: 'Full script with scenes and voiceover' },
+  { id: 'email', label: 'Email Copy', desc: 'Subject lines and email body' },
+]
+
 export default function CopyView({ brandContext, onToast }: CopyViewProps) {
+  const [contentType, setContentType] = useState('ad-copy')
   const [persona, setPersona] = useState(DEFAULT_PERSONAS[0].name)
   const [tone, setTone] = useState('Empathetic')
   const [platform, setPlatform] = useState(PLATFORMS[0])
-  const [prompt, setPrompt] = useState('Write ad copy for a premium cork arch-support house shoe that solves foot pain. Focus on the cost savings vs physical therapy angle.')
+  const [prompt, setPrompt] = useState('Write copy for a premium cork arch-support house shoe that solves foot pain. Focus on the cost savings vs physical therapy angle.')
   const [variants, setVariants] = useState<CopyVariant[]>([])
   const [generating, setGenerating] = useState(false)
+
+  const activeType = CONTENT_TYPES.find(t => t.id === contentType)
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { onToast('Enter a brief first', 'error'); return }
     setGenerating(true)
     setVariants([])
-    onToast('Generating ad copy with Claude...', 'info')
+    onToast(`Generating ${activeType?.label || 'copy'} with Claude...`, 'info')
 
     try {
       const res = await fetch('/api/copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ persona, tone, platform, prompt, brandContext }),
+        body: JSON.stringify({
+          persona,
+          tone,
+          platform,
+          prompt: `Content type: ${activeType?.label || 'Ad Copy'}. ${activeType?.desc || ''}.\n\n${prompt}`,
+          brandContext,
+          contentType,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setVariants(data.variants || [])
-      onToast(`${data.variants?.length || 0} copy variants generated`, 'success')
+      onToast(`${data.variants?.length || 0} variants generated`, 'success')
     } catch (err: unknown) {
       onToast(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setGenerating(false)
   }
 
+  const getVariantLabel = () => {
+    switch (contentType) {
+      case 'ugc-script': return 'Script'
+      case 'static-headlines': return 'Headline Set'
+      case 'video-script': return 'Scene'
+      case 'email': return 'Email'
+      default: return 'Variant'
+    }
+  }
+
   return (
     <div className="animate-fadeIn grid grid-cols-[1fr_1fr] gap-4">
-      {/* Left — Input */}
+      {/* Left */}
       <div className="space-y-4">
-        <Card title="Copy Studio" subtitle="Claude generates ad copy tailored to your persona and platform">
+        {/* Content type selector */}
+        <Card title="Content Type" subtitle="What kind of copy do you need?">
+          <div className="flex flex-wrap gap-2">
+            {CONTENT_TYPES.map(type => (
+              <button
+                key={type.id}
+                onClick={() => setContentType(type.id)}
+                className={`px-3 py-2 rounded-lg border text-left transition-all ${
+                  contentType === type.id
+                    ? 'border-fulton bg-fulton-light'
+                    : 'border-border bg-page hover:border-text-subtle'
+                }`}
+              >
+                <div className="text-xs font-bold">{type.label}</div>
+                <div className="text-2xs text-text-dim">{type.desc}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card title={`${activeType?.label || 'Copy'} Studio`} subtitle={`Claude generates ${activeType?.desc?.toLowerCase() || 'copy'} tailored to your persona and platform`}>
           <div className="space-y-3">
             <div>
               <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Persona</label>
@@ -92,20 +140,20 @@ export default function CopyView({ brandContext, onToast }: CopyViewProps) {
             />
 
             <Button onClick={handleGenerate} disabled={generating} className="w-full justify-center py-3">
-              {generating ? <><LoadingSpinner size={16} /> Generating...</> : '✍️ Generate 4 Copy Variants'}
+              {generating ? <><LoadingSpinner size={16} /> Generating...</> : `Generate 4 ${activeType?.label || 'Copy'} Variants`}
             </Button>
           </div>
         </Card>
       </div>
 
-      {/* Right — Results */}
+      {/* Right */}
       <div className="space-y-3">
         {generating ? (
           <Card>
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
                 <LoadingSpinner size={28} />
-                <div className="text-xs text-text-dim mt-3">Claude is writing your copy...</div>
+                <div className="text-xs text-text-dim mt-3">Claude is writing your {activeType?.label?.toLowerCase() || 'copy'}...</div>
               </div>
             </div>
           </Card>
@@ -113,25 +161,25 @@ export default function CopyView({ brandContext, onToast }: CopyViewProps) {
           variants.map((v, i) => (
             <Card key={i} className="hover:border-fulton/30 transition-colors">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-2xs font-bold text-fulton uppercase tracking-wider">Variant {i + 1}</span>
+                <span className="text-2xs font-bold text-fulton uppercase tracking-wider">{getVariantLabel()} {i + 1}</span>
                 <button
                   onClick={() => { navigator.clipboard.writeText(`${v.headline}\n${v.body}\n${v.cta}`); onToast('Copied to clipboard', 'success') }}
                   className="text-2xs text-text-dim hover:text-text-primary transition-colors"
                 >
-                  Copy ↗
+                  Copy
                 </button>
               </div>
               <div className="text-lg font-black tracking-tight mb-1.5">{v.headline}</div>
               <div className="text-sm text-text-secondary leading-relaxed mb-2">{v.body}</div>
-              <div className="inline-block px-3 py-1.5 bg-fulton text-white text-xs font-bold rounded">{v.cta}</div>
+              {v.cta && <div className="inline-block px-3 py-1.5 bg-fulton text-white text-xs font-bold rounded">{v.cta}</div>}
             </Card>
           ))
         ) : (
           <Card>
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="text-3xl mb-3">✍️</div>
-              <div className="text-sm font-bold mb-1">Copy Variants</div>
-              <div className="text-xs text-text-dim">Generated copy will appear here</div>
+              <div className="text-sm font-bold mb-1">{activeType?.label || 'Copy'} Variants</div>
+              <div className="text-xs text-text-dim">Generated content will appear here</div>
             </div>
           </Card>
         )}

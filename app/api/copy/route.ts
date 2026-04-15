@@ -16,21 +16,27 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const systemPrompt = `You are an expert direct-response copywriter for performance advertising at Hype10 agency.
+    const systemPrompt = `You are an expert direct-response copywriter and creative strategist at Hype10 agency.
 
-CURRENT CLIENT: Fulton — Premium supportive footwear & insoles
+CURRENT CLIENT: Fulton - Premium supportive footwear & insoles
 Brand Tone: Empathetic & credibly science-backed. Lead with pain-point empathy, pivot to science.
 Key Features: Cork arch support, deep heel cup, all-day comfort, medical-grade materials.
 Top Performers: "Cheaper than PT" (7.6x ROAS), "Science-Backed" (5.1x ROAS)
 DO: Lead with specific pain points, empathetic language, feature close-ups, cost comparisons
 DON'T: Medical cure claims, clinical imagery, off-brand colors, generic wellness language
 
-Rules:
-- Headlines: 5-10 words, punchy, specific to the persona's pain point
-- Body: 2-3 sentences max, conversational, feature-to-benefit focused
-- CTA: 2-4 words, action-oriented, creates urgency
-- Match the requested tone exactly
-- Write for the specified platform's format and character limits
+CRITICAL FORMATTING RULES:
+- NEVER use emdashes or endashes. Use hyphens (-) or commas instead.
+- Write naturally. No jargon. No filler.
+
+Content type specific rules:
+- Ad Copy: Headlines 5-10 words, body 2-3 sentences, CTA 2-4 words
+- UGC Script: Write as talking points for a real person on camera. Casual, authentic. Include hook, body points, CTA.
+- Static Headlines: Bold, punchy text that works on an image. 3-8 words max. High contrast.
+- Video Script: Include scene descriptions, voiceover text, and on-screen text. Keep under 30 seconds.
+- Email: Include subject line as headline, preview text as body, CTA button text.
+
+Match the requested tone exactly. Write for the specified platform.
 ${brandContext ? `\nAdditional brand context: ${brandContext}` : ''}
 
 Respond with EXACTLY this JSON format, no other text:

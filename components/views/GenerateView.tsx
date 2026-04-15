@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { PersonaInput, GenerateResult } from '@/lib/types'
 import { DEFAULT_PERSONAS } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { FormTextarea } from '@/components/ui/FormInput'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ImagePreview from '@/components/ui/ImagePreview'
 
 interface GenerateViewProps {
   brandId: string | undefined
@@ -20,6 +21,10 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
   const [activePersonas, setActivePersonas] = useState<Set<number>>(new Set([0, 1, 2, 3]))
   const [results, setResults] = useState<GenerateResult[]>([])
   const [generating, setGenerating] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [referenceImage, setReferenceImage] = useState<File | null>(null)
+  const [referencePreview, setReferencePreview] = useState<string | null>(null)
+  const refInputRef = useRef<HTMLInputElement>(null)
 
   const togglePersona = (idx: number) => {
     setActivePersonas(prev => {
@@ -30,24 +35,37 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
     })
   }
 
+  const handleReferenceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReferenceImage(file)
+    const reader = new FileReader()
+    reader.onload = ev => setReferencePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    onToast('Reference image uploaded - it will guide the generation style', 'success')
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim()) { onToast('Enter a base prompt first', 'error'); return }
     const selected = personas.filter((_, i) => activePersonas.has(i))
     if (!selected.length) { onToast('Select at least one persona', 'error'); return }
 
-    // Only send first persona to conserve quota
     const toGenerate = [selected[0]]
 
     setGenerating(true)
     setResults([])
-    onToast(`Generating ${toGenerate.length} creative${toGenerate.length > 1 ? 's' : ''} with Gemini...`, 'info')
+    onToast(`Generating creative with Gemini...`, 'info')
 
     try {
+      const enrichedPrompt = referenceImage
+        ? `${prompt}\n\nUse the reference image as style and composition inspiration. Match its visual tone, lighting, and layout while adapting for the brand and persona.`
+        : prompt
+
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          concept: prompt,
+          concept: enrichedPrompt,
           personas: toGenerate,
           aspectRatio: '1x1',
           generator: 'gemini',
@@ -71,22 +89,48 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
     <div className="animate-fadeIn grid grid-cols-[1fr_340px] gap-4">
       {/* Left column */}
       <div className="space-y-4">
-        {/* Generator select */}
-        <Card title="Image Generator" subtitle="Gemini Nano Banana 2 — text-to-image generation">
+        <Card title="Image Generator" subtitle="Gemini Nano Banana 2 - text-to-image generation">
           <div className="flex gap-2">
             <div className="flex-1 px-3 py-2.5 bg-fulton-light border-2 border-fulton rounded-lg">
               <div className="text-xs font-bold text-fulton">Gemini (Nano Banana 2)</div>
-              <div className="text-2xs text-text-dim">Primary — AI image generation</div>
+              <div className="text-2xs text-text-dim">Primary - AI image generation</div>
             </div>
           </div>
         </Card>
 
-        {/* Prompt */}
-        <Card title="Base Prompt" subtitle="Shared prompt applied to all personas — each adds its own angle">
+        {/* Reference image upload */}
+        <Card title="Reference Image" subtitle="Upload an image to recreate or use as style inspiration (optional)">
+          <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleReferenceUpload} />
+          {referencePreview ? (
+            <div className="flex items-center gap-3">
+              <img
+                src={referencePreview}
+                alt="Reference"
+                className="w-20 h-20 object-cover rounded-lg border border-border cursor-pointer"
+                onClick={() => setPreviewImage(referencePreview)}
+              />
+              <div className="flex-1">
+                <div className="text-sm font-semibold">{referenceImage?.name}</div>
+                <div className="text-2xs text-text-dim">{referenceImage ? `${(referenceImage.size / 1024).toFixed(0)} KB` : ''}</div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => { setReferenceImage(null); setReferencePreview(null) }}>Remove</Button>
+            </div>
+          ) : (
+            <button
+              onClick={() => refInputRef.current?.click()}
+              className="w-full p-4 border-2 border-dashed border-border rounded-lg text-center hover:border-fulton/40 transition-colors"
+            >
+              <div className="text-xl mb-1">📷</div>
+              <div className="text-xs font-semibold text-text-muted">Click to upload reference image</div>
+              <div className="text-2xs text-text-dim mt-0.5">Gemini will match its style and composition</div>
+            </button>
+          )}
+        </Card>
+
+        <Card title="Base Prompt" subtitle="Shared prompt applied to all personas - each adds its own angle">
           <FormTextarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} />
         </Card>
 
-        {/* Personas */}
         <Card title="Personas" subtitle="Select personas to generate for">
           <div className="grid grid-cols-2 gap-3 mb-4">
             {personas.map((p, i) => (
@@ -99,7 +143,7 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
                     : 'border-border bg-page hover:border-text-subtle'
                 }`}
               >
-                <div className="text-2xs font-bold text-fulton mb-1.5">● Persona {String(i + 1).padStart(2, '0')}</div>
+                <div className="text-2xs font-bold text-fulton mb-1.5">Persona {String(i + 1).padStart(2, '0')}</div>
                 <div className="mb-1"><span className="text-2xs text-text-dim uppercase tracking-wider">Audience</span><div className="text-sm font-semibold">{p.name}</div></div>
                 <div className="mb-1"><span className="text-2xs text-text-dim uppercase tracking-wider">Angle</span><div className="text-sm font-semibold">{p.angle}</div></div>
                 <div><span className="text-2xs text-text-dim uppercase tracking-wider">Hook</span><div className="text-sm font-semibold">{p.hook}</div></div>
@@ -107,19 +151,19 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
             ))}
           </div>
           <Button onClick={handleGenerate} disabled={generating} className="w-full py-3.5 text-sm justify-center">
-            {generating ? <><LoadingSpinner size={16} /> Generating...</> : `▶ Generate ${activePersonas.size > 1 ? '1' : '1'} Creative`}
+            {generating ? <><LoadingSpinner size={16} /> Generating...</> : 'Generate 1 Creative'}
           </Button>
         </Card>
       </div>
 
-      {/* Right column — Output */}
+      {/* Right column */}
       <div className="space-y-4">
         <Card title="Pipeline Options">
           <div className="space-y-3">
             {[
-              { name: 'Remove Background', desc: 'Remove.bg · transparent PNG', checked: false },
-              { name: 'Render All Formats', desc: 'Creatomate · 1×1 · 4×5 · 9×16', checked: false },
-              { name: 'Auto-run QC', desc: 'Claude · 3 checks after generation', checked: true },
+              { name: 'Remove Background', desc: 'Remove.bg - transparent PNG', checked: false },
+              { name: 'Render All Formats', desc: 'Creatomate - 1x1, 4x5, 9x16', checked: false },
+              { name: 'Auto-run QC', desc: 'Claude - 3 checks after generation', checked: true },
             ].map(opt => (
               <label key={opt.name} className="flex items-center justify-between cursor-pointer">
                 <div>
@@ -135,19 +179,26 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
         <Card title="Output Preview">
           <div className="grid grid-cols-2 gap-2">
             {generating ? (
-              Array.from({ length: 1 }).map((_, i) => (
-                <div key={i} className="aspect-square rounded-lg bg-elevated flex items-center justify-center">
-                  <div className="text-center">
-                    <LoadingSpinner size={24} />
-                    <div className="text-2xs text-text-dim mt-2">Generating P{i + 1}...</div>
-                  </div>
+              <div className="col-span-2 aspect-square rounded-lg bg-elevated flex items-center justify-center">
+                <div className="text-center">
+                  <LoadingSpinner size={24} />
+                  <div className="text-2xs text-text-dim mt-2">Generating...</div>
                 </div>
-              ))
+              </div>
             ) : results.length > 0 ? (
               results.map((r, i) => (
-                <div key={i} className="aspect-square rounded-lg overflow-hidden relative bg-elevated">
+                <div
+                  key={i}
+                  className="aspect-square rounded-lg overflow-hidden relative bg-elevated cursor-pointer hover:ring-2 hover:ring-fulton transition-all"
+                  onClick={() => r.imageUrl && setPreviewImage(r.imageUrl)}
+                >
                   {r.imageUrl ? (
-                    <img src={r.imageUrl} alt={`P${i + 1}`} className="w-full h-full object-cover" />
+                    <>
+                      <img src={r.imageUrl} alt={`P${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                        <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded">Click to preview</span>
+                      </div>
+                    </>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-2xs text-red p-2 text-center">
                       {r.error || 'Failed'}
@@ -161,12 +212,15 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
                 <div className="text-center text-text-dim">
                   <div className="text-2xl mb-2">🖼</div>
                   <div className="text-xs">Generated images will appear here</div>
+                  <div className="text-2xs mt-1">Click to preview full size</div>
                 </div>
               </div>
             )}
           </div>
         </Card>
       </div>
+
+      <ImagePreview src={previewImage || ''} open={!!previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   )
 }
