@@ -26,7 +26,9 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [referencePreview, setReferencePreview] = useState<string | null>(null)
+  const [productImagePreviews, setProductImagePreviews] = useState<string[]>([])
   const refInputRef = useRef<HTMLInputElement>(null)
+  const productInputRef = useRef<HTMLInputElement>(null)
 
   // Handle files dropped from global drag-and-drop
   useEffect(() => {
@@ -74,19 +76,17 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
     onToast(`Generating creative with Gemini...`, 'info')
 
     try {
-      const enrichedPrompt = referenceImage
-        ? `${prompt}\n\nUse the reference image as style and composition inspiration. Match its visual tone, lighting, and layout while adapting for the brand and persona.`
-        : prompt
-
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          concept: enrichedPrompt,
+          concept: prompt,
           personas: toGenerate,
           aspectRatio: '1x1',
           generator: 'gemini',
           brandId: brandId || 'demo',
+          referenceImage: referencePreview || undefined,
+          productImages: productImagePreviews.length ? productImagePreviews : undefined,
         }),
       })
       const data = await res.json()
@@ -142,6 +142,48 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
               <div className="text-2xs text-text-dim mt-0.5">Gemini will match its style and composition</div>
             </button>
           )}
+        </Card>
+
+        {/* Product images */}
+        <Card title="Product Images" subtitle="Upload product photos to feature in the generated creative (optional)">
+          <input
+            ref={productInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || [])
+              files.forEach(file => {
+                const reader = new FileReader()
+                reader.onload = (ev) => {
+                  setProductImagePreviews(prev => [...prev, ev.target?.result as string])
+                }
+                reader.readAsDataURL(file)
+              })
+              if (files.length) onToast(`${files.length} product image${files.length > 1 ? 's' : ''} added`, 'success')
+            }}
+          />
+          <div className="flex gap-2 flex-wrap">
+            {productImagePreviews.map((src, i) => (
+              <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-border group">
+                <img src={src} alt="" className="w-full h-full object-cover" />
+                <button
+                  onClick={() => setProductImagePreviews(prev => prev.filter((_, idx) => idx !== i))}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >
+                  x
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={() => productInputRef.current?.click()}
+              className="w-16 h-16 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center hover:border-fulton/40 transition-colors cursor-pointer"
+            >
+              <span className="text-sm">+</span>
+              <span className="text-2xs text-text-dim">Add</span>
+            </button>
+          </div>
         </Card>
 
         <Card title="Base Prompt" subtitle="Shared prompt applied to all personas - each adds its own angle">
