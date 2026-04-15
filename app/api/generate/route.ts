@@ -9,7 +9,7 @@ async function generateWithGemini(prompt: string, aspectRatio: string = '1:1'): 
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
 
   // Try multiple model names in case one is unavailable
-  const models = ['gemini-2.0-flash-exp', 'gemini-2.0-flash-preview-image-generation']
+  const models = ['gemini-2.5-flash-preview-image-generation', 'gemini-2.0-flash-preview-image-generation', 'gemini-2.5-flash-image']
   let lastError = ''
 
   for (const model of models) {
