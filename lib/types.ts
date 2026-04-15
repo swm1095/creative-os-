@@ -1,5 +1,5 @@
 export type AspectRatio = '1x1' | '4x5' | '9x16'
-export type Generator = 'kling' | 'ideogram' | 'stability'
+export type Generator = 'kling' | 'ideogram' | 'stability' | 'gemini'
 export type QCStatus = 'pass' | 'fail' | 'pending' | 'warning'
 export type JobStatus = 'queued' | 'running' | 'done' | 'error'
 
