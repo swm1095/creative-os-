@@ -4099,6 +4099,9 @@ function runGeneration() {
   });
   if (!personas.length) { showToast('No active personas selected', 'error'); return; }
 
+  // Only send first persona to conserve API quota
+  personas = [personas[0]];
+
   // Show loading state in output grid
   var genResults = document.getElementById('gen-results');
   genResults.innerHTML = personas.map(function(p, i) {
