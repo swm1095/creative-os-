@@ -45,6 +45,28 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
     }
   }, [droppedFiles])
 
+  // Compress an image to max 1024px and return base64
+  const compressImage = (dataUrl: string, maxSize: number = 1024): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let { width, height } = img
+        if (width > maxSize || height > maxSize) {
+          const ratio = Math.min(maxSize / width, maxSize / height)
+          width = Math.round(width * ratio)
+          height = Math.round(height * ratio)
+        }
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx?.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', 0.85))
+      }
+      img.src = dataUrl
+    })
+  }
+
   const togglePersona = (idx: number) => {
     setActivePersonas(prev => {
       const next = new Set(prev)
@@ -76,6 +98,21 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
     onToast(`Generating creative with Gemini...`, 'info')
 
     try {
+      // Compress images before sending to avoid payload size issues
+      let compressedRef: string | undefined
+      if (referencePreview) {
+        compressedRef = await compressImage(referencePreview)
+      }
+      let compressedProducts: string[] | undefined
+      if (productImagePreviews.length) {
+        compressedProducts = await Promise.all(productImagePreviews.map(img => compressImage(img)))
+      }
+
+      onToast(
+        `Sending ${compressedRef ? 'reference image + ' : ''}${compressedProducts?.length ? compressedProducts.length + ' product image(s) + ' : ''}prompt to Gemini...`,
+        'info'
+      )
+
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,8 +122,8 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
           aspectRatio: '1x1',
           generator: 'gemini',
           brandId: brandId || 'demo',
-          referenceImage: referencePreview || undefined,
-          productImages: productImagePreviews.length ? productImagePreviews : undefined,
+          referenceImage: compressedRef,
+          productImages: compressedProducts,
         }),
       })
       const data = await res.json()

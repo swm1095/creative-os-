@@ -89,43 +89,33 @@ function buildPrompt(
 ): string {
   const lines: string[] = []
 
-  lines.push('Create a professional advertising creative image for a direct-to-consumer brand.')
+  lines.push('Generate a social media ad creative image.')
   lines.push('')
 
-  // Persona-specific direction
-  lines.push(`TARGET PERSONA: ${persona.name}`)
-  lines.push(`AD ANGLE: ${persona.angle}`)
-  if (persona.hook) lines.push(`HOOK/MESSAGE: ${persona.hook}`)
-  lines.push('')
-
-  // Brand context
-  if (brandContext) {
-    lines.push(`BRAND CONTEXT: ${brandContext}`)
-    lines.push('')
-  }
-
-  // Creative direction
-  lines.push(`CREATIVE BRIEF: ${concept}`)
-  lines.push('')
-
-  // Reference image instructions
   if (hasReferenceImage) {
-    lines.push('REFERENCE IMAGE: I have provided a reference image. Match its visual style, composition, lighting, and mood as closely as possible. Adapt the content to fit the persona and brand above, but keep the aesthetic consistent with the reference.')
+    lines.push('IMPORTANT: I attached a reference image. Copy its exact layout, style, colors, and composition. Recreate it with the details below.')
     lines.push('')
   }
 
-  // Product image instructions
   if (hasProductImages) {
-    lines.push('PRODUCT IMAGES: I have provided product photos. Feature this exact product prominently in the generated image. Show the actual product, do not create a generic or different product. The product should be the hero of the image.')
+    lines.push('IMPORTANT: I attached product photos. Use this EXACT product in the image. Do not invent a different product.')
     lines.push('')
   }
 
-  lines.push('REQUIREMENTS:')
-  lines.push('- The image must feel tailored to the specific persona above, not generic')
-  lines.push('- Professional quality suitable for paid social media advertising')
-  lines.push('- Clean composition, natural lighting, clear visual hierarchy')
-  lines.push('- Do NOT include any text, copy, logos, or watermarks in the image')
-  lines.push('- The image should evoke the emotion and lifestyle of the target persona')
+  lines.push(`HEADLINE TEXT ON IMAGE: "${persona.hook || persona.angle}"`)
+  lines.push(`CTA BUTTON TEXT: "Shop Now"`)
+  lines.push(`PERSONA: ${persona.name}`)
+  lines.push(`ANGLE: ${persona.angle}`)
+  lines.push('')
+
+  if (brandContext) {
+    lines.push(`BRAND: ${brandContext}`)
+    lines.push('')
+  }
+
+  lines.push(`SCENE: ${concept}`)
+  lines.push('')
+  lines.push('The image MUST include readable text. Put the headline text prominently on the image. Include a CTA button. Make it look like a real paid social ad. Professional quality, clean typography.')
 
   return lines.join('\n')
 }
@@ -219,11 +209,16 @@ export async function POST(req: NextRequest) {
 
     // Collect all reference images to send to Gemini
     const imageInputs: string[] = []
-    if (referenceImage) imageInputs.push(referenceImage)
-    if (productImages?.length) {
-      // Add up to 3 product images to avoid hitting size limits
-      imageInputs.push(...productImages.slice(0, 3))
+    if (referenceImage && referenceImage.startsWith('data:image/')) {
+      imageInputs.push(referenceImage)
+      console.log('Reference image included, size:', Math.round(referenceImage.length / 1024), 'KB')
     }
+    if (productImages?.length) {
+      const validProducts = productImages.filter((img: string) => img?.startsWith('data:image/')).slice(0, 3)
+      imageInputs.push(...validProducts)
+      console.log('Product images included:', validProducts.length)
+    }
+    console.log('Total images being sent to Gemini:', imageInputs.length)
 
     // Generate one image per persona
     const results = []
