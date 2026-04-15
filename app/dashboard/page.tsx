@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { ToolId, ViewId, Creative } from '@/lib/types'
 import { TOOLS } from '@/lib/constants'
 import { useBrands } from '@/lib/hooks/use-brands'
@@ -31,6 +31,47 @@ export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewId>('hub')
   const [showBrandModal, setShowBrandModal] = useState(false)
   const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null)
+  const [globalDragging, setGlobalDragging] = useState(false)
+  const [droppedFiles, setDroppedFiles] = useState<File[]>([])
+  const dragCounter = useRef(0)
+
+  const handleGlobalDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current++
+    if (e.dataTransfer.items?.length) setGlobalDragging(true)
+  }, [])
+
+  const handleGlobalDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCounter.current--
+    if (dragCounter.current === 0) setGlobalDragging(false)
+  }, [])
+
+  const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleGlobalDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setGlobalDragging(false)
+    dragCounter.current = 0
+    const files = Array.from(e.dataTransfer.files)
+    if (!files.length) return
+    setDroppedFiles(files)
+
+    const imageFiles = files.filter(f => f.type.startsWith('image/'))
+    const pdfFiles = files.filter(f => f.type === 'application/pdf')
+
+    if (activeView === 'generate' && imageFiles.length) {
+      addToast(`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} ready for reference`, 'success')
+    } else if (activeView === 'brand' && (imageFiles.length || pdfFiles.length)) {
+      addToast(`${files.length} file${files.length > 1 ? 's' : ''} dropped - use the upload buttons to process`, 'success')
+    } else if (imageFiles.length) {
+      addToast(`${imageFiles.length} image${imageFiles.length > 1 ? 's' : ''} dropped. Go to HyperImage > Generate to use as reference, or Brand Kit to add to product library.`, 'info')
+    } else {
+      addToast('Drop images (PNG, JPG) or PDFs to upload', 'info')
+    }
+  }, [activeView, addToast])
 
   const navigate = useCallback((tool: ToolId, view: ViewId) => {
     setCurrentTool(tool)
@@ -74,6 +115,8 @@ export default function DashboardPage() {
           <GenerateView
             brandId={activeBrand?.id}
             onToast={addToast}
+            droppedFiles={droppedFiles}
+            onDroppedFilesConsumed={() => setDroppedFiles([])}
             onGenerated={(results) => {
               const newCreatives: Creative[] = results
                 .filter(r => r.imageUrl)
@@ -128,7 +171,22 @@ export default function DashboardPage() {
         onShowBrandModal={() => setShowBrandModal(true)}
       />
 
-      <main className="ml-sidebar flex-1 h-screen overflow-y-auto flex flex-col">
+      <main
+        className="ml-sidebar flex-1 h-screen overflow-y-auto flex flex-col relative"
+        onDragEnter={handleGlobalDragEnter}
+        onDragLeave={handleGlobalDragLeave}
+        onDragOver={handleGlobalDragOver}
+        onDrop={handleGlobalDrop}
+      >
+        {globalDragging && (
+          <div className="absolute inset-0 z-40 bg-fulton/10 border-4 border-dashed border-fulton rounded-lg flex items-center justify-center pointer-events-none">
+            <div className="bg-surface px-6 py-4 rounded-xl shadow-2xl text-center">
+              <div className="text-3xl mb-2">📁</div>
+              <div className="text-sm font-bold">Drop files here</div>
+              <div className="text-2xs text-text-dim mt-1">Images, PDFs, brand assets</div>
+            </div>
+          </div>
+        )}
         <Topbar
           title={topbar.title}
           subtitle={topbar.subtitle}

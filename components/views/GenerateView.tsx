@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { PersonaInput, GenerateResult } from '@/lib/types'
 import { DEFAULT_PERSONAS } from '@/lib/constants'
 import Button from '@/components/ui/Button'
@@ -13,9 +13,11 @@ interface GenerateViewProps {
   brandId: string | undefined
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
   onGenerated?: (results: GenerateResult[]) => void
+  droppedFiles?: File[]
+  onDroppedFilesConsumed?: () => void
 }
 
-export default function GenerateView({ brandId, onToast, onGenerated }: GenerateViewProps) {
+export default function GenerateView({ brandId, onToast, onGenerated, droppedFiles, onDroppedFilesConsumed }: GenerateViewProps) {
   const [prompt, setPrompt] = useState('Premium product lifestyle photo, Fulton house shoe with cork arch support, warm home environment, natural lighting, clean minimal composition, photorealistic, aspirational wellness aesthetic')
   const [personas] = useState<PersonaInput[]>(DEFAULT_PERSONAS)
   const [activePersonas, setActivePersonas] = useState<Set<number>>(new Set([0, 1, 2, 3]))
@@ -25,6 +27,21 @@ export default function GenerateView({ brandId, onToast, onGenerated }: Generate
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [referencePreview, setReferencePreview] = useState<string | null>(null)
   const refInputRef = useRef<HTMLInputElement>(null)
+
+  // Handle files dropped from global drag-and-drop
+  useEffect(() => {
+    if (droppedFiles?.length) {
+      const imageFile = droppedFiles.find(f => f.type.startsWith('image/'))
+      if (imageFile) {
+        setReferenceImage(imageFile)
+        const reader = new FileReader()
+        reader.onload = ev => setReferencePreview(ev.target?.result as string)
+        reader.readAsDataURL(imageFile)
+        onToast('Dropped image set as reference', 'success')
+      }
+      onDroppedFilesConsumed?.()
+    }
+  }, [droppedFiles])
 
   const togglePersona = (idx: number) => {
     setActivePersonas(prev => {
