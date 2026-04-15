@@ -32,8 +32,7 @@ export default function DashboardPage() {
   // Load user and brands
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUserEmail(user?.email || 'demo@hype10agency.com')
+      setUserEmail('demo@hype10agency.com')
 
       const { data: brandsData } = await supabase
         .from('brands')
@@ -73,9 +72,8 @@ export default function DashboardPage() {
   }
 
   const handleCreateBrand = async (name: string, url: string): Promise<Brand> => {
-    const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase.from('brands').insert({
-      name, url, user_id: user?.id || DEMO_USER_ID, color: '#2B4EFF'
+      name, url, user_id: DEMO_USER_ID, color: '#2B4EFF'
     }).select().single()
     if (error) throw new Error(error.message)
     const newBrand = { ...data, creative_count: 0 }
