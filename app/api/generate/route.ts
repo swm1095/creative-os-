@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
-import { composeAd } from '@/lib/compose-ad'
+import { composeAd, composeAllFormats } from '@/lib/compose-ad'
 
 export const maxDuration = 60
 
@@ -242,20 +242,31 @@ export async function POST(req: NextRequest) {
         // Step 1: Generate clean image with Gemini (no text)
         const rawImageDataUrl = await generateWithGemini(prompt, imageInputs)
 
-        // Step 2: Composite headline, CTA, and brand name using Sharp
+        // Step 2: Composite headline, CTA, and brand name for all 3 formats
         const rawBase64 = rawImageDataUrl.split(',')[1]
         const rawBuffer = Buffer.from(rawBase64, 'base64')
 
-        const composedBuffer = await composeAd({
+        const composeOptions = {
           imageBuffer: rawBuffer,
           headline: persona.hook || persona.angle,
           cta: 'Shop Now',
           brandName: brand?.name?.toUpperCase() || 'FULTON',
           brandColor: brand?.color || '#1B4332',
-        })
+        }
 
-        const composedDataUrl = `data:image/png;base64,${composedBuffer.toString('base64')}`
-        const imageUrl = await uploadToStorage(supabase, composedDataUrl, brandId)
+        // Generate all three formats
+        const allFormats = await composeAllFormats(composeOptions)
+
+        // Upload all formats
+        const format9x16 = `data:image/png;base64,${allFormats['9x16'].toString('base64')}`
+        const format4x5 = `data:image/png;base64,${allFormats['4x5'].toString('base64')}`
+        const format1x1 = `data:image/png;base64,${allFormats['1x1'].toString('base64')}`
+
+        const [imageUrl, image4x5Url, image1x1Url] = await Promise.all([
+          uploadToStorage(supabase, format9x16, brandId),
+          uploadToStorage(supabase, format4x5, brandId),
+          uploadToStorage(supabase, format1x1, brandId),
+        ])
 
         const title = `${persona.name} - ${persona.angle.slice(0, 30)}`
         await supabase.from('creatives').insert({
@@ -265,11 +276,21 @@ export async function POST(req: NextRequest) {
           persona: persona.name,
           angle: persona.angle,
           image_url: imageUrl,
-          format: aspectRatio,
+          image_4x5_url: image4x5Url,
+          image_1x1_url: image1x1Url,
+          format: '9x16',
           generator: 'gemini',
         })
 
-        results.push({ persona, imageUrl })
+        results.push({
+          persona,
+          imageUrl,
+          formats: {
+            '9x16': imageUrl,
+            '4x5': image4x5Url,
+            '1x1': image1x1Url,
+          },
+        })
       } catch (e: unknown) {
         console.error(`Generation failed for ${persona.name}:`, e)
         results.push({ persona, imageUrl: '', error: e instanceof Error ? e.message : String(e) })
