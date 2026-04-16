@@ -15,9 +15,10 @@ interface BrandResearchViewProps {
   onBrandUpdate: (brandId: string, updates: Partial<Brand>) => void
   onCreateBrand: (name: string, url?: string) => Promise<Brand | null>
   onRefreshBrands?: () => Promise<void>
+  onSetActiveBrand?: (brand: Brand) => void
 }
 
-export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands }: BrandResearchViewProps) {
+export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand }: BrandResearchViewProps) {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
@@ -45,6 +46,19 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
       setResearch(data.research)
       if (data.brandId) {
         onBrandUpdate(data.brandId, { research: data.research, research_completed: true, name, url: url || '' })
+        // Set as active brand
+        if (onSetActiveBrand) {
+          onSetActiveBrand({
+            id: data.brandId,
+            name,
+            url: url || '',
+            color: '#2B4EFF',
+            research: data.research,
+            research_completed: true,
+            created_at: new Date().toISOString(),
+            creative_count: 0,
+          })
+        }
       }
       // Refresh the brands list so sidebar shows the new brand
       if (onRefreshBrands) await onRefreshBrands()

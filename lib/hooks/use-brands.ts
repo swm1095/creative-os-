@@ -11,10 +11,12 @@ export function useBrands() {
   const supabase = createClient()
 
   const loadBrands = useCallback(async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('brands')
       .select('*, creatives(count)')
       .order('created_at', { ascending: false })
+
+    if (error) console.error('loadBrands error:', error)
 
     if (data) {
       const withCount = data.map((b: Brand & { creatives?: { count: number }[] }) => ({
@@ -22,9 +24,15 @@ export function useBrands() {
         creative_count: b.creatives?.[0]?.count || 0,
       }))
       setBrands(withCount)
-      if (!activeBrand && withCount.length > 0) {
-        setActiveBrand(withCount[0])
-      }
+      // Auto-select first brand if none is active, or re-select current one with fresh data
+      setActiveBrand(prev => {
+        if (!prev && withCount.length > 0) return withCount[0]
+        if (prev) {
+          const updated = withCount.find((b: Brand) => b.id === prev.id)
+          return updated || prev
+        }
+        return prev
+      })
     }
     setLoading(false)
   }, [])

@@ -157,7 +157,7 @@ export default function DashboardPage() {
       case 'listening':
         return <ListeningView brand={activeBrand} onToast={addToast} />
       case 'brand-research':
-        return <BrandResearchView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} onCreateBrand={createBrand} onRefreshBrands={refreshBrands} />
+        return <BrandResearchView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} onCreateBrand={createBrand} onRefreshBrands={refreshBrands} onSetActiveBrand={setActiveBrand} />
       case 'performance':
         return <PerformanceView />
       case 'coming-soon':
