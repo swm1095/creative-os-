@@ -299,27 +299,27 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       ) : (
         <>
           {/* Amazon product URLs */}
-          <div className="mb-4">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider">Amazon Products ({brand?.competitor_urls?.length || 0} tracked)</span>
-              <button
-                onClick={() => setShowAddUrl(!showAddUrl)}
-                className="text-2xs font-bold text-fulton hover:underline"
-              >
-                {showAddUrl ? 'Hide' : '+ Add Product URL'}
-              </button>
+          <Card className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-sm font-bold">Amazon Product Tracking</div>
+                <div className="text-2xs text-text-dim">{brand?.competitor_urls?.length || 0} products tracked - reviews mined on each scan</div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setShowAddUrl(!showAddUrl)}>
+                {showAddUrl ? 'Close' : '+ Add Product URL'}
+              </Button>
             </div>
             {showAddUrl && (
-              <div className="flex gap-2 mb-2">
+              <div className="flex gap-2 mt-2">
                 <input
                   type="url"
-                  placeholder="Paste Amazon product URL..."
+                  placeholder="Paste Amazon product URL (e.g. amazon.com/dp/B08XYZ...)"
                   value={newUrl}
                   onChange={e => setNewUrl(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                  className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  autoFocus
                 />
                 <Button
-                  size="sm"
                   disabled={!newUrl.trim() || !brand?.id}
                   onClick={async () => {
                     if (!brand?.id || !newUrl.trim()) return
@@ -332,15 +332,23 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                       })
                       if (onBrandUpdate) onBrandUpdate(brand.id, { competitor_urls: urls })
                       setNewUrl('')
+                      setShowAddUrl(false)
                       onToast('Product URL saved - will be mined on next scan', 'success')
                     } catch { onToast('Failed to save URL', 'error') }
                   }}
                 >
-                  Save
+                  Save URL
                 </Button>
               </div>
             )}
-          </div>
+            {(brand?.competitor_urls?.length || 0) > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {(brand?.competitor_urls || []).map((url, i) => (
+                  <span key={i} className="text-2xs text-text-dim bg-elevated px-2 py-0.5 rounded truncate max-w-xs">{url.replace('https://www.amazon.com', 'amazon.com').slice(0, 50)}...</span>
+                ))}
+              </div>
+            )}
+          </Card>
 
           {/* Source breakdown */}
           <div className="flex gap-2 mb-4 text-2xs">
