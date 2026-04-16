@@ -54,12 +54,22 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
   const handleAddBrand = async () => {
     if (!newBrandName.trim()) { onToast('Enter a brand name', 'error'); return }
-    const newBrand = await onCreateBrand(newBrandName, newBrandUrl)
-    if (newBrand) {
-      setNewBrandName('')
-      setNewBrandUrl('')
-      onToast(`${newBrandName} created - starting research...`, 'success')
-      await runResearch(newBrand.id, newBrandUrl, newBrandName)
+    try {
+      onToast(`Creating ${newBrandName}...`, 'info')
+      const newBrand = await onCreateBrand(newBrandName, newBrandUrl)
+      if (newBrand) {
+        setNewBrandName('')
+        setNewBrandUrl('')
+        onToast(`${newBrandName} created - starting research (30 sec)...`, 'success')
+        await runResearch(newBrand.id, newBrandUrl, newBrandName)
+      } else {
+        // Brand creation failed - run research without saving to DB
+        onToast('Could not save brand, running research anyway...', 'info')
+        await runResearch(undefined, newBrandUrl, newBrandName)
+      }
+    } catch (err: unknown) {
+      onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      console.error('Add brand error:', err)
     }
   }
 

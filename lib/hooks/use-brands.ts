@@ -32,15 +32,27 @@ export function useBrands() {
   useEffect(() => { loadBrands() }, [loadBrands])
 
   const createBrand = useCallback(async (name: string, url?: string, color?: string): Promise<Brand | null> => {
-    const { data, error } = await supabase.from('brands').insert({
-      name, url: url || '', color: color || '#2B4EFF',
-    }).select().single()
+    try {
+      const { data, error } = await supabase.from('brands').insert({
+        name, url: url || '', color: color || '#2B4EFF',
+      }).select().single()
 
-    if (error || !data) return null
-    const newBrand = { ...data, creative_count: 0 }
-    setBrands(prev => [newBrand, ...prev])
-    setActiveBrand(newBrand)
-    return newBrand
+      if (error) {
+        console.error('Supabase createBrand error:', error)
+        return null
+      }
+      if (!data) {
+        console.error('Supabase createBrand: no data returned')
+        return null
+      }
+      const newBrand = { ...data, creative_count: 0 }
+      setBrands(prev => [newBrand, ...prev])
+      setActiveBrand(newBrand)
+      return newBrand
+    } catch (e) {
+      console.error('createBrand exception:', e)
+      return null
+    }
   }, [])
 
   const updateBrand = useCallback((brandId: string, updates: Partial<Brand>) => {
