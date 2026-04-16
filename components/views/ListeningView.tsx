@@ -9,6 +9,7 @@ import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import Pill from '@/components/ui/Pill'
 import EmptyState from '@/components/ui/EmptyState'
 import PageHeader from '@/components/ui/PageHeader'
+import Modal from '@/components/ui/Modal'
 
 interface ListeningViewProps {
   brand: Brand | null
@@ -45,6 +46,15 @@ interface TrackedSignal extends SocialSignal {
   status?: 'new' | 'trending' | 'persistent'
 }
 
+interface UGCScript {
+  persona: string
+  persona_number: number
+  hook: string
+  body: string
+  cta: string
+  scene_notes?: string
+}
+
 export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdate }: ListeningViewProps) {
   const [signals, setSignals] = useState<TrackedSignal[]>([])
   const [insights, setInsights] = useState<EnrichedInsight[]>([])
@@ -54,12 +64,44 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [hasRun, setHasRun] = useState(false)
   const [scanCadence, setScanCadence] = useState<string>(brand?.scan_cadence || 'manual')
   const [savingInsight, setSavingInsight] = useState<string | null>(null)
+  const [generatingUGC, setGeneratingUGC] = useState<string | null>(null)
+  const [ugcScripts, setUgcScripts] = useState<UGCScript[] | null>(null)
+  const [ugcInsightTitle, setUgcInsightTitle] = useState('')
+  const [showUgcModal, setShowUgcModal] = useState(false)
 
   const hasResearch = brand?.research_completed || !!brand?.research
 
   useEffect(() => {
     setScanCadence(brand?.scan_cadence || 'manual')
   }, [brand?.id, brand?.scan_cadence])
+
+  // Load previous scan results when brand changes
+  useEffect(() => {
+    if (!brand?.id) {
+      setSignals([])
+      setInsights([])
+      setTrends([])
+      setSourceBreakdown({})
+      setHasRun(false)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/listening/last-scan?brandId=${brand.id}`)
+        const data = await res.json()
+        if (cancelled) return
+        if (data.insights?.length || data.signals?.length) {
+          setInsights(data.insights || [])
+          setSignals(data.signals || [])
+          setTrends(data.trends || [])
+          setSourceBreakdown(data.sourceBreakdown || {})
+          setHasRun(true)
+        }
+      } catch { /* silent */ }
+    })()
+    return () => { cancelled = true }
+  }, [brand?.id])
 
   const runListening = async () => {
     if (!brand?.id) { onToast('No brand selected', 'error'); return }
@@ -115,6 +157,32 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       onToast(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setSavingInsight(null)
+  }
+
+  const generateUGCScripts = async (insight: EnrichedInsight) => {
+    if (!brand?.id) { onToast('No brand selected', 'error'); return }
+    if (!brand.research?.personas?.length) {
+      onToast('Brand research required with at least 1 persona', 'error')
+      return
+    }
+    setGeneratingUGC(insight.id)
+    setUgcInsightTitle(insight.title)
+    onToast(`Generating 4 UGC scripts based on "${insight.title}"...`, 'info')
+    try {
+      const res = await fetch('/api/ugc-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: brand.id, insight }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setUgcScripts(data.scripts || [])
+      setShowUgcModal(true)
+      onToast(`${data.scripts?.length || 0} UGC scripts ready`, 'success')
+    } catch (err: unknown) {
+      onToast(`UGC generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setGeneratingUGC(null)
   }
 
   const generateFromInsight = (insight: EnrichedInsight, type: 'copy' | 'image') => {
@@ -264,6 +332,9 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
 
                         {/* Action buttons */}
                         <div className="flex gap-2 flex-wrap">
+                          <Button size="sm" onClick={() => generateUGCScripts(insight)} disabled={generatingUGC === insight.id}>
+                            {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '🎬 Generate UGC Scripts'}
+                          </Button>
                           <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'copy')}>
                             ✍ Generate Copy
                           </Button>
@@ -353,6 +424,61 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           )}
         </>
       )}
+
+      {/* UGC Scripts Modal */}
+      <Modal
+        open={showUgcModal}
+        onClose={() => setShowUgcModal(false)}
+        title="UGC Scripts"
+        subtitle={ugcInsightTitle ? `Based on "${ugcInsightTitle}"` : undefined}
+        maxWidth="max-w-3xl"
+      >
+        {ugcScripts && ugcScripts.length > 0 ? (
+          <div className="space-y-4">
+            {ugcScripts.map((script, i) => (
+              <div key={i} className="bg-page border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded">
+                    P{script.persona_number} · {script.persona}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${script.hook}\n\n${script.body}\n\n${script.cta}`)
+                      onToast('Script copied to clipboard', 'success')
+                    }}
+                    className="ml-auto text-2xs text-text-dim hover:text-text-primary"
+                  >
+                    Copy all
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Hook (0-3 sec)</div>
+                    <div className="text-sm text-text-secondary leading-relaxed italic">&quot;{script.hook}&quot;</div>
+                  </div>
+                  <div>
+                    <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Body (3-20 sec)</div>
+                    <div className="text-sm text-text-secondary leading-relaxed">{script.body}</div>
+                  </div>
+                  <div>
+                    <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">CTA (20-25 sec)</div>
+                    <div className="text-sm text-text-secondary leading-relaxed italic">&quot;{script.cta}&quot;</div>
+                  </div>
+                  {script.scene_notes && (
+                    <div className="bg-elevated border border-border rounded px-3 py-2">
+                      <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Scene Notes</div>
+                      <div className="text-xs text-text-dim">{script.scene_notes}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-text-dim">No scripts generated</div>
+        )}
+      </Modal>
     </div>
   )
 }

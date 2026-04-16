@@ -320,8 +320,18 @@ export async function POST(req: NextRequest) {
     // Claude analysis
     const insights = await analyzeSignals(tracked, trends, research)
 
-    // Update brand last_scanned_at
-    await supabase.from('brands').update({ last_scanned_at: new Date().toISOString() }).eq('id', brandId)
+    // Update brand with full scan results so they persist
+    const sourceBreakdown = {
+      reddit: uniqueSignals.filter(s => s.source.startsWith('r/')).length,
+      hackernews: uniqueSignals.filter(s => s.source === 'HackerNews').length,
+      youtube: uniqueSignals.filter(s => s.source.startsWith('YouTube')).length,
+    }
+    await supabase.from('brands').update({
+      last_scanned_at: new Date().toISOString(),
+      last_scan_insights: insights,
+      last_scan_trends: trends,
+      last_scan_sources: sourceBreakdown,
+    }).eq('id', brandId)
 
     return NextResponse.json({
       signals: tracked.map(t => ({ ...t.signal, status: t.status })),
@@ -330,11 +340,7 @@ export async function POST(req: NextRequest) {
       signalCount: uniqueSignals.length,
       insightCount: insights.length,
       scannedAt: new Date().toISOString(),
-      sourceBreakdown: {
-        reddit: uniqueSignals.filter(s => s.source.startsWith('r/')).length,
-        hackernews: uniqueSignals.filter(s => s.source === 'HackerNews').length,
-        youtube: uniqueSignals.filter(s => s.source.startsWith('YouTube')).length,
-      },
+      sourceBreakdown,
     })
   } catch (e: unknown) {
     console.error('Listening error:', e)
