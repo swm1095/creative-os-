@@ -22,6 +22,8 @@ import ChatView from '@/components/views/ChatView'
 import CopyView from '@/components/views/CopyView'
 import PerformanceView from '@/components/views/PerformanceView'
 import ResizeView from '@/components/views/ResizeView'
+import ListeningView from '@/components/views/ListeningView'
+import BrandResearchView from '@/components/views/BrandResearchView'
 
 export default function DashboardPage() {
   const { brands, activeBrand, setActiveBrand, createBrand, updateBrand } = useBrands()
@@ -156,6 +158,10 @@ export default function DashboardPage() {
         return <ChatView brandContext={brandContext} onToast={addToast} />
       case 'copy':
         return <CopyView brandContext={brandContext} onToast={addToast} />
+      case 'listening':
+        return <ListeningView brand={activeBrand} onToast={addToast} />
+      case 'brand-research':
+        return <BrandResearchView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} onCreateBrand={createBrand} />
       case 'performance':
         return <PerformanceView />
       case 'coming-soon':

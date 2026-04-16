@@ -13,6 +13,8 @@ export type ViewId =
   | 'copy'
   | 'performance'
   | 'tracker'
+  | 'listening'
+  | 'brand-research'
   | 'coming-soon'
 
 // ── Brand ────────────────────────────────────────────────────
@@ -29,6 +31,72 @@ export interface Brand {
   tone_notes?: string
   created_at: string
   creative_count?: number
+  // Deep research fields
+  research?: BrandResearch | null
+  research_completed?: boolean
+}
+
+export interface BrandResearch {
+  // Core identity
+  industry: string
+  productCategory: string
+  priceRange: string
+  targetDemo: string
+  // Positioning
+  valueProps: string[]
+  differentiators: string[]
+  competitors: string[]
+  // Audience insights
+  personas: ResearchPersona[]
+  painPoints: string[]
+  motivators: string[]
+  objections: string[]
+  // Voice and messaging
+  brandVoice: string
+  messagingThemes: string[]
+  keyPhrases: string[]
+  avoidPhrases: string[]
+  // Social listening config
+  searchKeywords: string[]
+  subreddits: string[]
+  hashTags: string[]
+  // Meta
+  websiteUrl: string
+  researchDate: string
+  summary: string
+}
+
+export interface ResearchPersona {
+  name: string
+  age: string
+  description: string
+  painPoints: string[]
+  motivators: string[]
+  channels: string[]
+  hook: string
+}
+
+// ── Social Listening ─────────────────────────────────────────
+export interface SocialSignal {
+  id: string
+  source: string
+  title: string
+  content: string
+  url?: string
+  score?: number
+  date: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+  relevance: number
+}
+
+export interface ListeningInsight {
+  id: string
+  type: 'trend' | 'pain_point' | 'competitor' | 'opportunity' | 'language'
+  title: string
+  detail: string
+  signals: string[]
+  actionable: string
+  priority: 'high' | 'medium' | 'low'
 }
 
 // ── Creative ─────────────────────────────────────────────────

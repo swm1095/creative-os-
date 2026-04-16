@@ -76,9 +76,9 @@ export const TOOLS: ToolDef[] = [
     shortName: 'Social Intel',
     emoji: '👂',
     description: 'Social listening & signals',
-    defaultView: 'coming-soon',
-    views: [],
-    implemented: false,
+    defaultView: 'listening',
+    views: [{ id: 'listening' as const, label: 'Signals' }],
+    implemented: true,
   },
   {
     id: 'hyperresearch',
