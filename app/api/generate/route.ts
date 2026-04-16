@@ -91,34 +91,30 @@ function buildPrompt(
   const lines: string[] = []
 
   if (hasReferenceImage && hasProductImages) {
-    lines.push('I am giving you TWO types of images:')
-    lines.push('1. The FIRST image is a REFERENCE AD. Replicate its EXACT layout, background, lighting, composition, and visual style.')
-    lines.push('2. The REMAINING image(s) are PRODUCT PHOTOS. Feature this EXACT product in the scene, replacing whatever product is in the reference.')
-    lines.push('')
-    lines.push('Recreate the reference image composition with the provided product.')
+    lines.push('Edit the first image I provided. Keep the SAME composition, background, camera angle, and lighting. Replace the product with the product shown in the other image(s) I provided. Keep everything else identical.')
   } else if (hasReferenceImage) {
-    lines.push('I am giving you a REFERENCE IMAGE.')
-    lines.push('Replicate its EXACT layout, background, lighting, colors, and composition.')
-    lines.push('Create a new version matching the same visual style.')
+    lines.push('Edit this image. Keep the SAME composition, background, camera angle, and lighting. Make the following adjustments:')
   } else if (hasProductImages) {
-    lines.push('I am giving you PRODUCT PHOTOS.')
-    lines.push('Create a beautiful product photograph featuring this EXACT product. Do not invent a different product.')
+    lines.push('Create a product photograph featuring the EXACT product shown in the image I provided. Do not change or invent a different product.')
   } else {
     lines.push('Create a product lifestyle photograph.')
   }
 
   lines.push('')
-  lines.push(`Target audience: ${persona.name}`)
-  lines.push(`Mood/feeling: ${persona.angle}`)
+  lines.push(`Audience: ${persona.name}`)
+  lines.push(`Mood: ${persona.angle}`)
 
   if (brandContext) {
     lines.push(`Brand: ${brandContext}`)
   }
 
+  if (!hasReferenceImage) {
+    lines.push('')
+    lines.push(`Scene: ${concept}`)
+  }
+
   lines.push('')
-  lines.push(`Scene: ${concept}`)
-  lines.push('')
-  lines.push('IMPORTANT: Do NOT add any text, words, logos, buttons, or typography to the image. Generate ONLY the photograph/visual. Text will be added separately. The image should be a clean visual with no overlaid text of any kind.')
+  lines.push('Do NOT add any text, words, logos, or typography. Output only the photograph.')
 
   return lines.join('\n')
 }
