@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       if (color !== undefined) updates.color = color
       if (scan_cadence !== undefined) updates.scan_cadence = scan_cadence
       if (assigned_to !== undefined) updates.assigned_to = assigned_to
+      if (body.research !== undefined) updates.research = body.research
 
       const { data, error } = await supabase.from('brands').update(updates).eq('id', id).select().single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })

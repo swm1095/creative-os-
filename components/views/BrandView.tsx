@@ -33,6 +33,10 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [removingBg, setRemovingBg] = useState<string | null>(null)
+  const [showAddPersona, setShowAddPersona] = useState(false)
+  const [newPersonaName, setNewPersonaName] = useState('')
+  const [newPersonaDesc, setNewPersonaDesc] = useState('')
+  const [newPersonaHook, setNewPersonaHook] = useState('')
   const logoRef = useRef<HTMLInputElement>(null)
   const guidelinesRef = useRef<HTMLInputElement>(null)
   const assetRef = useRef<HTMLInputElement>(null)
@@ -151,6 +155,46 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
     setAnalyzing(false)
   }
 
+  const handleAddPersona = async () => {
+    if (!brand?.id || !newPersonaName.trim()) return
+    const newPersona = {
+      name: newPersonaName,
+      age: '',
+      description: newPersonaDesc,
+      painPoints: [],
+      motivators: [],
+      channels: [],
+      hook: newPersonaHook,
+    }
+    const currentResearch = brand.research || {
+      industry: '', productCategory: '', priceRange: '', targetDemo: '',
+      valueProps: [], differentiators: [], competitors: [],
+      personas: [], painPoints: [], motivators: [], objections: [],
+      brandVoice: '', messagingThemes: [], keyPhrases: [], avoidPhrases: [],
+      searchKeywords: [], subreddits: [], hashTags: [],
+      websiteUrl: '', researchDate: new Date().toISOString(), summary: '',
+    }
+    const updatedResearch = {
+      ...currentResearch,
+      personas: [...(currentResearch.personas || []), newPersona],
+    }
+    try {
+      await fetch('/api/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: brand.id, research: updatedResearch }),
+      })
+      onBrandUpdate(brand.id, { research: updatedResearch })
+      setNewPersonaName('')
+      setNewPersonaDesc('')
+      setNewPersonaHook('')
+      setShowAddPersona(false)
+      onToast(`Persona "${newPersonaName}" added`, 'success')
+    } catch (err: unknown) {
+      onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }
+
   const handleRemoveBg = async (assetUrl: string, assetName: string) => {
     setRemovingBg(assetName)
     onToast('Removing background...', 'info')
@@ -241,6 +285,69 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
           <div className="bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed">
             {tone}
           </div>
+        </div>
+
+        {/* Target Personas */}
+        <div>
+          <SectionHeader
+            title="Target Personas"
+            subtitle={`${brand?.research?.personas?.length || 0} defined`}
+            action={
+              <Button variant="ghost" size="sm" onClick={() => setShowAddPersona(!showAddPersona)}>
+                {showAddPersona ? 'Cancel' : '+ Add Persona'}
+              </Button>
+            }
+          />
+          {showAddPersona && (
+            <div className="bg-surface border border-border rounded-lg p-4 mb-3 space-y-2">
+              <input
+                type="text"
+                placeholder="Persona name (e.g. Runners, 25-40)"
+                value={newPersonaName}
+                onChange={e => setNewPersonaName(e.target.value)}
+                className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                autoFocus
+              />
+              <input
+                type="text"
+                placeholder="Description (e.g. Active runners dealing with shin splints)"
+                value={newPersonaDesc}
+                onChange={e => setNewPersonaDesc(e.target.value)}
+                className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Ad hook (e.g. Recovery support between runs)"
+                value={newPersonaHook}
+                onChange={e => setNewPersonaHook(e.target.value)}
+                className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+              />
+              <Button size="sm" className="w-full justify-center" onClick={handleAddPersona} disabled={!newPersonaName.trim()}>
+                Save Persona
+              </Button>
+            </div>
+          )}
+          {brand?.research?.personas && brand.research.personas.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {brand.research.personas.map((p, i) => (
+                <div key={i} className="bg-surface border border-border rounded-lg p-3">
+                  <div className="text-2xs font-bold text-fulton uppercase tracking-wider mb-1">P{i + 1}</div>
+                  <div className="text-sm font-bold mb-1">{p.name}</div>
+                  {p.description && <div className="text-xs text-text-dim mb-1.5">{p.description}</div>}
+                  {p.hook && (
+                    <div className="bg-fulton-light border border-fulton/20 rounded px-2.5 py-1.5 mt-2">
+                      <span className="text-2xs font-bold text-fulton">Hook: </span>
+                      <span className="text-xs text-text-secondary">{p.hook}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-xs text-text-dim text-center py-4">
+              No personas yet. Click &quot;+ Add Persona&quot; to create one, or run Brand Research to auto-generate them.
+            </div>
+          )}
         </div>
 
         {/* Do / Don't */}

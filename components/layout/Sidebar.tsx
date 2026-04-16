@@ -59,7 +59,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
             <NavItem label="Performance" emoji="📊" active={activeView === 'performance'} onClick={() => onNavigate('hyperinsights', 'performance')} />
             <NavItem label="Creative Tracker" emoji="📋" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
 
-            <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Creative Tools</div>
+            <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
             {TOOLS.map(tool => (
               <NavItem
                 key={tool.id}

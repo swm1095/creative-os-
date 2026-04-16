@@ -1,28 +1,48 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ChatMessage } from '@/lib/types'
+import { ChatMessage, Brand } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface ChatViewProps {
   brandId?: string
+  brand?: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
 }
 
-const SUGGESTIONS = [
+const FALLBACK_SUGGESTIONS = [
   'What ad angles work best for pain-point marketing?',
-  'Write 3 hook variations for a comfort shoe brand',
+  'Write 3 hook variations for a DTC comfort brand',
   'Analyze why UGC-style ads outperform studio shots',
   'Suggest a testing framework for 4 persona variants',
 ]
 
-export default function ChatView({ brandId, onToast }: ChatViewProps) {
+function buildBrandSuggestions(brand: Brand | null | undefined): string[] {
+  if (!brand?.research) return FALLBACK_SUGGESTIONS
+
+  const r = brand.research
+  const brandName = brand.name
+  const topPersona = r.personas?.[0]?.name || 'our target audience'
+  const topPain = r.painPoints?.[0] || 'the main pain point'
+  const topCompetitor = r.competitors?.[0] || 'competitors'
+
+  return [
+    `Write 3 hook variations for ${brandName} targeting "${topPersona}"`,
+    `What's the best ad angle for "${topPain}" for ${brandName}?`,
+    `How should we differentiate ${brandName} from ${topCompetitor}?`,
+    `Suggest a creative testing framework for all ${r.personas?.length || 4} ${brandName} personas`,
+  ]
+}
+
+export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  const suggestions = buildBrandSuggestions(brand)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -73,13 +93,16 @@ export default function ChatView({ brandId, onToast }: ChatViewProps) {
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-4xl mb-4">💬</div>
             <h3 className="text-xl font-black mb-2">HyperChat</h3>
-            <p className="text-sm text-text-dim mb-6 max-w-md">Your AI creative strategist. Ask about ad strategy, copy angles, audience insights, or anything creative.</p>
-            <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-              {SUGGESTIONS.map(s => (
+            <p className="text-sm text-text-dim mb-6 max-w-md">
+              {brand?.name ? `Your AI creative strategist for ${brand.name}. ` : 'Your AI creative strategist. '}
+              Ask about ad strategy, copy angles, audience insights, or anything creative.
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
+              {suggestions.map(s => (
                 <button
                   key={s}
                   onClick={() => send(s)}
-                  className="px-3 py-2 bg-surface border border-border rounded-lg text-xs text-text-muted hover:text-text-primary hover:border-fulton/40 transition-all text-left"
+                  className="px-3 py-2 bg-surface border border-border rounded-lg text-xs text-text-muted hover:text-text-primary hover:border-fulton/40 transition-all text-left max-w-md"
                 >
                   {s}
                 </button>
@@ -119,7 +142,7 @@ export default function ChatView({ brandId, onToast }: ChatViewProps) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Claude anything about creative strategy..."
+            placeholder={brand?.name ? `Ask Claude about ${brand.name}...` : 'Ask Claude anything about creative strategy...'}
             className="flex-1 px-4 py-3 bg-surface border border-border rounded-xl text-sm text-text-primary placeholder:text-text-dim resize-none focus:border-fulton focus:outline-none min-h-[44px] max-h-[120px]"
             rows={1}
           />

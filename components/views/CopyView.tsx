@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CopyVariant } from '@/lib/types'
+import { CopyVariant, Brand } from '@/lib/types'
 import { DEFAULT_PERSONAS, PLATFORMS, TONES } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -11,20 +11,27 @@ import EmptyState from '@/components/ui/EmptyState'
 
 interface CopyViewProps {
   brandId?: string
+  brand?: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
+  onBrandUpdate?: (brandId: string, updates: Partial<Brand>) => void
 }
 
 const CONTENT_TYPES = [
   { id: 'ad-copy', label: 'Ad Copy', desc: 'Headlines, body, CTA for paid ads' },
-  { id: 'ugc-script', label: 'UGC Script', desc: 'Talking points for creator videos' },
-  { id: 'static-headlines', label: 'Static Headlines', desc: 'Bold text for image ads' },
-  { id: 'video-script', label: 'Video Script', desc: 'Full script with scenes and voiceover' },
-  { id: 'email', label: 'Email Copy', desc: 'Subject lines and email body' },
+  { id: 'ugc-script', label: 'UGC Script', desc: 'Genuine, friend-recommending-a-product style' },
+  { id: 'static-headlines', label: 'Static Headlines', desc: 'Outcome-driven, pain-point specific' },
 ]
 
-export default function CopyView({ brandId, onToast }: CopyViewProps) {
+export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: CopyViewProps) {
   const [contentType, setContentType] = useState('ad-copy')
-  const [persona, setPersona] = useState(DEFAULT_PERSONAS[0].name)
+
+  // Use personas from brand research if available
+  const brandPersonas = brand?.research?.personas?.map(p => ({ name: p.name, angle: p.description || '', hook: p.hook || '' })) || DEFAULT_PERSONAS
+
+  const [persona, setPersona] = useState(brandPersonas[0]?.name || DEFAULT_PERSONAS[0].name)
+  const [showAddPersona, setShowAddPersona] = useState(false)
+  const [newPersonaName, setNewPersonaName] = useState('')
+  const [newPersonaHook, setNewPersonaHook] = useState('')
   const [tone, setTone] = useState('Empathetic')
   const [platform, setPlatform] = useState(PLATFORMS[0])
   const [prompt, setPrompt] = useState('Write copy for a premium cork arch-support house shoe that solves foot pain. Focus on the cost savings vs physical therapy angle.')
@@ -109,14 +116,79 @@ export default function CopyView({ brandId, onToast }: CopyViewProps) {
         <Card title={`${activeType?.label || 'Copy'} Studio`} subtitle={`Claude generates ${activeType?.desc?.toLowerCase() || 'copy'} tailored to your persona and platform`}>
           <div className="space-y-3">
             <div>
-              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Persona</label>
-              <select
-                value={persona}
-                onChange={e => setPersona(e.target.value)}
-                className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
-              >
-                {DEFAULT_PERSONAS.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-              </select>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-2xs font-bold tracking-wider uppercase text-text-muted">Persona</label>
+                <button
+                  onClick={() => setShowAddPersona(!showAddPersona)}
+                  className="text-2xs font-bold text-fulton hover:underline"
+                >
+                  {showAddPersona ? 'Cancel' : '+ Add Persona'}
+                </button>
+              </div>
+              {showAddPersona ? (
+                <div className="space-y-2 mb-2">
+                  <input
+                    type="text"
+                    placeholder="Persona name (e.g. Runners, 25-40)"
+                    value={newPersonaName}
+                    onChange={e => setNewPersonaName(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Hook or angle (e.g. Recovery between runs)"
+                    value={newPersonaHook}
+                    onChange={e => setNewPersonaHook(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full justify-center"
+                    disabled={!newPersonaName.trim() || !brandId}
+                    onClick={async () => {
+                      if (!brandId || !brand?.research) { onToast('Brand research required', 'error'); return }
+                      const newPersona = {
+                        name: newPersonaName,
+                        age: '',
+                        description: newPersonaHook,
+                        painPoints: [],
+                        motivators: [],
+                        channels: [],
+                        hook: newPersonaHook,
+                      }
+                      const updatedResearch = {
+                        ...brand.research,
+                        personas: [...(brand.research.personas || []), newPersona],
+                      }
+                      try {
+                        await fetch('/api/brands', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ id: brandId, research: updatedResearch }),
+                        })
+                        if (onBrandUpdate) onBrandUpdate(brandId, { research: updatedResearch })
+                        setPersona(newPersonaName)
+                        setNewPersonaName('')
+                        setNewPersonaHook('')
+                        setShowAddPersona(false)
+                        onToast(`Persona "${newPersonaName}" added to brand`, 'success')
+                      } catch (err: unknown) {
+                        onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+                      }
+                    }}
+                  >
+                    Save Persona
+                  </Button>
+                </div>
+              ) : (
+                <select
+                  value={persona}
+                  onChange={e => setPersona(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                >
+                  {brandPersonas.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                </select>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">

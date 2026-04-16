@@ -157,9 +157,9 @@ export default function DashboardPage() {
       case 'brand':
         return <BrandView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'chat':
-        return <ChatView brandId={activeBrand?.id} onToast={addToast} />
+        return <ChatView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} />
       case 'copy':
-        return <CopyView brandId={activeBrand?.id} onToast={addToast} />
+        return <CopyView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'listening':
         return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={updateBrand} />
       case 'brand-research':

@@ -1,7 +1,7 @@
 'use client'
 
 import { ToolId, ViewId } from '@/lib/types'
-import { TOOLS, MOCK_STATS, MOCK_TOP_CREATORS } from '@/lib/constants'
+import { MOCK_STATS, MOCK_TOP_CREATORS } from '@/lib/constants'
 import StatCard from '@/components/ui/StatCard'
 import SectionHeader from '@/components/ui/SectionHeader'
 
@@ -18,25 +18,6 @@ export default function HubView({ onNavigate }: HubViewProps) {
         <StatCard label="Avg ROAS" value={`${MOCK_STATS.avgROAS}x`} change="↑ 0.3 vs last month" />
         <StatCard label="Live Signals" value={MOCK_STATS.liveSignals} change="2 actionable" changeColor="text-fulton-gold" />
         <StatCard label="QC Pass Rate" value={`${MOCK_STATS.qcPassRate}%`} change="↑ 2% vs last batch" />
-      </div>
-
-      {/* Tool Grid */}
-      <SectionHeader title="Your Tools" />
-      <div className="flex gap-3 overflow-x-auto pb-2 mb-6 scrollbar-none">
-        {TOOLS.map(tool => (
-          <button
-            key={tool.id}
-            onClick={() => tool.implemented ? onNavigate(tool.id, tool.defaultView) : undefined}
-            className={`shrink-0 bg-surface border border-border rounded-lg px-4 py-3 flex items-center gap-3 transition-all duration-150 min-w-[160px]
-              ${tool.implemented ? 'hover:border-fulton/40 hover:-translate-y-px cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
-          >
-            <span className="text-xl">{tool.emoji}</span>
-            <div className="text-left">
-              <div className="text-sm font-bold">{tool.shortName}</div>
-              <div className="text-2xs text-text-dim">{tool.implemented ? tool.description : 'Coming soon'}</div>
-            </div>
-          </button>
-        ))}
       </div>
 
       {/* Top Creators */}
