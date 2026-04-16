@@ -272,12 +272,12 @@ export async function searchApifyReddit(query: string, limit: number = 20): Prom
   }, 90)
 
   if (!Array.isArray(items)) return []
-  return (items as Array<{ id?: string; title?: string; body?: string; url?: string; upVotes?: number; createdAt?: string; subreddit?: { name?: string } }>)
-    .filter(item => item && item.id)
+  return (items as Array<{ id?: string; parsedId?: string; title?: string; body?: string; url?: string; upVotes?: number; createdAt?: string; communityName?: string; parsedCommunityName?: string }>)
+    .filter(item => item && (item.id || item.parsedId))
     .slice(0, limit)
     .map(item => ({
-      id: `apify-reddit-${item.id}`,
-      source: `r/${item.subreddit?.name || 'reddit'}`,
+      id: `apify-reddit-${item.parsedId || item.id}`,
+      source: `r/${item.parsedCommunityName || item.communityName?.replace('r/', '') || 'reddit'}`,
       title: item.title || '',
       content: (item.body || '').slice(0, 1000),
       url: item.url || '',
@@ -315,59 +315,21 @@ export async function searchApifyTikTok(query: string, limit: number = 15): Prom
     }))
 }
 
-// Amazon review scraper (junglee/amazon-reviews-scraper)
-// This one searches for the product first, then pulls reviews
-export async function searchApifyAmazon(competitorName: string, limit: number = 15): Promise<SocialSignal[]> {
-  const items = await runApifyActor('junglee~amazon-reviews-scraper', {
-    productUrls: [{ url: `https://www.amazon.com/s?k=${encodeURIComponent(competitorName)}` }],
-    maxReviews: limit,
-    sort: 'helpful',
-    includeGdprSensitive: false,
-    filterByRatings: ['critical'], // Mine negative reviews for competitor weaknesses
-    proxyConfiguration: { useApifyProxy: true },
-  }, 120)
-
-  if (!Array.isArray(items)) return []
-  return (items as Array<{ id?: string; title?: string; text?: string; url?: string; ratingScore?: number; date?: string }>)
-    .filter(item => item)
-    .slice(0, limit)
-    .map((item, i) => ({
-      id: `apify-amazon-${item.id || i}-${competitorName.replace(/\s+/g, '-')}`,
-      source: 'Amazon',
-      title: item.title || `${competitorName} review`,
-      content: (item.text || '').slice(0, 1500),
-      url: item.url,
-      score: Math.round((item.ratingScore || 3) * 20), // Scale 1-5 to 20-100
-      date: item.date || new Date().toISOString(),
-      sentiment: (item.ratingScore || 3) < 3 ? 'negative' as const : 'positive' as const,
-      relevance: 0,
-    }))
+// Amazon review scraper - DISABLED: Actor crashes on search URLs
+// TODO: Re-enable when we find a working Amazon reviews actor or
+// when user provides direct product ASINs
+export async function searchApifyAmazon(_competitorName: string): Promise<SocialSignal[]> {
+  if (!process.env.APIFY_API_KEY) return []
+  console.log('Apify Amazon: Skipped (actor needs direct product URLs, not search queries)')
+  return []
 }
 
-// Twitter/X scraper (apidojo/tweet-scraper)
-export async function searchApifyTwitter(query: string, limit: number = 20): Promise<SocialSignal[]> {
-  const items = await runApifyActor('apidojo~tweet-scraper', {
-    searchTerms: [query],
-    maxItems: limit,
-    tweetLanguage: 'en',
-    sort: 'Top',
-  }, 90)
-
-  if (!Array.isArray(items)) return []
-  return (items as Array<{ id?: string; text?: string; url?: string; likeCount?: number; viewCount?: number; createdAt?: string; author?: { userName?: string } }>)
-    .filter(item => item && item.id && item.text)
-    .slice(0, limit)
-    .map(item => ({
-      id: `apify-twitter-${item.id}`,
-      source: `Twitter/X${item.author?.userName ? ` (@${item.author.userName})` : ''}`,
-      title: (item.text || '').slice(0, 150),
-      content: item.text || '',
-      url: item.url || '',
-      score: item.likeCount || 0,
-      date: item.createdAt || new Date().toISOString(),
-      sentiment: 'neutral' as const,
-      relevance: 0,
-    }))
+// Twitter/X scraper - DISABLED: X aggressively blocks scrapers
+// TODO: Re-enable if Apify releases a working X scraper
+export async function searchApifyTwitter(_query: string): Promise<SocialSignal[]> {
+  if (!process.env.APIFY_API_KEY) return []
+  console.log('Apify Twitter: Skipped (X is blocking scrapers)')
+  return []
 }
 
 export function isApifyEnabled(): boolean {
