@@ -271,14 +271,16 @@ export async function searchApifyReddit(query: string, limit: number = 20): Prom
     proxy: { useApifyProxy: true },
   }, 90)
 
-  return (items as Array<{ id: string; title: string; body?: string; url: string; upVotes: number; createdAt: string; subreddit?: { name?: string } }>)
+  if (!Array.isArray(items)) return []
+  return (items as Array<{ id?: string; title?: string; body?: string; url?: string; upVotes?: number; createdAt?: string; subreddit?: { name?: string } }>)
+    .filter(item => item && item.id)
     .slice(0, limit)
     .map(item => ({
       id: `apify-reddit-${item.id}`,
       source: `r/${item.subreddit?.name || 'reddit'}`,
       title: item.title || '',
       content: (item.body || '').slice(0, 1000),
-      url: item.url,
+      url: item.url || '',
       score: item.upVotes || 0,
       date: item.createdAt || new Date().toISOString(),
       sentiment: 'neutral' as const,
@@ -296,7 +298,9 @@ export async function searchApifyTikTok(query: string, limit: number = 15): Prom
     proxyCountryCode: 'US',
   }, 90)
 
-  return (items as Array<{ id: string; text?: string; webVideoUrl?: string; playCount?: number; diggCount?: number; createTimeISO?: string; authorMeta?: { name?: string } }>)
+  if (!Array.isArray(items)) return []
+  return (items as Array<{ id?: string; text?: string; webVideoUrl?: string; playCount?: number; diggCount?: number; createTimeISO?: string; authorMeta?: { name?: string } }>)
+    .filter(item => item && item.id)
     .slice(0, limit)
     .map(item => ({
       id: `apify-tiktok-${item.id}`,
@@ -323,7 +327,9 @@ export async function searchApifyAmazon(competitorName: string, limit: number = 
     proxyConfiguration: { useApifyProxy: true },
   }, 120)
 
+  if (!Array.isArray(items)) return []
   return (items as Array<{ id?: string; title?: string; text?: string; url?: string; ratingScore?: number; date?: string }>)
+    .filter(item => item)
     .slice(0, limit)
     .map((item, i) => ({
       id: `apify-amazon-${item.id || i}-${competitorName.replace(/\s+/g, '-')}`,
@@ -347,14 +353,16 @@ export async function searchApifyTwitter(query: string, limit: number = 20): Pro
     sort: 'Top',
   }, 90)
 
-  return (items as Array<{ id: string; text: string; url: string; likeCount: number; viewCount?: number; createdAt: string; author?: { userName?: string } }>)
+  if (!Array.isArray(items)) return []
+  return (items as Array<{ id?: string; text?: string; url?: string; likeCount?: number; viewCount?: number; createdAt?: string; author?: { userName?: string } }>)
+    .filter(item => item && item.id && item.text)
     .slice(0, limit)
     .map(item => ({
       id: `apify-twitter-${item.id}`,
       source: `Twitter/X${item.author?.userName ? ` (@${item.author.userName})` : ''}`,
-      title: item.text.slice(0, 150),
-      content: item.text,
-      url: item.url,
+      title: (item.text || '').slice(0, 150),
+      content: item.text || '',
+      url: item.url || '',
       score: item.likeCount || 0,
       date: item.createdAt || new Date().toISOString(),
       sentiment: 'neutral' as const,
