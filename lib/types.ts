@@ -15,6 +15,7 @@ export type ViewId =
   | 'tracker'
   | 'listening'
   | 'brand-research'
+  | 'saved-insights'
   | 'coming-soon'
 
 // ── Brand ────────────────────────────────────────────────────
@@ -34,6 +35,10 @@ export interface Brand {
   // Deep research fields
   research?: BrandResearch | null
   research_completed?: boolean
+  // Scan cadence
+  scan_cadence?: string
+  last_scanned_at?: string
+  assigned_to?: string
 }
 
 export interface BrandResearch {

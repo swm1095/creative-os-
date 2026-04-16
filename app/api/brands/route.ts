@@ -40,11 +40,27 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// POST - create a brand
+// POST - create or update a brand
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
-    const { name, url, color } = await req.json()
+    const body = await req.json()
+    const { id, name, url, color, scan_cadence, assigned_to } = body
+
+    // Update if id provided, create otherwise
+    if (id) {
+      const updates: Record<string, unknown> = {}
+      if (name !== undefined) updates.name = name
+      if (url !== undefined) updates.url = url
+      if (color !== undefined) updates.color = color
+      if (scan_cadence !== undefined) updates.scan_cadence = scan_cadence
+      if (assigned_to !== undefined) updates.assigned_to = assigned_to
+
+      const { data, error } = await supabase.from('brands').update(updates).eq('id', id).select().single()
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ brand: { ...data, creative_count: 0 } })
+    }
+
     if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
     const { data, error } = await supabase

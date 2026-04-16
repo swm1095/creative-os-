@@ -55,6 +55,16 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
     }
   }, [droppedFiles])
 
+  // Pre-fill prompt from insight if navigated from HyperListening
+  useEffect(() => {
+    const draft = typeof window !== 'undefined' ? localStorage.getItem('hc-brief-draft') : null
+    if (draft) {
+      setPrompt(draft)
+      localStorage.removeItem('hc-brief-draft')
+      onToast('Prompt pre-filled from saved insight', 'info')
+    }
+  }, [])
+
   // Compress an image to max 1024px and return base64
   const compressImage = (dataUrl: string, maxSize: number = 1024): Promise<string> => {
     return new Promise((resolve) => {

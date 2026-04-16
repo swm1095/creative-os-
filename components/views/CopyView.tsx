@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CopyVariant } from '@/lib/types'
 import { DEFAULT_PERSONAS, PLATFORMS, TONES } from '@/lib/constants'
 import Button from '@/components/ui/Button'
@@ -27,6 +27,16 @@ export default function CopyView({ brandId, onToast }: CopyViewProps) {
   const [tone, setTone] = useState('Empathetic')
   const [platform, setPlatform] = useState(PLATFORMS[0])
   const [prompt, setPrompt] = useState('Write copy for a premium cork arch-support house shoe that solves foot pain. Focus on the cost savings vs physical therapy angle.')
+
+  // Pre-fill from insight if navigated from HyperListening
+  useEffect(() => {
+    const draft = typeof window !== 'undefined' ? localStorage.getItem('hc-brief-draft') : null
+    if (draft) {
+      setPrompt(draft)
+      localStorage.removeItem('hc-brief-draft')
+      onToast('Brief pre-filled from saved insight', 'info')
+    }
+  }, [])
   const [variants, setVariants] = useState<CopyVariant[]>([])
   const [generating, setGenerating] = useState(false)
 
