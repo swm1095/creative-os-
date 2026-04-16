@@ -33,6 +33,10 @@ export default function DashboardPage() {
   const [currentTool, setCurrentTool] = useState<ToolId>(null)
   const [activeView, setActiveView] = useState<ViewId>('hub')
   const [showBrandModal, setShowBrandModal] = useState(false)
+  const [showAddBrandForm, setShowAddBrandForm] = useState(false)
+  const [newBrandName, setNewBrandName] = useState('')
+  const [newBrandUrl, setNewBrandUrl] = useState('')
+  const [addingBrand, setAddingBrand] = useState(false)
   const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null)
   const [lastGeneratedFormats, setLastGeneratedFormats] = useState<Record<string, string>>({})
   const [lastGeneratedHeadline, setLastGeneratedHeadline] = useState('')
@@ -219,36 +223,110 @@ export default function DashboardPage() {
       </main>
 
       {/* Brand selector modal */}
-      <Modal open={showBrandModal} onClose={() => setShowBrandModal(false)} title="Switch Brand" subtitle="Select active client" maxWidth="max-w-sm">
-        <div className="space-y-2">
-          {brands.map(b => (
+      <Modal
+        open={showBrandModal}
+        onClose={() => { setShowBrandModal(false); setShowAddBrandForm(false); setNewBrandName(''); setNewBrandUrl('') }}
+        title={showAddBrandForm ? 'Add New Brand' : 'Switch Brand'}
+        subtitle={showAddBrandForm ? 'Claude will research the brand automatically' : 'Select active client'}
+        maxWidth="max-w-sm"
+      >
+        {showAddBrandForm ? (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Brand Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Fulton"
+                value={newBrandName}
+                onChange={e => setNewBrandName(e.target.value)}
+                className="w-full px-3 py-2.5 text-base text-text-primary bg-page border border-border rounded focus:border-fulton focus:outline-none transition-colors font-medium"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Website URL</label>
+              <input
+                type="text"
+                placeholder="https://walkfulton.com"
+                value={newBrandUrl}
+                onChange={e => setNewBrandUrl(e.target.value)}
+                className="w-full px-3 py-2.5 text-base text-text-primary bg-page border border-border rounded focus:border-fulton focus:outline-none transition-colors font-medium"
+              />
+              <div className="text-2xs text-text-dim mt-1.5">Required - Claude will scrape this site to build the brand profile</div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="ghost"
+                className="flex-1 justify-center"
+                onClick={() => { setShowAddBrandForm(false); setNewBrandName(''); setNewBrandUrl('') }}
+                disabled={addingBrand}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 justify-center"
+                disabled={!newBrandName.trim() || !newBrandUrl.trim() || addingBrand}
+                onClick={async () => {
+                  if (!newBrandName.trim() || !newBrandUrl.trim()) return
+                  setAddingBrand(true)
+                  addToast(`Researching ${newBrandName}... (30 sec)`, 'info')
+                  try {
+                    const res = await fetch('/api/brand-research', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ brandName: newBrandName, websiteUrl: newBrandUrl }),
+                    })
+                    const data = await res.json()
+                    if (data.error) throw new Error(data.error)
+                    await refreshBrands()
+                    // Find the new brand and set it as active
+                    const listRes = await fetch('/api/brands')
+                    const listData = await listRes.json()
+                    const newBrand = (listData.brands || []).find((b: { id: string }) => b.id === data.brandId)
+                    if (newBrand) setActiveBrand(newBrand)
+                    addToast(`${newBrandName} researched successfully`, 'success')
+                    setShowBrandModal(false)
+                    setShowAddBrandForm(false)
+                    setNewBrandName('')
+                    setNewBrandUrl('')
+                  } catch (err: unknown) {
+                    addToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+                  }
+                  setAddingBrand(false)
+                }}
+              >
+                {addingBrand ? 'Researching...' : 'Add + Research'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {brands.map(b => (
+              <button
+                key={b.id}
+                onClick={() => { setActiveBrand(b); setShowBrandModal(false) }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
+                  activeBrand?.id === b.id ? 'bg-fulton-light border border-fulton' : 'bg-page border border-border hover:border-text-subtle'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
+                  {b.name.charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold">{b.name}</div>
+                  <div className="text-2xs text-text-dim">{b.creative_count || 0} creatives</div>
+                </div>
+                {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
+              </button>
+            ))}
             <button
-              key={b.id}
-              onClick={() => { setActiveBrand(b); setShowBrandModal(false) }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
-                activeBrand?.id === b.id ? 'bg-fulton-light border border-fulton' : 'bg-page border border-border hover:border-text-subtle'
-              }`}
+              onClick={() => setShowAddBrandForm(true)}
+              className="w-full px-3 py-2.5 border border-dashed border-border rounded-lg text-sm text-text-dim hover:text-text-primary hover:border-text-subtle transition-all text-center"
             >
-              <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
-                {b.name.charAt(0)}
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-bold">{b.name}</div>
-                <div className="text-2xs text-text-dim">{b.creative_count || 0} creatives</div>
-              </div>
-              {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
+              + Add Brand
             </button>
-          ))}
-          <button
-            onClick={async () => {
-              const brand = await createBrand('New Brand')
-              if (brand) { setShowBrandModal(false); addToast('Brand created', 'success') }
-            }}
-            className="w-full px-3 py-2.5 border border-dashed border-border rounded-lg text-sm text-text-dim hover:text-text-primary hover:border-text-subtle transition-all text-center"
-          >
-            + Add Brand
-          </button>
-        </div>
+          </div>
+        )}
       </Modal>
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
