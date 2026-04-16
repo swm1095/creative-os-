@@ -321,7 +321,7 @@ export async function POST(req: NextRequest) {
       ...(apifyOn ? {
         tiktok: uniqueSignals.filter(s => s.source === 'TikTok').length,
         amazon: uniqueSignals.filter(s => s.source === 'Amazon').length,
-        twitter: uniqueSignals.filter(s => s.source === 'Twitter/X').length,
+        twitter: uniqueSignals.filter(s => s.source.startsWith('Twitter/X')).length,
       } : {}),
     }
 

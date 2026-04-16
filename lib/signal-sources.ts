@@ -226,33 +226,140 @@ export async function getGoogleTrendsDeep(keywords: string[]): Promise<{ keyword
   return results
 }
 
-// ── Apify integration (scaffolded - flip on when APIFY_API_KEY is set) ───
-export async function searchApifyReddit(_query: string, _limit: number = 20): Promise<SocialSignal[]> {
-  const apiKey = process.env.APIFY_API_KEY
-  if (!apiKey) return [] // not configured
-  // TODO: When APIFY_API_KEY is set, call Apify Reddit scraper
-  return []
+// ── Apify integration ─────────────────────────────────────────────────────
+// Uses Apify's actor-based scrapers. Each call runs an actor synchronously
+// and returns the dataset items. Actor IDs are Apify Store actors.
+
+const APIFY_BASE = 'https://api.apify.com/v2'
+
+interface ApifyDatasetItem {
+  [key: string]: unknown
 }
 
-export async function searchApifyTikTok(_query: string): Promise<SocialSignal[]> {
+async function runApifyActor(actorId: string, input: Record<string, unknown>, timeout: number = 60): Promise<ApifyDatasetItem[]> {
   const apiKey = process.env.APIFY_API_KEY
   if (!apiKey) return []
-  // TODO: When APIFY_API_KEY is set, call Apify TikTok scraper
-  return []
+
+  try {
+    // Run actor synchronously - gets dataset items directly
+    const url = `${APIFY_BASE}/acts/${actorId}/run-sync-get-dataset-items?token=${apiKey}&timeout=${timeout}&memory=512`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout((timeout + 5) * 1000),
+    })
+    if (!res.ok) {
+      console.error(`Apify ${actorId} failed:`, res.status, (await res.text()).slice(0, 200))
+      return []
+    }
+    return await res.json()
+  } catch (e) {
+    console.error(`Apify ${actorId} exception:`, e)
+    return []
+  }
 }
 
-export async function searchApifyAmazon(_competitor: string): Promise<SocialSignal[]> {
-  const apiKey = process.env.APIFY_API_KEY
-  if (!apiKey) return []
-  // TODO: When APIFY_API_KEY is set, call Apify Amazon review scraper
-  return []
+// Reddit scraper (trudax/reddit-scraper-lite)
+export async function searchApifyReddit(query: string, limit: number = 20): Promise<SocialSignal[]> {
+  const items = await runApifyActor('trudax~reddit-scraper-lite', {
+    searches: [query],
+    type: 'posts',
+    sort: 'top',
+    time: 'month',
+    maxItems: limit,
+    proxy: { useApifyProxy: true },
+  }, 90)
+
+  return (items as Array<{ id: string; title: string; body?: string; url: string; upVotes: number; createdAt: string; subreddit?: { name?: string } }>)
+    .slice(0, limit)
+    .map(item => ({
+      id: `apify-reddit-${item.id}`,
+      source: `r/${item.subreddit?.name || 'reddit'}`,
+      title: item.title || '',
+      content: (item.body || '').slice(0, 1000),
+      url: item.url,
+      score: item.upVotes || 0,
+      date: item.createdAt || new Date().toISOString(),
+      sentiment: 'neutral' as const,
+      relevance: 0,
+    }))
 }
 
-export async function searchApifyTwitter(_query: string): Promise<SocialSignal[]> {
-  const apiKey = process.env.APIFY_API_KEY
-  if (!apiKey) return []
-  // TODO: When APIFY_API_KEY is set, call Apify Twitter scraper
-  return []
+// TikTok scraper (clockworks/tiktok-scraper)
+export async function searchApifyTikTok(query: string, limit: number = 15): Promise<SocialSignal[]> {
+  const items = await runApifyActor('clockworks~tiktok-scraper', {
+    hashtags: [query.replace(/\s+/g, '')],
+    resultsPerPage: limit,
+    shouldDownloadCovers: false,
+    shouldDownloadVideos: false,
+    proxyCountryCode: 'US',
+  }, 90)
+
+  return (items as Array<{ id: string; text?: string; webVideoUrl?: string; playCount?: number; diggCount?: number; createTimeISO?: string; authorMeta?: { name?: string } }>)
+    .slice(0, limit)
+    .map(item => ({
+      id: `apify-tiktok-${item.id}`,
+      source: 'TikTok',
+      title: (item.text || '').slice(0, 150),
+      content: (item.text || '').slice(0, 1000),
+      url: item.webVideoUrl,
+      score: item.playCount || item.diggCount || 0,
+      date: item.createTimeISO || new Date().toISOString(),
+      sentiment: 'neutral' as const,
+      relevance: 0,
+    }))
+}
+
+// Amazon review scraper (junglee/amazon-reviews-scraper)
+// This one searches for the product first, then pulls reviews
+export async function searchApifyAmazon(competitorName: string, limit: number = 15): Promise<SocialSignal[]> {
+  const items = await runApifyActor('junglee~amazon-reviews-scraper', {
+    productUrls: [{ url: `https://www.amazon.com/s?k=${encodeURIComponent(competitorName)}` }],
+    maxReviews: limit,
+    sort: 'helpful',
+    includeGdprSensitive: false,
+    filterByRatings: ['critical'], // Mine negative reviews for competitor weaknesses
+    proxyConfiguration: { useApifyProxy: true },
+  }, 120)
+
+  return (items as Array<{ id?: string; title?: string; text?: string; url?: string; ratingScore?: number; date?: string }>)
+    .slice(0, limit)
+    .map((item, i) => ({
+      id: `apify-amazon-${item.id || i}-${competitorName.replace(/\s+/g, '-')}`,
+      source: 'Amazon',
+      title: item.title || `${competitorName} review`,
+      content: (item.text || '').slice(0, 1500),
+      url: item.url,
+      score: Math.round((item.ratingScore || 3) * 20), // Scale 1-5 to 20-100
+      date: item.date || new Date().toISOString(),
+      sentiment: (item.ratingScore || 3) < 3 ? 'negative' as const : 'positive' as const,
+      relevance: 0,
+    }))
+}
+
+// Twitter/X scraper (apidojo/tweet-scraper)
+export async function searchApifyTwitter(query: string, limit: number = 20): Promise<SocialSignal[]> {
+  const items = await runApifyActor('apidojo~tweet-scraper', {
+    searchTerms: [query],
+    maxItems: limit,
+    tweetLanguage: 'en',
+    sort: 'Top',
+  }, 90)
+
+  return (items as Array<{ id: string; text: string; url: string; likeCount: number; viewCount?: number; createdAt: string; author?: { userName?: string } }>)
+    .slice(0, limit)
+    .map(item => ({
+      id: `apify-twitter-${item.id}`,
+      source: `Twitter/X${item.author?.userName ? ` (@${item.author.userName})` : ''}`,
+      title: item.text.slice(0, 150),
+      content: item.text,
+      url: item.url,
+      score: item.likeCount || 0,
+      date: item.createdAt || new Date().toISOString(),
+      sentiment: 'neutral' as const,
+      relevance: 0,
+    }))
 }
 
 export function isApifyEnabled(): boolean {
