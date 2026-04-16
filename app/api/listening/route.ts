@@ -270,20 +270,23 @@ export async function POST(req: NextRequest) {
 
     // ── Apify sources (scaffolded - flips on when APIFY_API_KEY set) ──
     if (apifyOn) {
-      console.log('Apify: TikTok, Amazon, Twitter...')
+      console.log('Apify: TikTok, Reddit, Amazon...')
       for (const keyword of (research.searchKeywords || []).slice(0, 3)) {
         const tiktok = await searchApifyTikTok(keyword)
         allSignals.push(...tiktok)
       }
-      for (const competitor of (research.competitors || []).slice(0, 3)) {
-        const amazon = await searchApifyAmazon(competitor)
-        allSignals.push(...amazon)
-      }
       for (const keyword of (research.searchKeywords || []).slice(0, 2)) {
-        const twitter = await searchApifyTwitter(keyword)
-        allSignals.push(...twitter)
         const reddit = await searchApifyReddit(keyword)
         allSignals.push(...reddit)
+      }
+      // Amazon reviews from saved competitor product URLs
+      const competitorUrls: string[] = brand.competitor_urls || []
+      if (competitorUrls.length) {
+        console.log(`Apify Amazon: Mining ${competitorUrls.length} product URLs...`)
+        for (const url of competitorUrls.slice(0, 5)) {
+          const amazon = await searchApifyAmazon(url)
+          allSignals.push(...amazon)
+        }
       }
     }
 
@@ -320,8 +323,7 @@ export async function POST(req: NextRequest) {
       'yt comments': uniqueSignals.filter(s => s.source === 'YouTube comment').length,
       ...(apifyOn ? {
         tiktok: uniqueSignals.filter(s => s.source === 'TikTok').length,
-        amazon: uniqueSignals.filter(s => s.source === 'Amazon').length,
-        twitter: uniqueSignals.filter(s => s.source.startsWith('Twitter/X')).length,
+        amazon: uniqueSignals.filter(s => s.source === 'Amazon Review').length,
       } : {}),
     }
 

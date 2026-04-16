@@ -39,6 +39,8 @@ export interface Brand {
   scan_cadence?: string
   last_scanned_at?: string
   assigned_to?: string
+  // Competitor product URLs for Amazon review mining
+  competitor_urls?: string[]
 }
 
 export interface BrandResearch {

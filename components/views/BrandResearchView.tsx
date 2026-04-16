@@ -36,6 +36,9 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   const [researching, setResearching] = useState(false)
   const [research, setResearch] = useState<BrandResearch | null>(brand?.research as BrandResearch || null)
   const [researchingCompetitors, setResearchingCompetitors] = useState(false)
+  const [competitorUrls, setCompetitorUrls] = useState<string[]>(brand?.competitor_urls || [])
+  const [newCompetitorUrl, setNewCompetitorUrl] = useState('')
+  const [savingUrls, setSavingUrls] = useState(false)
   const [competitorInsights, setCompetitorInsights] = useState<CompetitorInsight[]>(() => {
     const b = brand as Brand & { competitor_research?: CompetitorInsight[] }
     return b?.competitor_research || []
@@ -316,6 +319,70 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             </Card>
 
             {/* Value Props */}
+            {/* Competitor Product URLs for Amazon review mining */}
+            <Card title="Competitor Product URLs" subtitle="Amazon product links for review mining - used by HyperListening">
+              <div className="space-y-2 mb-3">
+                {competitorUrls.map((url, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-2xs text-fulton bg-fulton-light px-1.5 py-0.5 rounded shrink-0">#{i+1}</span>
+                    <span className="text-xs text-text-secondary truncate flex-1">{url}</span>
+                    <button
+                      onClick={() => {
+                        setCompetitorUrls(prev => prev.filter((_, idx) => idx !== i))
+                      }}
+                      className="text-text-dim hover:text-red text-xs px-1 shrink-0"
+                    >x</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://amazon.com/dp/ASIN or full product URL"
+                  value={newCompetitorUrl}
+                  onChange={e => setNewCompetitorUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={!newCompetitorUrl.trim()}
+                  onClick={() => {
+                    if (!newCompetitorUrl.trim()) return
+                    setCompetitorUrls(prev => [...prev, newCompetitorUrl.trim()])
+                    setNewCompetitorUrl('')
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+              {competitorUrls.length > 0 && (
+                <Button
+                  size="sm"
+                  className="w-full justify-center mt-3"
+                  disabled={savingUrls || !brand?.id}
+                  onClick={async () => {
+                    if (!brand?.id) return
+                    setSavingUrls(true)
+                    try {
+                      await fetch('/api/brands', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: brand.id, competitor_urls: competitorUrls }),
+                      })
+                      onBrandUpdate(brand.id, { competitor_urls: competitorUrls })
+                      onToast(`${competitorUrls.length} product URLs saved - HyperListening will mine reviews on next scan`, 'success')
+                    } catch (err: unknown) {
+                      onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+                    }
+                    setSavingUrls(false)
+                  }}
+                >
+                  {savingUrls ? <><LoadingSpinner size={12} /> Saving...</> : `Save ${competitorUrls.length} URLs`}
+                </Button>
+              )}
+            </Card>
+
             <Card title="Value Propositions">
               <ul className="space-y-1.5">
                 {research.valueProps?.map((v, i) => (

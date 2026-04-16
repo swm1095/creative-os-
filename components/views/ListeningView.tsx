@@ -68,6 +68,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [hasRun, setHasRun] = useState(false)
   const [scanCadence, setScanCadence] = useState<string>(brand?.scan_cadence || 'manual')
   const [savingInsight, setSavingInsight] = useState<string | null>(null)
+  const [showAddUrl, setShowAddUrl] = useState(false)
+  const [newUrl, setNewUrl] = useState('')
   const [generatingUGC, setGeneratingUGC] = useState<string | null>(null)
   const [ugcScripts, setUgcScripts] = useState<UGCScriptFramework | null>(null)
   const [ugcInsightTitle, setUgcInsightTitle] = useState('')
@@ -296,6 +298,50 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
         </div>
       ) : (
         <>
+          {/* Amazon product URLs */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xs font-bold text-text-muted uppercase tracking-wider">Amazon Products ({brand?.competitor_urls?.length || 0} tracked)</span>
+              <button
+                onClick={() => setShowAddUrl(!showAddUrl)}
+                className="text-2xs font-bold text-fulton hover:underline"
+              >
+                {showAddUrl ? 'Hide' : '+ Add Product URL'}
+              </button>
+            </div>
+            {showAddUrl && (
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="url"
+                  placeholder="Paste Amazon product URL..."
+                  value={newUrl}
+                  onChange={e => setNewUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                />
+                <Button
+                  size="sm"
+                  disabled={!newUrl.trim() || !brand?.id}
+                  onClick={async () => {
+                    if (!brand?.id || !newUrl.trim()) return
+                    const urls = [...(brand.competitor_urls || []), newUrl.trim()]
+                    try {
+                      await fetch('/api/brands', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: brand.id, competitor_urls: urls }),
+                      })
+                      if (onBrandUpdate) onBrandUpdate(brand.id, { competitor_urls: urls })
+                      setNewUrl('')
+                      onToast('Product URL saved - will be mined on next scan', 'success')
+                    } catch { onToast('Failed to save URL', 'error') }
+                  }}
+                >
+                  Save
+                </Button>
+              </div>
+            )}
+          </div>
+
           {/* Source breakdown */}
           <div className="flex gap-2 mb-4 text-2xs">
             <Pill variant="gray">Reddit: {sourceBreakdown.reddit || 0}</Pill>

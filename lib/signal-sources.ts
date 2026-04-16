@@ -315,13 +315,32 @@ export async function searchApifyTikTok(query: string, limit: number = 15): Prom
     }))
 }
 
-// Amazon review scraper - DISABLED: Actor crashes on search URLs
-// TODO: Re-enable when we find a working Amazon reviews actor or
-// when user provides direct product ASINs
-export async function searchApifyAmazon(_competitorName: string): Promise<SocialSignal[]> {
-  if (!process.env.APIFY_API_KEY) return []
-  console.log('Apify Amazon: Skipped (actor needs direct product URLs, not search queries)')
-  return []
+// Amazon review scraper - uses direct product URLs saved on brand record
+export async function searchApifyAmazon(productUrl: string, limit: number = 15): Promise<SocialSignal[]> {
+  if (!process.env.APIFY_API_KEY || !productUrl) return []
+
+  const items = await runApifyActor('junglee~amazon-reviews-scraper', {
+    productUrls: [{ url: productUrl }],
+    maxReviews: limit,
+    sort: 'helpful',
+    proxyConfiguration: { useApifyProxy: true },
+  }, 120)
+
+  if (!Array.isArray(items)) return []
+  return items
+    .filter(item => item && (item.title || item.text || item.reviewBody))
+    .slice(0, limit)
+    .map((item, i) => ({
+      id: `apify-amazon-${item.id || item.reviewId || i}-${Date.now()}`,
+      source: 'Amazon Review',
+      title: (item.title || item.reviewTitle || 'Amazon Review').toString().slice(0, 150),
+      content: (item.text || item.reviewBody || item.body || '').toString().slice(0, 1500),
+      url: (item.url || item.reviewUrl || productUrl).toString(),
+      score: Math.round(((item.ratingScore || item.stars || item.rating || 3) as number) * 20),
+      date: (item.date || item.reviewDate || new Date().toISOString()).toString(),
+      sentiment: ((item.ratingScore || item.stars || item.rating || 3) as number) < 3 ? 'negative' as const : 'positive' as const,
+      relevance: 0,
+    }))
 }
 
 // Twitter/X scraper - DISABLED: X aggressively blocks scrapers
