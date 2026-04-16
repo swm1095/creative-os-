@@ -116,7 +116,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   }
 
   return (
-    <div className="animate-fadeIn max-w-3xl">
+    <div className="animate-fadeIn">
       {/* Top tabs */}
       {onChangeTab && (
         <div className="flex items-center gap-1 mb-6 border-b border-border">
