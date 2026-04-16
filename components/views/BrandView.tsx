@@ -32,6 +32,7 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
   const [saving, setSaving] = useState(false)
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [removingBg, setRemovingBg] = useState<string | null>(null)
   const logoRef = useRef<HTMLInputElement>(null)
   const guidelinesRef = useRef<HTMLInputElement>(null)
   const assetRef = useRef<HTMLInputElement>(null)
@@ -148,6 +149,39 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
       onToast(`Analysis failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setAnalyzing(false)
+  }
+
+  const handleRemoveBg = async (assetUrl: string, assetName: string) => {
+    setRemovingBg(assetName)
+    onToast('Removing background...', 'info')
+
+    try {
+      const res = await fetch('/api/removebg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageUrl: assetUrl }),
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text.slice(0, 200))
+      }
+
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+
+      // Add the cutout as a new asset
+      if (data.resultUrl || data.base64) {
+        const newUrl = data.resultUrl || `data:image/png;base64,${data.base64}`
+        setSavedAssets(prev => [{ name: `${assetName.replace(/\.\w+$/, '')}-cutout.png`, url: newUrl, size: 0 }, ...prev])
+        onToast('Background removed - cutout saved to library', 'success')
+      } else {
+        onToast('Background removed but no result returned', 'error')
+      }
+    } catch (err: unknown) {
+      onToast(`Remove background failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setRemovingBg(null)
   }
 
   return (
@@ -277,11 +311,17 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
                 <div
                   key={i}
                   className="relative aspect-square rounded-lg overflow-hidden border border-border cursor-pointer hover:border-fulton/40 transition-colors group"
-                  onClick={() => setPreviewImage(asset.url)}
                 >
-                  <img src={asset.url} alt={asset.name} className="w-full h-full object-cover" />
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="text-2xs text-white truncate">{asset.name}</div>
+                  <img src={asset.url} alt={asset.name} className="w-full h-full object-cover" onClick={() => setPreviewImage(asset.url)} />
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1.5 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="text-2xs text-white truncate mb-1">{asset.name}</div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleRemoveBg(asset.url, asset.name) }}
+                      disabled={removingBg === asset.name}
+                      className="w-full text-2xs font-bold text-fulton bg-fulton-light hover:bg-fulton hover:text-white px-1.5 py-0.5 rounded transition-colors disabled:opacity-50"
+                    >
+                      {removingBg === asset.name ? 'Removing...' : 'Remove BG'}
+                    </button>
                   </div>
                 </div>
               ))}
