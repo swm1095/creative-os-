@@ -9,6 +9,16 @@ import FormInput from '@/components/ui/FormInput'
 import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import Pill from '@/components/ui/Pill'
 
+interface CompetitorInsight {
+  name: string
+  positioning: string
+  strengths: string[]
+  weaknesses: string[]
+  customerComplaints: string[]
+  opportunities: string[]
+  adAngles: string[]
+}
+
 interface BrandResearchViewProps {
   brand: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
@@ -25,6 +35,11 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
   const [research, setResearch] = useState<BrandResearch | null>(brand?.research as BrandResearch || null)
+  const [researchingCompetitors, setResearchingCompetitors] = useState(false)
+  const [competitorInsights, setCompetitorInsights] = useState<CompetitorInsight[]>(() => {
+    const b = brand as Brand & { competitor_research?: CompetitorInsight[] }
+    return b?.competitor_research || []
+  })
 
   const runResearch = async (targetBrandId?: string, targetUrl?: string, targetName?: string) => {
     const brandId = targetBrandId || brand?.id
@@ -238,11 +253,66 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
             {/* Competitors */}
             <Card title="Competitors">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {research.competitors?.map((c, i) => (
                   <span key={i} className="text-xs font-semibold bg-elevated border border-border px-2.5 py-1 rounded">{c}</span>
                 ))}
               </div>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="w-full justify-center"
+                disabled={researchingCompetitors}
+                onClick={async () => {
+                  if (!brand?.id) return
+                  setResearchingCompetitors(true)
+                  onToast('Analyzing competitors... mining Reddit for complaints and opportunities', 'info')
+                  try {
+                    const res = await fetch('/api/competitor-research', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ brandId: brand.id }),
+                    })
+                    const data = await res.json()
+                    if (data.error) throw new Error(data.error)
+                    setCompetitorInsights(data.competitors || [])
+                    onToast(`Deep analysis complete - ${data.competitors?.length || 0} competitors analyzed`, 'success')
+                  } catch (err: unknown) {
+                    onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+                  }
+                  setResearchingCompetitors(false)
+                }}
+              >
+                {researchingCompetitors ? <><LoadingSpinner size={12} /> Analyzing...</> : '🔍 Deep Analyze Competitors'}
+              </Button>
+
+              {/* Competitor insights */}
+              {competitorInsights.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {competitorInsights.map((c, i) => (
+                    <div key={i} className="bg-page border border-border rounded-lg p-3">
+                      <div className="text-sm font-bold mb-1">{c.name}</div>
+                      <div className="text-2xs text-text-dim mb-2">{c.positioning}</div>
+                      {c.weaknesses?.length > 0 && (
+                        <div className="mb-2">
+                          <div className="text-2xs font-bold text-red uppercase tracking-wider mb-1">Weaknesses</div>
+                          <ul className="space-y-0.5">
+                            {c.weaknesses.slice(0, 3).map((w, j) => <li key={j} className="text-2xs text-text-secondary">- {w}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {c.adAngles?.length > 0 && (
+                        <div>
+                          <div className="text-2xs font-bold text-fulton uppercase tracking-wider mb-1">Ad Angles Against Them</div>
+                          <ul className="space-y-0.5">
+                            {c.adAngles.slice(0, 3).map((a, j) => <li key={j} className="text-2xs text-text-secondary">- {a}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </Card>
 
             {/* Value Props */}
