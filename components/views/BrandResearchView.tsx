@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import FormInput from '@/components/ui/FormInput'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import Pill from '@/components/ui/Pill'
 
 interface BrandResearchViewProps {
@@ -137,13 +137,11 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
       )}
 
       {researching && (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <LoadingSpinner size={32} />
-            <div className="text-sm text-text-dim mt-4">Claude is analyzing the brand...</div>
-            <div className="text-2xs text-text-dim mt-1">Scraping website, identifying competitors, building personas</div>
-          </div>
-        </div>
+        <LoadingState
+          size="lg"
+          title="Claude is analyzing the brand..."
+          subtitle="Scraping website, identifying competitors, building personas"
+        />
       )}
 
       {research && !researching && (

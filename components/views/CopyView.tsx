@@ -6,7 +6,8 @@ import { DEFAULT_PERSONAS, PLATFORMS, TONES } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { FormTextarea } from '@/components/ui/FormInput'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface CopyViewProps {
   brandId?: string
@@ -159,14 +160,7 @@ export default function CopyView({ brandId, onToast }: CopyViewProps) {
       {/* Right */}
       <div className="space-y-3">
         {generating ? (
-          <Card>
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <LoadingSpinner size={28} />
-                <div className="text-xs text-text-dim mt-3">Claude is writing your {activeType?.label?.toLowerCase() || 'copy'}...</div>
-              </div>
-            </div>
-          </Card>
+          <LoadingState size="md" title={`Claude is writing your ${activeType?.label?.toLowerCase() || 'copy'}...`} />
         ) : variants.length > 0 ? (
           variants.map((v, i) => (
             <Card key={i} className="hover:border-fulton/30 transition-colors">
@@ -185,13 +179,11 @@ export default function CopyView({ brandId, onToast }: CopyViewProps) {
             </Card>
           ))
         ) : (
-          <Card>
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="text-3xl mb-3">✍️</div>
-              <div className="text-sm font-bold mb-1">{activeType?.label || 'Copy'} Variants</div>
-              <div className="text-xs text-text-dim">Generated content will appear here</div>
-            </div>
-          </Card>
+          <EmptyState
+            emoji="✍️"
+            title={`${activeType?.label || 'Copy'} Variants`}
+            subtitle="Generated content will appear here"
+          />
         )}
       </div>
     </div>

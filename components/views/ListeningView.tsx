@@ -5,8 +5,10 @@ import { Brand, SocialSignal, ListeningInsight, ToolId, ViewId } from '@/lib/typ
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import Pill from '@/components/ui/Pill'
+import EmptyState from '@/components/ui/EmptyState'
+import PageHeader from '@/components/ui/PageHeader'
 
 interface ListeningViewProps {
   brand: Brand | null
@@ -144,13 +146,13 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
 
   if (!hasResearch) {
     return (
-      <div className="animate-fadeIn flex flex-col items-center justify-center py-24 text-center">
-        <div className="text-5xl mb-4">👂</div>
-        <h2 className="text-2xl font-black mb-2">HyperListening</h2>
-        <p className="text-sm text-text-dim max-w-md mb-6">
-          Social listening requires brand research first. Go to Brand Research, add your brand, and run the deep research. Then come back here.
-        </p>
-        <Pill variant="amber">Brand research required</Pill>
+      <div className="animate-fadeIn">
+        <EmptyState
+          emoji="👂"
+          title="HyperListening"
+          subtitle="Social listening requires brand research first. Go to Brand Research, add your brand, and run the deep research. Then come back here."
+          size="lg"
+        />
       </div>
     )
   }
@@ -162,40 +164,33 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
 
   return (
     <div className="animate-fadeIn">
-      {/* Header with controls */}
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <div>
-          <h3 className="text-lg font-black">Social Listening</h3>
-          <p className="text-xs text-text-dim mt-0.5">
-            {hoursAgo !== null ? `Last scanned ${hoursAgo}h ago` : 'Never scanned'}
-            {' · '}
-            {brand?.research?.searchKeywords?.length || 0} keywords tracked
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={scanCadence}
-            onChange={e => updateCadence(e.target.value)}
-            className="px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
-          >
-            <option value="manual">Manual</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-          <Button onClick={runListening} disabled={loading}>
-            {loading ? <><LoadingSpinner size={14} /> Scanning...</> : hasRun ? 'Rescan' : 'Scan Now'}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Social Listening"
+        subtitle={`${hoursAgo !== null ? `Last scanned ${hoursAgo}h ago` : 'Never scanned'} · ${brand?.research?.searchKeywords?.length || 0} keywords tracked`}
+        action={
+          <>
+            <select
+              value={scanCadence}
+              onChange={e => updateCadence(e.target.value)}
+              className="px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+            >
+              <option value="manual">Manual</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+            </select>
+            <Button onClick={runListening} disabled={loading}>
+              {loading ? <><LoadingSpinner size={14} /> Scanning...</> : hasRun ? 'Rescan' : 'Scan Now'}
+            </Button>
+          </>
+        }
+      />
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <LoadingSpinner size={32} />
-            <div className="text-sm text-text-dim mt-4">Scanning Reddit, HackerNews, YouTube, Google Trends...</div>
-            <div className="text-2xs text-text-dim mt-1">Claude is analyzing signals for actionable insights</div>
-          </div>
-        </div>
+        <LoadingState
+          size="lg"
+          title="Scanning Reddit, HackerNews, YouTube, Google Trends..."
+          subtitle="Claude is analyzing signals for actionable insights"
+        />
       ) : !hasRun ? (
         <div className="grid grid-cols-4 gap-3 mb-6">
           <Card>

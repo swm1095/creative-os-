@@ -4,6 +4,8 @@ import { useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import ImagePreview from '@/components/ui/ImagePreview'
+import EmptyState from '@/components/ui/EmptyState'
+import PageHeader from '@/components/ui/PageHeader'
 
 interface FormatUrls {
   '9x16'?: string
@@ -58,25 +60,24 @@ export default function ResizeView({ formats, headline, onToast }: ResizeViewPro
 
   if (!hasAnyFormat) {
     return (
-      <div className="animate-fadeIn flex flex-col items-center justify-center py-24 text-center">
-        <div className="text-5xl mb-4">📐</div>
-        <h2 className="text-2xl font-black mb-2">Resize & Export</h2>
-        <p className="text-sm text-text-dim max-w-md">
-          Generate a creative first, then come here to preview all formats and download.
-        </p>
+      <div className="animate-fadeIn">
+        <EmptyState
+          emoji="📐"
+          title="Resize & Export"
+          subtitle="Generate a creative first, then come here to preview all formats and download."
+          size="lg"
+        />
       </div>
     )
   }
 
   return (
     <div className="animate-fadeIn">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-black">All Formats</h3>
-          {headline && <p className="text-xs text-text-dim mt-0.5">"{headline}"</p>}
-        </div>
-        <Button onClick={downloadAll}>Download All Formats</Button>
-      </div>
+      <PageHeader
+        title="All Formats"
+        subtitle={headline ? `"${headline}"` : undefined}
+        action={<Button onClick={downloadAll}>Download All Formats</Button>}
+      />
 
       <div className="grid grid-cols-3 gap-4">
         {FORMAT_INFO.map(fmt => {

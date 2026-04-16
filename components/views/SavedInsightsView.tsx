@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Brand, ToolId, ViewId } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { LoadingState } from '@/components/ui/LoadingSpinner'
 import Pill from '@/components/ui/Pill'
+import EmptyState from '@/components/ui/EmptyState'
+import PageHeader from '@/components/ui/PageHeader'
 
 interface SavedInsight {
   id: string
@@ -98,48 +100,47 @@ export default function SavedInsightsView({ brand, onToast, onNavigate }: SavedI
 
   if (!brand) {
     return (
-      <div className="animate-fadeIn flex flex-col items-center justify-center py-24 text-center">
-        <div className="text-5xl mb-4">📁</div>
-        <h2 className="text-2xl font-black mb-2">No Brand Selected</h2>
-        <p className="text-sm text-text-dim max-w-md">Select a brand from the sidebar to see saved insights.</p>
+      <div className="animate-fadeIn">
+        <EmptyState
+          emoji="📁"
+          title="No Brand Selected"
+          subtitle="Select a brand from the sidebar to see saved insights."
+          size="lg"
+        />
       </div>
     )
   }
 
   return (
     <div className="animate-fadeIn">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-black">Saved Insights</h3>
-          <p className="text-xs text-text-dim mt-0.5">{insights.length} insights saved for {brand.name}</p>
-        </div>
-        <div className="flex gap-2">
-          {['all', 'idea', 'in-progress', 'used'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-2xs font-bold uppercase tracking-wider rounded transition-colors ${
-                filter === f ? 'bg-fulton text-white' : 'bg-surface border border-border text-text-muted hover:text-text-primary'
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Saved Insights"
+        subtitle={`${insights.length} insights saved for ${brand.name}`}
+        action={
+          <div className="flex gap-2">
+            {['all', 'idea', 'in-progress', 'used'].map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 text-2xs font-bold uppercase tracking-wider rounded transition-colors ${
+                  filter === f ? 'bg-fulton text-white' : 'bg-surface border border-border text-text-muted hover:text-text-primary'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <LoadingSpinner size={24} />
-        </div>
+        <LoadingState size="md" />
       ) : filtered.length === 0 ? (
-        <Card>
-          <div className="text-center py-10">
-            <div className="text-3xl mb-3">📂</div>
-            <div className="text-sm font-bold mb-1">No saved insights yet</div>
-            <div className="text-xs text-text-dim">Go to HyperListening and click "Save to Folder" on any insight</div>
-          </div>
-        </Card>
+        <EmptyState
+          emoji="📂"
+          title="No saved insights yet"
+          subtitle='Go to HyperListening and click "Save to Folder" on any insight'
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map(insight => (

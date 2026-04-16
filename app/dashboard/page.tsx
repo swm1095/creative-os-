@@ -11,6 +11,7 @@ import Topbar from '@/components/layout/Topbar'
 import ToastContainer from '@/components/ui/Toast'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import EmptyState from '@/components/ui/EmptyState'
 
 // Views
 import HubView from '@/components/views/HubView'
@@ -201,10 +202,13 @@ export default function DashboardPage() {
         return <PerformanceView />
       case 'coming-soon':
         return (
-          <div className="animate-fadeIn flex flex-col items-center justify-center py-24 text-center">
-            <div className="text-5xl mb-4">🚧</div>
-            <h2 className="text-2xl font-black mb-2">Coming Soon</h2>
-            <p className="text-sm text-text-dim max-w-md">This tool is under development. Check back soon.</p>
+          <div className="animate-fadeIn">
+            <EmptyState
+              emoji="🚧"
+              title="Coming Soon"
+              subtitle="This tool is under development. Check back soon."
+              size="lg"
+            />
           </div>
         )
       default:

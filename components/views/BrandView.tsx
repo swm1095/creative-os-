@@ -6,7 +6,7 @@ import { DEFAULT_BRAND } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import ImagePreview from '@/components/ui/ImagePreview'
 
 interface BrandViewProps {
@@ -302,9 +302,7 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
 
           {/* Saved assets from Supabase */}
           {loadingAssets ? (
-            <div className="flex items-center justify-center py-8">
-              <LoadingSpinner size={20} />
-            </div>
+            <LoadingState size="sm" />
           ) : savedAssets.length > 0 ? (
             <div className="grid grid-cols-4 gap-2">
               {savedAssets.map((asset, i) => (

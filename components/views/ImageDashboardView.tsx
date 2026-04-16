@@ -6,6 +6,7 @@ import StatCard from '@/components/ui/StatCard'
 import SectionHeader from '@/components/ui/SectionHeader'
 import CreativeCard from '@/components/ui/CreativeCard'
 import Button from '@/components/ui/Button'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface ImageDashboardViewProps {
   creatives: Creative[]
@@ -36,12 +37,12 @@ export default function ImageDashboardView({ creatives, onNavigate, onSelectCrea
           ))}
         </div>
       ) : (
-        <div className="bg-surface border border-border rounded-lg p-8 text-center mb-6">
-          <div className="text-3xl mb-3">🖼</div>
-          <div className="text-sm font-bold mb-1">No creatives yet</div>
-          <div className="text-xs text-text-dim mb-4">Generate your first AI-powered ad creative</div>
-          <Button onClick={() => onNavigate('generate')}>Generate Creatives</Button>
-        </div>
+        <EmptyState
+          emoji="🖼"
+          title="No creatives yet"
+          subtitle="Generate your first AI-powered ad creative"
+          action={<Button onClick={() => onNavigate('generate')}>Generate Creatives</Button>}
+        />
       )}
     </div>
   )
