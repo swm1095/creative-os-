@@ -119,8 +119,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
     if (!onNavigate) return
     const brief = `Based on this insight: "${insight.title}"\n\n${insight.detail}\n\nAction: ${insight.actionable}${insight.copy_examples?.length ? '\n\nExample phrases: ' + insight.copy_examples.join(' | ') : ''}`
     localStorage.setItem('hc-brief-draft', brief)
-    onNavigate('hypercopy', 'copy')
     if (type === 'copy') {
+      onNavigate('hypercopy', 'copy')
       onToast(`Opening HyperCopy with brief from "${insight.title}"`, 'info')
     } else {
       onNavigate('hypeimage', 'generate')

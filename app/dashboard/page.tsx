@@ -24,6 +24,7 @@ import PerformanceView from '@/components/views/PerformanceView'
 import ResizeView from '@/components/views/ResizeView'
 import ListeningView from '@/components/views/ListeningView'
 import BrandResearchView from '@/components/views/BrandResearchView'
+import SavedInsightsView from '@/components/views/SavedInsightsView'
 
 export default function DashboardPage() {
   const { brands, activeBrand, setActiveBrand, createBrand, updateBrand, refreshBrands } = useBrands()
@@ -159,9 +160,43 @@ export default function DashboardPage() {
       case 'copy':
         return <CopyView brandId={activeBrand?.id} onToast={addToast} />
       case 'listening':
-        return <ListeningView brand={activeBrand} onToast={addToast} />
+        return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={updateBrand} />
       case 'brand-research':
-        return <BrandResearchView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} onCreateBrand={createBrand} onRefreshBrands={refreshBrands} onSetActiveBrand={setActiveBrand} />
+        return (
+          <BrandResearchView
+            brand={activeBrand}
+            onToast={addToast}
+            onBrandUpdate={updateBrand}
+            onCreateBrand={createBrand}
+            onRefreshBrands={refreshBrands}
+            onSetActiveBrand={setActiveBrand}
+            activeTab="research"
+            onChangeTab={(tab) => navigate(null, tab === 'research' ? 'brand-research' : 'saved-insights')}
+          />
+        )
+      case 'saved-insights':
+        // Show saved insights with tab bar (works for both brand-research context and hyperlistening context)
+        if (currentTool === 'hyperlistening') {
+          return <SavedInsightsView brand={activeBrand} onToast={addToast} onNavigate={navigate} />
+        }
+        return (
+          <div>
+            <div className="flex items-center gap-1 mb-6 border-b border-border">
+              <button
+                onClick={() => navigate(null, 'brand-research')}
+                className="px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors border-transparent text-text-dim hover:text-text-primary"
+              >
+                Brand Research
+              </button>
+              <button
+                className="px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors border-fulton text-fulton"
+              >
+                📁 Saved Insights
+              </button>
+            </div>
+            <SavedInsightsView brand={activeBrand} onToast={addToast} onNavigate={navigate} />
+          </div>
+        )
       case 'performance':
         return <PerformanceView />
       case 'coming-soon':

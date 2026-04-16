@@ -77,7 +77,10 @@ export const TOOLS: ToolDef[] = [
     emoji: '👂',
     description: 'Social listening & signals',
     defaultView: 'listening',
-    views: [{ id: 'listening' as const, label: 'Signals' }],
+    views: [
+      { id: 'listening' as const, label: 'Signals' },
+      { id: 'saved-insights' as const, label: 'Saved Insights' },
+    ],
     implemented: true,
   },
   {

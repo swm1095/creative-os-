@@ -16,9 +16,11 @@ interface BrandResearchViewProps {
   onCreateBrand: (name: string, url?: string) => Promise<Brand | null>
   onRefreshBrands?: () => Promise<void>
   onSetActiveBrand?: (brand: Brand) => void
+  activeTab?: 'research' | 'saved-insights'
+  onChangeTab?: (tab: 'research' | 'saved-insights') => void
 }
 
-export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand }: BrandResearchViewProps) {
+export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab }: BrandResearchViewProps) {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
@@ -86,6 +88,28 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
   return (
     <div className="animate-fadeIn">
+      {/* Tab bar - switch between Brand Research and Saved Insights */}
+      {onChangeTab && (
+        <div className="flex items-center gap-1 mb-6 border-b border-border">
+          <button
+            onClick={() => onChangeTab('research')}
+            className={`px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${
+              activeTab === 'research' ? 'border-fulton text-fulton' : 'border-transparent text-text-dim hover:text-text-primary'
+            }`}
+          >
+            Brand Research
+          </button>
+          <button
+            onClick={() => onChangeTab('saved-insights')}
+            className={`px-4 py-2.5 text-sm font-bold border-b-2 -mb-px transition-colors ${
+              activeTab === 'saved-insights' ? 'border-fulton text-fulton' : 'border-transparent text-text-dim hover:text-text-primary'
+            }`}
+          >
+            📁 Saved Insights
+          </button>
+        </div>
+      )}
+
       {/* Add new brand */}
       <Card title="Add New Brand" subtitle="Enter a brand name and website - Claude will do deep research automatically" className="mb-6">
         <div className="flex gap-3 items-end">

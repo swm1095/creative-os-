@@ -55,10 +55,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
           <>
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
             <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
-            <NavItem label="Brand Research" emoji="🔬" active={activeView === 'brand-research'} onClick={() => onNavigate(null, 'brand-research' as ViewId)} />
-            {(activeView === 'brand-research' || activeView === 'saved-insights' || activeView === 'listening' || currentTool === 'hyperlistening') && (
-              <NavItem label="Saved Insights" emoji="📁" active={activeView === 'saved-insights'} onClick={() => onNavigate(null, 'saved-insights' as ViewId)} />
-            )}
+            <NavItem label="Brand Research" emoji="🔬" active={activeView === 'brand-research' || activeView === 'saved-insights'} onClick={() => onNavigate(null, 'brand-research' as ViewId)} />
             <NavItem label="Performance" emoji="📊" active={activeView === 'performance'} onClick={() => onNavigate('hyperinsights', 'performance')} />
             <NavItem label="Creative Tracker" emoji="📋" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
 
