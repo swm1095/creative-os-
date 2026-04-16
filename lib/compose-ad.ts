@@ -1,6 +1,4 @@
 import sharp from 'sharp'
-import { readFileSync } from 'fs'
-import { join } from 'path'
 
 type AdFormat = '9x16' | '4x5' | '1x1'
 
@@ -72,22 +70,6 @@ function wrapText(text: string, maxChars: number): string[] {
   return lines
 }
 
-// Load font as base64 for embedding in SVG
-let fontBase64Cache: string | null = null
-function getFontBase64(): string {
-  if (fontBase64Cache) return fontBase64Cache
-  try {
-    // Try bundled font first
-    const fontPath = join(process.cwd(), 'public', 'fonts', 'Inter-Black.ttf')
-    const fontBuffer = readFileSync(fontPath)
-    fontBase64Cache = fontBuffer.toString('base64')
-    return fontBase64Cache
-  } catch {
-    // Return empty - SVG will fall back to system fonts
-    return ''
-  }
-}
-
 function buildOverlaySvg(config: FormatConfig, headline: string, cta: string, brandName: string, brandColor: string): string {
   const { width, height, headlineFontSize, ctaFontSize, brandFontSize, maxCharsPerLine, lineHeight, safeMargin, headlineYCenter, ctaBottomMargin } = config
 
@@ -99,24 +81,12 @@ function buildOverlaySvg(config: FormatConfig, headline: string, cta: string, br
   const headlineStartY = (height * headlineYCenter) - (headlineBlockHeight / 2) + headlineFontSize
   const centerX = width / 2
 
-  // Embed font in SVG
-  const fontData = getFontBase64()
-  const fontFace = fontData ? `
-    <style>
-      @font-face {
-        font-family: 'InterBlack';
-        src: url('data:font/truetype;base64,${fontData}') format('truetype');
-        font-weight: 900;
-      }
-    </style>` : ''
-  const fontFamily = fontData ? 'InterBlack' : 'Arial, Helvetica, sans-serif'
-
   const headlineShadow = headlineLines.map((line, i) =>
-    `<text x="${centerX}" y="${headlineStartY + i * lineHeight + 3}" text-anchor="middle" font-family="${fontFamily}" font-size="${headlineFontSize}" font-weight="900" fill="black" opacity="0.4">${line}</text>`
+    `<text x="${centerX}" y="${headlineStartY + i * lineHeight + 3}" text-anchor="middle" font-size="${headlineFontSize}" font-weight="900" fill="black" opacity="0.4">${line}</text>`
   ).join('\n    ')
 
   const headlineSvg = headlineLines.map((line, i) =>
-    `<text x="${centerX}" y="${headlineStartY + i * lineHeight}" text-anchor="middle" font-family="${fontFamily}" font-size="${headlineFontSize}" font-weight="900" fill="white">${line}</text>`
+    `<text x="${centerX}" y="${headlineStartY + i * lineHeight}" text-anchor="middle" font-size="${headlineFontSize}" font-weight="900" fill="white">${line}</text>`
   ).join('\n    ')
 
   const ctaTextWidth = escapedCta.length * ctaFontSize * 0.6
@@ -130,7 +100,6 @@ function buildOverlaySvg(config: FormatConfig, headline: string, cta: string, br
   const botGradH = height - botGradStart
 
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-  ${fontFace}
   <defs>
     <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="black" stop-opacity="0.5"/>
@@ -146,13 +115,13 @@ function buildOverlaySvg(config: FormatConfig, headline: string, cta: string, br
   <rect x="0" y="0" width="${width}" height="${topGradH}" fill="url(#tg)"/>
   <rect x="0" y="${botGradStart}" width="${width}" height="${botGradH}" fill="url(#bg)"/>
 
-  <text x="${safeMargin}" y="${safeMargin + brandFontSize}" font-family="${fontFamily}" font-size="${brandFontSize}" font-weight="900" fill="white" letter-spacing="3" opacity="0.85">${escapedBrand}</text>
+  <text x="${safeMargin}" y="${safeMargin + brandFontSize}" font-size="${brandFontSize}" font-weight="900" fill="white" letter-spacing="3" opacity="0.85">${escapedBrand}</text>
 
   ${headlineShadow}
   ${headlineSvg}
 
   <rect x="${ctaX}" y="${ctaY}" width="${ctaWidth}" height="${ctaHeight}" rx="6" fill="${brandColor}"/>
-  <text x="${centerX}" y="${ctaY + ctaHeight * 0.65}" text-anchor="middle" font-family="${fontFamily}" font-size="${ctaFontSize}" font-weight="900" fill="white">${escapedCta}</text>
+  <text x="${centerX}" y="${ctaY + ctaHeight * 0.65}" text-anchor="middle" font-size="${ctaFontSize}" font-weight="900" fill="white">${escapedCta}</text>
 </svg>`
 }
 

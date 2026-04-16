@@ -107,10 +107,11 @@ async function uploadToStorage(
     const buffer = Buffer.from(base64Data, 'base64')
     const path = `creatives/${brandId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
     const { error } = await supabase.storage.from('brand-assets').upload(path, buffer, { contentType: 'image/png', upsert: false })
-    if (error) { console.error('Upload error:', error); return base64DataUrl }
+    if (error) { console.error('Upload error:', JSON.stringify(error)); return base64DataUrl }
     const { data: urlData } = supabase.storage.from('brand-assets').getPublicUrl(path)
+    console.log('Uploaded to:', urlData.publicUrl)
     return urlData.publicUrl
-  } catch { return base64DataUrl }
+  } catch (e) { console.error('Upload exception:', e); return base64DataUrl }
 }
 
 // ── Ensure demo brand exists ─────────────────────────────────────────────
