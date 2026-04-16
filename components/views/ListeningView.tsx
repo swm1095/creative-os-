@@ -46,10 +46,14 @@ interface TrackedSignal extends SocialSignal {
   status?: 'new' | 'trending' | 'persistent'
 }
 
-interface UGCScript {
+interface UGCHook {
   persona: string
   persona_number: number
   hook: string
+}
+
+interface UGCScriptFramework {
+  hooks: UGCHook[]
   body: string
   cta: string
   scene_notes?: string
@@ -65,7 +69,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [scanCadence, setScanCadence] = useState<string>(brand?.scan_cadence || 'manual')
   const [savingInsight, setSavingInsight] = useState<string | null>(null)
   const [generatingUGC, setGeneratingUGC] = useState<string | null>(null)
-  const [ugcScripts, setUgcScripts] = useState<UGCScript[] | null>(null)
+  const [ugcScripts, setUgcScripts] = useState<UGCScriptFramework | null>(null)
   const [ugcInsightTitle, setUgcInsightTitle] = useState('')
   const [showUgcModal, setShowUgcModal] = useState(false)
 
@@ -176,9 +180,9 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
-      setUgcScripts(data.scripts || [])
+      setUgcScripts(data)
       setShowUgcModal(true)
-      onToast(`${data.scripts?.length || 0} UGC scripts ready`, 'success')
+      onToast(`${data.hooks?.length || 0} hooks + shared body ready`, 'success')
     } catch (err: unknown) {
       onToast(`UGC generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
@@ -429,51 +433,72 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       <Modal
         open={showUgcModal}
         onClose={() => setShowUgcModal(false)}
-        title="UGC Scripts"
-        subtitle={ugcInsightTitle ? `Based on "${ugcInsightTitle}"` : undefined}
+        title="UGC Script"
+        subtitle={ugcInsightTitle ? `Based on "${ugcInsightTitle}" - pick any hook, same body works for all` : undefined}
         maxWidth="max-w-3xl"
       >
-        {ugcScripts && ugcScripts.length > 0 ? (
-          <div className="space-y-4">
-            {ugcScripts.map((script, i) => (
-              <div key={i} className="bg-page border border-border rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded">
-                    P{script.persona_number} · {script.persona}
-                  </span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${script.hook}\n\n${script.body}\n\n${script.cta}`)
-                      onToast('Script copied to clipboard', 'success')
-                    }}
-                    className="ml-auto text-2xs text-text-dim hover:text-text-primary"
-                  >
-                    Copy all
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Hook (0-3 sec)</div>
-                    <div className="text-sm text-text-secondary leading-relaxed italic">&quot;{script.hook}&quot;</div>
-                  </div>
-                  <div>
-                    <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Body (3-20 sec)</div>
-                    <div className="text-sm text-text-secondary leading-relaxed">{script.body}</div>
-                  </div>
-                  <div>
-                    <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">CTA (20-25 sec)</div>
-                    <div className="text-sm text-text-secondary leading-relaxed italic">&quot;{script.cta}&quot;</div>
-                  </div>
-                  {script.scene_notes && (
-                    <div className="bg-elevated border border-border rounded px-3 py-2">
-                      <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Scene Notes</div>
-                      <div className="text-xs text-text-dim">{script.scene_notes}</div>
-                    </div>
-                  )}
-                </div>
+        {ugcScripts ? (
+          <div className="space-y-5">
+            {/* Hook Options */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">Hook Options (pick one)</div>
+                <span className="text-2xs text-text-dim">0-3 sec</span>
               </div>
-            ))}
+              <div className="space-y-2">
+                {ugcScripts.hooks.map((h, i) => (
+                  <div key={i} className="bg-page border border-border rounded-lg p-4 hover:border-fulton/40 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded shrink-0 mt-0.5">
+                        P{h.persona_number}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-2xs text-text-dim mb-1">{h.persona}</div>
+                        <div className="text-sm text-text-secondary leading-relaxed italic">&quot;{h.hook}&quot;</div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${h.hook}\n\n${ugcScripts.body}\n\n${ugcScripts.cta}`)
+                          onToast(`Persona ${h.persona_number} script copied`, 'success')
+                        }}
+                        className="text-2xs text-text-dim hover:text-text-primary shrink-0"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shared Body */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">Body (shared for all hooks)</div>
+                <span className="text-2xs text-text-dim">3-20 sec</span>
+              </div>
+              <div className="bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed">
+                {ugcScripts.body}
+              </div>
+            </div>
+
+            {/* Shared CTA */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">CTA</div>
+                <span className="text-2xs text-text-dim">20-25 sec</span>
+              </div>
+              <div className="bg-page border border-border rounded-lg p-4 text-sm text-text-secondary leading-relaxed italic">
+                &quot;{ugcScripts.cta}&quot;
+              </div>
+            </div>
+
+            {ugcScripts.scene_notes && (
+              <div className="bg-elevated border border-border rounded-lg p-4">
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Scene Notes</div>
+                <div className="text-xs text-text-dim">{ugcScripts.scene_notes}</div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="text-center py-8 text-text-dim">No scripts generated</div>

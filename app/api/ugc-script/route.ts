@@ -36,12 +36,18 @@ GOLDEN NON-NEGOTIABLE RULES:
 
 1. Scripts must sound like a genuine friend recommending something, NEVER like a sales pitch.
 2. NEVER use these phrases: "introducing", "game-changer", "life-changing", "revolutionize", "transform your life".
-3. Open with a specific, relatable moment. Think: "I was telling my coworker about this the other day because..." not "Hey guys, today I'm reviewing..."
+3. Hooks must open with a specific, relatable moment. Think: "I was telling my coworker about this the other day because..." not "Hey guys, today I'm reviewing..."
 4. Include natural speech patterns: pauses, "um", "honestly", "I don't know", "here's the thing".
 5. Be specific to the persona's actual pain point - not generic.
-6. The CTA should feel like a casual suggestion, not a command. Think "if you're dealing with this you should check them out" not "click the link below".
+6. The CTA should feel like a casual suggestion, not a command.
 
-INSIGHT CONTEXT: The scripts should tie into this insight:
+CRITICAL STRUCTURE:
+- Generate 4 DIFFERENT HOOKS, one per persona. Each hook must be unique to that persona's real life moment and pain point. No repetitive openings.
+- Generate ONE SHARED BODY script that flows seamlessly from ANY of the 4 hooks. The body explains how the person discovered ${brand.name}, their experience with it, and what changed.
+- Generate ONE SHARED CTA.
+- The body should NOT reference a specific persona - it should be universal enough to work after any of the 4 hooks.
+
+INSIGHT CONTEXT: Scripts should tie into this insight:
 Title: ${insight.title}
 Detail: ${insight.detail}
 ${insight.actionable ? `Action: ${insight.actionable}` : ''}
@@ -54,44 +60,42 @@ Product: ${research.productCategory}
 Key phrases: ${(research.keyPhrases || []).slice(0, 5).join(', ')}
 Avoid: ${(research.avoidPhrases || []).slice(0, 3).join(', ')}
 
-Write 4 UGC scripts, one per persona. Each script needs a DIFFERENT hook style but the body should flow SEAMLESSLY from that hook. The hooks and bodies should feel like different real people, not one template with swapped words.
-
-FORMAT EACH SCRIPT:
-- hook: First 3 seconds - a relatable moment specific to THIS persona's pain point
-- body: 10-20 seconds - how they discovered/use ${brand.name}, tied to the insight above
-- cta: 3-5 seconds - casual suggestion, no hard sell
-
 NEVER use emdashes. Use hyphens or commas.
 
 Respond in this EXACT JSON format:
 {
-  "scripts": [
-    {
-      "persona": "persona name",
-      "persona_number": 1,
-      "hook": "opening 3 seconds, specific relatable moment",
-      "body": "10-20 second body, flowing from the hook, authentic",
-      "cta": "casual closing suggestion",
-      "scene_notes": "quick notes on setting/visuals if helpful"
-    }
-  ]
+  "hooks": [
+    { "persona": "persona 1 name", "persona_number": 1, "hook": "specific opening moment for this persona, 3-5 seconds" },
+    { "persona": "persona 2 name", "persona_number": 2, "hook": "different angle for this persona" },
+    { "persona": "persona 3 name", "persona_number": 3, "hook": "another different angle" },
+    { "persona": "persona 4 name", "persona_number": 4, "hook": "another different angle" }
+  ],
+  "body": "Shared body script that flows from any hook. 15-20 seconds. How they discovered the product, their experience, what changed. Universal, not persona-specific.",
+  "cta": "Shared casual CTA. 3-5 seconds.",
+  "scene_notes": "Quick visual/setting suggestions for filming"
 }`
 
-    const userMsg = `Write 4 UGC scripts, one for each of these personas:
+    const userMsg = `Write a UGC script framework based on these 4 personas:
 
 ${personas.map((p: ResearchPersona, i: number) => `
 Persona ${i + 1}: ${p.name}
 Description: ${p.description || ''}
 Pain Points: ${(p.painPoints || []).join(', ')}
 Motivators: ${(p.motivators || []).join(', ')}
-Hook angle: ${p.hook || ''}
+Angle: ${p.hook || ''}
 `).join('\n')}
 
-Each script must open with a hook specific to that persona's real life moment, then flow naturally into a genuine recommendation tied to the insight.`
+Generate:
+- 4 unique hooks (one per persona, each opening with THEIR specific real-life moment/pain point)
+- ONE shared body that flows from any of the hooks
+- ONE shared CTA
+- Scene notes
+
+The 4 hooks should feel like different people, but the body should be universal enough to continue from any of them.`
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3072,
+      max_tokens: 2048,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMsg }],
     })
