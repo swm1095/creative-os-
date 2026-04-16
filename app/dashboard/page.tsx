@@ -340,7 +340,7 @@ export default function DashboardPage() {
                       addToast(`Delete failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
                     }
                   }}
-                  className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-text-dim hover:text-red hover:bg-red-light transition-all text-xs"
+                  className="w-7 h-7 rounded flex items-center justify-center text-text-dim hover:text-red hover:bg-red-light transition-all text-base shrink-0"
                   title={`Delete ${b.name}`}
                 >
                   ×
