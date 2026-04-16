@@ -26,7 +26,7 @@ import ListeningView from '@/components/views/ListeningView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 
 export default function DashboardPage() {
-  const { brands, activeBrand, setActiveBrand, createBrand, updateBrand } = useBrands()
+  const { brands, activeBrand, setActiveBrand, createBrand, updateBrand, refreshBrands } = useBrands()
   const { creatives, addCreatives } = useCreatives(activeBrand?.id)
   const { toasts, addToast, dismissToast } = useToast()
 
@@ -157,7 +157,7 @@ export default function DashboardPage() {
       case 'listening':
         return <ListeningView brand={activeBrand} onToast={addToast} />
       case 'brand-research':
-        return <BrandResearchView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} onCreateBrand={createBrand} />
+        return <BrandResearchView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} onCreateBrand={createBrand} onRefreshBrands={refreshBrands} />
       case 'performance':
         return <PerformanceView />
       case 'coming-soon':

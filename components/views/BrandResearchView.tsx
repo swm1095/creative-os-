@@ -14,9 +14,10 @@ interface BrandResearchViewProps {
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
   onBrandUpdate: (brandId: string, updates: Partial<Brand>) => void
   onCreateBrand: (name: string, url?: string) => Promise<Brand | null>
+  onRefreshBrands?: () => Promise<void>
 }
 
-export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand }: BrandResearchViewProps) {
+export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands }: BrandResearchViewProps) {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
@@ -42,9 +43,11 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
       if (data.error) throw new Error(data.error)
 
       setResearch(data.research)
-      if (brandId) {
-        onBrandUpdate(brandId, { research: data.research, research_completed: true })
+      if (data.brandId) {
+        onBrandUpdate(data.brandId, { research: data.research, research_completed: true, name, url: url || '' })
       }
+      // Refresh the brands list so sidebar shows the new brand
+      if (onRefreshBrands) await onRefreshBrands()
       onToast(`Research complete for ${name} - ${data.research.personas?.length || 0} personas, ${data.research.searchKeywords?.length || 0} keywords identified`, 'success')
     } catch (err: unknown) {
       onToast(`Research failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
@@ -55,18 +58,12 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   const handleAddBrand = async () => {
     if (!newBrandName.trim()) { onToast('Enter a brand name', 'error'); return }
     try {
-      onToast(`Creating ${newBrandName}...`, 'info')
-      const newBrand = await onCreateBrand(newBrandName, newBrandUrl)
-      if (newBrand) {
-        setNewBrandName('')
-        setNewBrandUrl('')
-        onToast(`${newBrandName} created - starting research (30 sec)...`, 'success')
-        await runResearch(newBrand.id, newBrandUrl, newBrandName)
-      } else {
-        // Brand creation failed - run research without saving to DB
-        onToast('Could not save brand, running research anyway...', 'info')
-        await runResearch(undefined, newBrandUrl, newBrandName)
-      }
+      const name = newBrandName
+      const url = newBrandUrl
+      setNewBrandName('')
+      setNewBrandUrl('')
+      // The API handles brand creation server-side with service client (bypasses RLS)
+      await runResearch(undefined, url, name)
     } catch (err: unknown) {
       onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
       console.error('Add brand error:', err)

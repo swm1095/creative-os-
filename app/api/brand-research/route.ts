@@ -55,10 +55,28 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient()
-    const { brandId, websiteUrl, brandName } = await req.json()
+    const body = await req.json()
+    let brandId = body.brandId
+    const { websiteUrl, brandName } = body
 
     if (!websiteUrl && !brandName) {
       return NextResponse.json({ error: 'websiteUrl or brandName required' }, { status: 400 })
+    }
+
+    // Server-side brand creation (bypasses RLS). If no brandId, check if brand exists by name, else create
+    if (!brandId || brandId === 'demo') {
+      const { data: existing } = await supabase.from('brands').select('id').eq('name', brandName).limit(1).maybeSingle()
+      if (existing) {
+        brandId = existing.id
+      } else {
+        const { data: newBrand, error: createErr } = await supabase.from('brands').insert({
+          name: brandName,
+          url: websiteUrl || '',
+          color: '#2B4EFF',
+        }).select('id').single()
+        if (createErr) console.error('Brand create error:', createErr)
+        brandId = newBrand?.id
+      }
     }
 
     // Fetch website content if URL provided

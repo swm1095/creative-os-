@@ -34,7 +34,7 @@ export default function ListeningView({ brand, onToast }: ListeningViewProps) {
   const [loading, setLoading] = useState(false)
   const [hasRun, setHasRun] = useState(false)
 
-  const hasResearch = brand?.research_completed
+  const hasResearch = brand?.research_completed || !!brand?.research
 
   const runListening = async () => {
     if (!brand?.id) { onToast('No brand selected', 'error'); return }
