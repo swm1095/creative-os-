@@ -27,6 +27,8 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
   const [referenceImage, setReferenceImage] = useState<File | null>(null)
   const [referencePreview, setReferencePreview] = useState<string | null>(null)
   const [productImagePreviews, setProductImagePreviews] = useState<string[]>([])
+  const [feedback, setFeedback] = useState('')
+  const [generationHistory, setGenerationHistory] = useState<string[]>([])
   const refInputRef = useRef<HTMLInputElement>(null)
   const productInputRef = useRef<HTMLInputElement>(null)
 
@@ -86,7 +88,7 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
     onToast('Reference image uploaded - it will guide the generation style', 'success')
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (withFeedback?: string) => {
     if (!prompt.trim()) { onToast('Enter a base prompt first', 'error'); return }
     const selected = personas.filter((_, i) => activePersonas.has(i))
     if (!selected.length) { onToast('Select at least one persona', 'error'); return }
@@ -95,29 +97,39 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
 
     setGenerating(true)
     setResults([])
-    onToast(`Generating creative with Gemini...`, 'info')
+
+    const feedbackText = withFeedback || ''
+    if (feedbackText) {
+      onToast('Regenerating with your feedback...', 'info')
+    } else {
+      onToast('Generating creative with Gemini...', 'info')
+    }
 
     try {
-      // Compress images before sending to avoid payload size issues
+      // Use the last generated image as reference if regenerating with feedback
       let compressedRef: string | undefined
-      if (referencePreview) {
+      if (feedbackText && generationHistory.length > 0) {
+        // Use the last output as the new reference
+        compressedRef = await compressImage(generationHistory[generationHistory.length - 1])
+      } else if (referencePreview) {
         compressedRef = await compressImage(referencePreview)
       }
+
       let compressedProducts: string[] | undefined
       if (productImagePreviews.length) {
         compressedProducts = await Promise.all(productImagePreviews.map(img => compressImage(img)))
       }
 
-      onToast(
-        `Sending ${compressedRef ? 'reference image + ' : ''}${compressedProducts?.length ? compressedProducts.length + ' product image(s) + ' : ''}prompt to Gemini...`,
-        'info'
-      )
+      // Build the concept with feedback appended
+      const fullConcept = feedbackText
+        ? `${prompt}\n\nFEEDBACK ON PREVIOUS VERSION - APPLY THESE CHANGES:\n${feedbackText}`
+        : prompt
 
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          concept: prompt,
+          concept: fullConcept,
           personas: toGenerate,
           aspectRatio: '1x1',
           generator: 'gemini',
@@ -131,7 +143,15 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
 
       setResults(data.results || [])
       onGenerated?.(data.results || [])
-      const successCount = (data.results || []).filter((r: GenerateResult) => r.imageUrl).length
+
+      // Store in history for feedback iterations
+      const successImages = (data.results || []).filter((r: GenerateResult) => r.imageUrl).map((r: GenerateResult) => r.imageUrl)
+      if (successImages.length) {
+        setGenerationHistory(prev => [...prev, ...successImages])
+        setFeedback('') // clear feedback after successful regeneration
+      }
+
+      const successCount = successImages.length
       onToast(`Generation complete! ${successCount} image${successCount !== 1 ? 's' : ''} created`, 'success')
     } catch (err: unknown) {
       onToast(`Generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
@@ -246,7 +266,7 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
               </button>
             ))}
           </div>
-          <Button onClick={handleGenerate} disabled={generating} className="w-full py-3.5 text-sm justify-center">
+          <Button onClick={() => handleGenerate()} disabled={generating} className="w-full py-3.5 text-sm justify-center">
             {generating ? <><LoadingSpinner size={16} /> Generating...</> : 'Generate 1 Creative'}
           </Button>
         </Card>
@@ -275,7 +295,7 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
         <Card title="Output Preview">
           <div className="grid grid-cols-2 gap-2">
             {generating ? (
-              <div className="col-span-2 aspect-square rounded-lg bg-elevated flex items-center justify-center">
+              <div className="col-span-2 aspect-[9/16] rounded-lg bg-elevated flex items-center justify-center">
                 <div className="text-center">
                   <LoadingSpinner size={24} />
                   <div className="text-2xs text-text-dim mt-2">Generating...</div>
@@ -285,7 +305,7 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
               results.map((r, i) => (
                 <div
                   key={i}
-                  className="aspect-square rounded-lg overflow-hidden relative bg-elevated cursor-pointer hover:ring-2 hover:ring-fulton transition-all"
+                  className="col-span-2 aspect-[9/16] rounded-lg overflow-hidden relative bg-elevated cursor-pointer hover:ring-2 hover:ring-fulton transition-all"
                   onClick={() => r.imageUrl && setPreviewImage(r.imageUrl)}
                 >
                   {r.imageUrl ? (
@@ -314,6 +334,31 @@ export default function GenerateView({ brandId, onToast, onGenerated, droppedFil
             )}
           </div>
         </Card>
+
+        {/* Feedback - appears after generation */}
+        {results.length > 0 && results.some(r => r.imageUrl) && !generating && (
+          <Card title="Feedback" subtitle="Tell Gemini what to change">
+            <textarea
+              value={feedback}
+              onChange={e => setFeedback(e.target.value)}
+              placeholder="e.g. Make the background lighter, zoom in on the product, use warmer tones, add more space around the shoe..."
+              className="w-full px-3 py-2.5 text-sm text-text-primary bg-page border border-border rounded focus:border-fulton focus:outline-none transition-colors resize-y min-h-[60px] mb-3"
+              rows={2}
+            />
+            <Button
+              onClick={() => handleGenerate(feedback)}
+              disabled={!feedback.trim() || generating}
+              className="w-full justify-center"
+            >
+              Regenerate with Feedback
+            </Button>
+            {generationHistory.length > 1 && (
+              <div className="text-2xs text-text-dim mt-2 text-center">
+                Iteration {generationHistory.length} - previous output used as reference
+              </div>
+            )}
+          </Card>
+        )}
       </div>
 
       <ImagePreview src={previewImage || ''} open={!!previewImage} onClose={() => setPreviewImage(null)} />
