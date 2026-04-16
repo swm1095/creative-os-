@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { composeAd, composeAllFormats } from '@/lib/compose-ad'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 interface ImagePart {
   inlineData: { mimeType: string; data: string }
@@ -78,6 +79,80 @@ async function generateWithGemini(prompt: string, referenceImages: string[] = []
   }
 
   throw new Error(`Image generation failed: ${lastError}`)
+}
+
+// ── Claude QC Review - checks generated image against inputs ─────────────
+async function reviewWithClaude(
+  generatedImageBase64: string,
+  referenceImageBase64: string | undefined,
+  persona: { name: string; angle: string; hook?: string },
+  prompt: string
+): Promise<{ pass: boolean; feedback: string }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return { pass: true, feedback: '' } // skip QC if no key
+
+  const client = new Anthropic({ apiKey })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const content: any[] = []
+
+  // Add reference image if available
+  if (referenceImageBase64) {
+    const refMatch = referenceImageBase64.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (refMatch) {
+      content.push({ type: 'text', text: 'REFERENCE IMAGE (the generated image should match this composition and style):' })
+      content.push({ type: 'image', source: { type: 'base64', media_type: refMatch[1], data: refMatch[2] } })
+    }
+  }
+
+  // Add generated image
+  const genMatch = generatedImageBase64.match(/^data:(image\/\w+);base64,(.+)$/)
+  if (!genMatch) return { pass: true, feedback: '' }
+
+  content.push({ type: 'text', text: 'GENERATED IMAGE (review this against the criteria below):' })
+  content.push({ type: 'image', source: { type: 'base64', media_type: genMatch[1], data: genMatch[2] } })
+
+  content.push({
+    type: 'text',
+    text: `Review this generated ad image. Check ALL of the following:
+
+1. REFERENCE MATCH: ${referenceImageBase64 ? 'Does it match the reference image composition, layout, background, and style? Be strict.' : 'No reference provided - skip this check.'}
+2. PROMPT ADHERENCE: The prompt was: "${prompt}" - does the image match this description?
+3. PERSONA FIT: Target persona is "${persona.name}" with angle "${persona.angle}" and hook "${persona.hook || 'none'}". Does the image feel appropriate for this audience?
+4. HALLUCINATIONS: Is the product realistic? Any weird artifacts, extra fingers, distorted text, impossible physics, or AI glitches?
+5. QUALITY: Is it professional enough for a paid social media ad?
+
+Respond in this EXACT JSON format:
+{
+  "pass": true or false,
+  "issues": ["list of specific issues found"],
+  "feedback": "Specific instructions to fix the issues. Be direct and actionable."
+}
+
+Be strict. If there are ANY issues with reference matching, hallucinations, or quality, fail it.`,
+  })
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      messages: [{ role: 'user', content }],
+    })
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const jsonMatch = text.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) return { pass: true, feedback: '' }
+
+    const result = JSON.parse(jsonMatch[0])
+    console.log('QC Review:', result.pass ? 'PASS' : 'FAIL', result.issues?.length || 0, 'issues')
+    return {
+      pass: !!result.pass,
+      feedback: result.feedback || '',
+    }
+  } catch (e) {
+    console.error('QC review error:', e)
+    return { pass: true, feedback: '' } // don't block on QC errors
+  }
 }
 
 // ── Build prompt depending on what images are provided ────────────────────
@@ -227,18 +302,47 @@ export async function POST(req: NextRequest) {
     const results = []
     for (const persona of personas) {
       try {
-        const prompt = buildPrompt(
-          concept,
-          persona,
-          brandContext,
-          !!hasRef,
-          hasProducts
-        )
+        const MAX_QC_PASSES = 3
+        let rawImageDataUrl = ''
+        let currentPrompt = buildPrompt(concept, persona, brandContext, !!hasRef, hasProducts)
+        let currentImageInputs = [...imageInputs]
 
-        // Step 1: Generate clean image with Gemini (no text)
-        const rawImageDataUrl = await generateWithGemini(prompt, imageInputs)
+        // Multi-pass QC loop: generate, review, regenerate if needed
+        for (let pass = 1; pass <= MAX_QC_PASSES; pass++) {
+          console.log(`Pass ${pass}/${MAX_QC_PASSES} for ${persona.name}`)
 
-        // Step 2: Composite headline, CTA, and brand name for all 3 formats
+          // Generate image
+          rawImageDataUrl = await generateWithGemini(currentPrompt, currentImageInputs)
+
+          // Skip QC on last pass (use whatever we got)
+          if (pass === MAX_QC_PASSES) {
+            console.log(`Pass ${pass}: Final pass, accepting result`)
+            break
+          }
+
+          // Claude QC review
+          const review = await reviewWithClaude(
+            rawImageDataUrl,
+            hasRef ? referenceImage : undefined,
+            persona,
+            concept
+          )
+
+          if (review.pass) {
+            console.log(`Pass ${pass}: QC PASSED`)
+            break
+          }
+
+          // QC failed - regenerate with Claude's feedback
+          console.log(`Pass ${pass}: QC FAILED, regenerating with feedback: ${review.feedback.slice(0, 100)}`)
+          currentPrompt = buildPrompt(concept, persona, brandContext, !!hasRef, hasProducts)
+            + `\n\nCRITICAL FIXES NEEDED:\n${review.feedback}`
+
+          // Use the failed image as reference for the next attempt so Gemini can see what to fix
+          currentImageInputs = [rawImageDataUrl, ...imageInputs.slice(hasRef ? 1 : 0)]
+        }
+
+        // Composite headline, CTA, and brand name for all 3 formats
         const rawBase64 = rawImageDataUrl.split(',')[1]
         const rawBuffer = Buffer.from(rawBase64, 'base64')
 
