@@ -25,6 +25,21 @@ export async function GET() {
   }
 }
 
+// DELETE - delete a brand
+export async function DELETE(req: NextRequest) {
+  try {
+    const supabase = createClient()
+    const { brandId } = await req.json()
+    if (!brandId) return NextResponse.json({ error: 'brandId required' }, { status: 400 })
+
+    const { error } = await supabase.from('brands').delete().eq('id', brandId)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
+}
+
 // POST - create a brand
 export async function POST(req: NextRequest) {
   try {

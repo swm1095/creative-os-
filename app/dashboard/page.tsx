@@ -302,22 +302,50 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-2">
             {brands.map(b => (
-              <button
+              <div
                 key={b.id}
-                onClick={() => { setActiveBrand(b); setShowBrandModal(false) }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left ${
+                className={`group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
                   activeBrand?.id === b.id ? 'bg-fulton-light border border-fulton' : 'bg-page border border-border hover:border-text-subtle'
                 }`}
               >
-                <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
-                  {b.name.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <div className="text-sm font-bold">{b.name}</div>
-                  <div className="text-2xs text-text-dim">{b.creative_count || 0} creatives</div>
-                </div>
-                {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
-              </button>
+                <button
+                  onClick={() => { setActiveBrand(b); setShowBrandModal(false) }}
+                  className="flex items-center gap-3 flex-1 text-left"
+                >
+                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
+                    {b.name.charAt(0)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-bold">{b.name}</div>
+                    <div className="text-2xs text-text-dim">{b.creative_count || 0} creatives</div>
+                  </div>
+                  {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
+                </button>
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    if (!confirm(`Delete "${b.name}"? This cannot be undone.`)) return
+                    try {
+                      const res = await fetch('/api/brands', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ brandId: b.id }),
+                      })
+                      const data = await res.json()
+                      if (data.error) throw new Error(data.error)
+                      addToast(`${b.name} deleted`, 'success')
+                      if (activeBrand?.id === b.id) setActiveBrand(null)
+                      await refreshBrands()
+                    } catch (err: unknown) {
+                      addToast(`Delete failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+                    }
+                  }}
+                  className="opacity-0 group-hover:opacity-100 w-6 h-6 rounded flex items-center justify-center text-text-dim hover:text-red hover:bg-red-light transition-all text-xs"
+                  title={`Delete ${b.name}`}
+                >
+                  ×
+                </button>
+              </div>
             ))}
             <button
               onClick={() => setShowAddBrandForm(true)}
