@@ -1,4 +1,6 @@
 import sharp from 'sharp'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 type AdFormat = '9x16' | '4x5' | '1x1'
 
@@ -19,47 +21,29 @@ interface FormatConfig {
   brandFontSize: number
   maxCharsPerLine: number
   lineHeight: number
-  safeMargin: number  // px from all edges
-  headlineYCenter: number  // fraction of height where headline is vertically centered
-  ctaBottomMargin: number  // px from bottom
+  safeMargin: number
+  headlineYCenter: number
+  ctaBottomMargin: number
 }
 
 const FORMAT_CONFIGS: Record<AdFormat, FormatConfig> = {
   '9x16': {
-    width: 1080,
-    height: 1920,
-    headlineFontSize: 52,
-    ctaFontSize: 20,
-    brandFontSize: 18,
-    maxCharsPerLine: 24,
-    lineHeight: 66,
-    safeMargin: 80,
-    headlineYCenter: 0.38,
-    ctaBottomMargin: 200,
+    width: 1080, height: 1920,
+    headlineFontSize: 52, ctaFontSize: 20, brandFontSize: 18,
+    maxCharsPerLine: 24, lineHeight: 66, safeMargin: 80,
+    headlineYCenter: 0.38, ctaBottomMargin: 200,
   },
   '4x5': {
-    width: 1080,
-    height: 1350,
-    headlineFontSize: 46,
-    ctaFontSize: 18,
-    brandFontSize: 16,
-    maxCharsPerLine: 26,
-    lineHeight: 58,
-    safeMargin: 70,
-    headlineYCenter: 0.35,
-    ctaBottomMargin: 160,
+    width: 1080, height: 1350,
+    headlineFontSize: 46, ctaFontSize: 18, brandFontSize: 16,
+    maxCharsPerLine: 26, lineHeight: 58, safeMargin: 70,
+    headlineYCenter: 0.35, ctaBottomMargin: 160,
   },
   '1x1': {
-    width: 1080,
-    height: 1080,
-    headlineFontSize: 40,
-    ctaFontSize: 16,
-    brandFontSize: 14,
-    maxCharsPerLine: 28,
-    lineHeight: 50,
-    safeMargin: 60,
-    headlineYCenter: 0.33,
-    ctaBottomMargin: 130,
+    width: 1080, height: 1080,
+    headlineFontSize: 40, ctaFontSize: 16, brandFontSize: 14,
+    maxCharsPerLine: 28, lineHeight: 50, safeMargin: 60,
+    headlineYCenter: 0.33, ctaBottomMargin: 130,
   },
 }
 
@@ -79,59 +63,74 @@ function wrapText(text: string, maxChars: number): string[] {
   const words = text.split(' ')
   const lines: string[] = []
   let current = ''
-
   for (const word of words) {
     const test = current ? current + ' ' + word : word
-    if (test.length > maxChars && current) {
-      lines.push(current)
-      current = word
-    } else {
-      current = test
-    }
+    if (test.length > maxChars && current) { lines.push(current); current = word }
+    else { current = test }
   }
   if (current) lines.push(current)
   return lines
 }
 
+// Load font as base64 for embedding in SVG
+let fontBase64Cache: string | null = null
+function getFontBase64(): string {
+  if (fontBase64Cache) return fontBase64Cache
+  try {
+    // Try bundled font first
+    const fontPath = join(process.cwd(), 'public', 'fonts', 'Inter-Black.ttf')
+    const fontBuffer = readFileSync(fontPath)
+    fontBase64Cache = fontBuffer.toString('base64')
+    return fontBase64Cache
+  } catch {
+    // Return empty - SVG will fall back to system fonts
+    return ''
+  }
+}
+
 function buildOverlaySvg(config: FormatConfig, headline: string, cta: string, brandName: string, brandColor: string): string {
-  const {
-    width, height,
-    headlineFontSize, ctaFontSize, brandFontSize,
-    maxCharsPerLine, lineHeight, safeMargin,
-    headlineYCenter, ctaBottomMargin,
-  } = config
+  const { width, height, headlineFontSize, ctaFontSize, brandFontSize, maxCharsPerLine, lineHeight, safeMargin, headlineYCenter, ctaBottomMargin } = config
 
   const headlineLines = wrapText(escapeXml(headline), maxCharsPerLine)
   const escapedCta = escapeXml(cta)
   const escapedBrand = escapeXml(brandName)
 
-  // Calculate headline block height and center it
   const headlineBlockHeight = headlineLines.length * lineHeight
   const headlineStartY = (height * headlineYCenter) - (headlineBlockHeight / 2) + headlineFontSize
-
-  // Build headline lines - centered horizontally within safe margins
   const centerX = width / 2
+
+  // Embed font in SVG
+  const fontData = getFontBase64()
+  const fontFace = fontData ? `
+    <style>
+      @font-face {
+        font-family: 'InterBlack';
+        src: url('data:font/truetype;base64,${fontData}') format('truetype');
+        font-weight: 900;
+      }
+    </style>` : ''
+  const fontFamily = fontData ? 'InterBlack' : 'Arial, Helvetica, sans-serif'
+
   const headlineShadow = headlineLines.map((line, i) =>
-    `<text x="${centerX}" y="${headlineStartY + i * lineHeight + 2}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineFontSize}" font-weight="900" fill="black" opacity="0.35">${line}</text>`
+    `<text x="${centerX}" y="${headlineStartY + i * lineHeight + 3}" text-anchor="middle" font-family="${fontFamily}" font-size="${headlineFontSize}" font-weight="900" fill="black" opacity="0.4">${line}</text>`
   ).join('\n    ')
 
   const headlineSvg = headlineLines.map((line, i) =>
-    `<text x="${centerX}" y="${headlineStartY + i * lineHeight}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${headlineFontSize}" font-weight="900" fill="white">${line}</text>`
+    `<text x="${centerX}" y="${headlineStartY + i * lineHeight}" text-anchor="middle" font-family="${fontFamily}" font-size="${headlineFontSize}" font-weight="900" fill="white">${line}</text>`
   ).join('\n    ')
 
-  // CTA button
   const ctaTextWidth = escapedCta.length * ctaFontSize * 0.6
   const ctaWidth = Math.max(160, ctaTextWidth + 50)
   const ctaHeight = ctaFontSize * 2.8
   const ctaX = (width - ctaWidth) / 2
   const ctaY = height - ctaBottomMargin
 
-  // Gradients for readability
   const topGradH = Math.round(height * 0.25)
   const botGradStart = Math.round(height * 0.6)
   const botGradH = height - botGradStart
 
   return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  ${fontFace}
   <defs>
     <linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="black" stop-opacity="0.5"/>
@@ -147,26 +146,18 @@ function buildOverlaySvg(config: FormatConfig, headline: string, cta: string, br
   <rect x="0" y="0" width="${width}" height="${topGradH}" fill="url(#tg)"/>
   <rect x="0" y="${botGradStart}" width="${width}" height="${botGradH}" fill="url(#bg)"/>
 
-  <text x="${safeMargin}" y="${safeMargin + brandFontSize}" font-family="Arial, Helvetica, sans-serif" font-size="${brandFontSize}" font-weight="800" fill="white" letter-spacing="3" opacity="0.85">${escapedBrand}</text>
+  <text x="${safeMargin}" y="${safeMargin + brandFontSize}" font-family="${fontFamily}" font-size="${brandFontSize}" font-weight="900" fill="white" letter-spacing="3" opacity="0.85">${escapedBrand}</text>
 
   ${headlineShadow}
   ${headlineSvg}
 
   <rect x="${ctaX}" y="${ctaY}" width="${ctaWidth}" height="${ctaHeight}" rx="6" fill="${brandColor}"/>
-  <text x="${centerX}" y="${ctaY + ctaHeight * 0.65}" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="${ctaFontSize}" font-weight="700" fill="white">${escapedCta}</text>
+  <text x="${centerX}" y="${ctaY + ctaHeight * 0.65}" text-anchor="middle" font-family="${fontFamily}" font-size="${ctaFontSize}" font-weight="900" fill="white">${escapedCta}</text>
 </svg>`
 }
 
 export async function composeAd(options: ComposeOptions): Promise<Buffer> {
-  const {
-    imageBuffer,
-    headline,
-    cta,
-    brandName = 'FULTON',
-    brandColor = '#1B4332',
-    format = '9x16',
-  } = options
-
+  const { imageBuffer, headline, cta, brandName = 'FULTON', brandColor = '#1B4332', format = '9x16' } = options
   const config = FORMAT_CONFIGS[format]
 
   const resizedImage = await sharp(imageBuffer)
@@ -175,21 +166,17 @@ export async function composeAd(options: ComposeOptions): Promise<Buffer> {
 
   const svgOverlay = buildOverlaySvg(config, headline, cta, brandName, brandColor)
 
-  const result = await sharp(resizedImage)
+  return await sharp(resizedImage)
     .composite([{ input: Buffer.from(svgOverlay), top: 0, left: 0 }])
     .png({ quality: 90 })
     .toBuffer()
-
-  return result
 }
 
 export async function composeAllFormats(options: Omit<ComposeOptions, 'format'>): Promise<Record<AdFormat, Buffer>> {
   const formats: AdFormat[] = ['9x16', '4x5', '1x1']
   const results: Partial<Record<AdFormat, Buffer>> = {}
-
   for (const format of formats) {
     results[format] = await composeAd({ ...options, format })
   }
-
   return results as Record<AdFormat, Buffer>
 }
