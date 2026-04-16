@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { PersonaInput, GenerateResult } from '@/lib/types'
+import { PersonaInput, GenerateResult, Brand } from '@/lib/types'
 import { DEFAULT_PERSONAS } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -11,15 +11,23 @@ import ImagePreview from '@/components/ui/ImagePreview'
 
 interface GenerateViewProps {
   brandId: string | undefined
+  brand?: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
   onGenerated?: (results: GenerateResult[]) => void
   droppedFiles?: File[]
   onDroppedFilesConsumed?: () => void
 }
 
-export default function GenerateView({ brandId, onToast, onGenerated, droppedFiles, onDroppedFilesConsumed }: GenerateViewProps) {
-  const [prompt, setPrompt] = useState('Premium product lifestyle photo, Fulton house shoe with cork arch support, warm home environment, natural lighting, clean minimal composition, photorealistic, aspirational wellness aesthetic')
-  const [personas] = useState<PersonaInput[]>(DEFAULT_PERSONAS)
+export default function GenerateView({ brandId, brand, onToast, onGenerated, droppedFiles, onDroppedFilesConsumed }: GenerateViewProps) {
+  const [prompt, setPrompt] = useState('Premium product lifestyle photo, warm home environment, natural lighting, clean minimal composition, photorealistic, aspirational wellness aesthetic')
+
+  // Use personas from brand research if available, otherwise default
+  const researchPersonas: PersonaInput[] = brand?.research?.personas?.map(p => ({
+    name: p.name,
+    angle: p.description || p.painPoints?.[0] || '',
+    hook: p.hook,
+  })) || DEFAULT_PERSONAS
+  const [personas] = useState<PersonaInput[]>(researchPersonas)
   const [activePersonas, setActivePersonas] = useState<Set<number>>(new Set([0, 1, 2, 3]))
   const [results, setResults] = useState<GenerateResult[]>([])
   const [generating, setGenerating] = useState(false)

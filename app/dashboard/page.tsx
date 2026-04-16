@@ -97,11 +97,6 @@ export default function DashboardPage() {
 
   const topbar = getTopbar()
 
-  // Brand context string for AI features
-  const brandContext = activeBrand
-    ? `Brand: ${activeBrand.name}. ${activeBrand.tone_notes || ''} Colors: ${(activeBrand.brand_colors || []).join(', ')}`
-    : ''
-
   // Render active view
   const renderView = () => {
     switch (activeView) {
@@ -119,6 +114,7 @@ export default function DashboardPage() {
         return (
           <GenerateView
             brandId={activeBrand?.id}
+            brand={activeBrand}
             onToast={addToast}
             droppedFiles={droppedFiles}
             onDroppedFilesConsumed={() => setDroppedFiles([])}
@@ -155,9 +151,9 @@ export default function DashboardPage() {
       case 'brand':
         return <BrandView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'chat':
-        return <ChatView brandContext={brandContext} onToast={addToast} />
+        return <ChatView brandId={activeBrand?.id} onToast={addToast} />
       case 'copy':
-        return <CopyView brandContext={brandContext} onToast={addToast} />
+        return <CopyView brandId={activeBrand?.id} onToast={addToast} />
       case 'listening':
         return <ListeningView brand={activeBrand} onToast={addToast} />
       case 'brand-research':

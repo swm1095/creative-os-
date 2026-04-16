@@ -6,7 +6,7 @@ import Button from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface ChatViewProps {
-  brandContext?: string
+  brandId?: string
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
 }
 
@@ -17,7 +17,7 @@ const SUGGESTIONS = [
   'Suggest a testing framework for 4 persona variants',
 ]
 
-export default function ChatView({ brandContext, onToast }: ChatViewProps) {
+export default function ChatView({ brandId, onToast }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -43,7 +43,7 @@ export default function ChatView({ brandContext, onToast }: ChatViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
-          brandContext,
+          brandId,
         }),
       })
       const data = await res.json()

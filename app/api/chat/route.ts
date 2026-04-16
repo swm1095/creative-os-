@@ -1,36 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { BrandResearch, ResearchPersona } from '@/lib/types'
 
 export const maxDuration = 60
 
-const SYSTEM_PROMPT = `You are HyperChat, an AI creative strategist built into the HyperCreate platform by Hype10 agency.
-
-CURRENT CLIENT: Fulton — Premium supportive footwear & insoles (walkfulton.com)
-Brand Colors: #1B4332 (forest green), #C8922A (gold), #f7faf8 (off-white)
-Brand Tone: Empathetic & credibly science-backed. Lead with pain-point empathy, pivot to credible science.
-Key Features: Cork arch support, deep heel cup, all-day comfort, medical-grade materials.
-
-TARGET PERSONAS:
-- P1: Chronic pain sufferers (35-65) — angle: medical alternative / cost savings — hook: "Cheaper than physical therapy"
-- P2: Slipper skeptics (28-50) — angle: frustration with flat slippers — hook: "We're sorry you wasted money on slippers"
-- P3: WFH workers (25-45) — angle: all-day home comfort — hook: "Comfort you can wear all day without sacrificing support"
-- P4: Health-conscious active (40-60) — angle: science & engineering — hook: "Fixes foot, knee & back pain at the source"
-
-TOP PERFORMERS: P1 "Cheaper than PT" (7.6x ROAS), P4 "Science-Backed" (5.1x ROAS)
+const BASE_PROMPT = `You are HyperChat, an AI creative strategist built into the HyperCreate platform by Hype10 agency.
 
 You help creative teams with ad strategy, copy angles, audience insights, and performance interpretation.
 
-FORMATTING RULES — THIS IS CRITICAL:
+FORMATTING RULES - THIS IS CRITICAL:
 - Write like a sharp creative director talking to their team, NOT like an AI or developer
 - Use plain language, short sentences, no jargon
 - Use bullet points with hyphens (-) not asterisks or emdashes
 - NEVER use emdashes or endashes anywhere. Use hyphens (-) or commas instead.
 - Bold key takeaways by wrapping in **double asterisks**
 - Never use markdown code blocks, headers with #, or technical formatting
-- Never say "Here's" or "I'd suggest" — just say it directly
-- Keep it tight — 3-5 bullet points max per section
+- Never say "Here's" or "I'd suggest" - just say it directly
+- Keep it tight - 3-5 bullet points max per section
 - When writing ad copy examples, just write the copy itself, don't label it "Headline:" or "Body:"
 - Sound like a person on a Slack thread, not a formal report`
+
+function buildBrandContext(research: BrandResearch | null, brandName: string): string {
+  if (!research) return `\nCURRENT CLIENT: ${brandName} (no deep research yet - ask the user to run brand research for better insights)`
+
+  const personasText = (research.personas || []).map((p: ResearchPersona, i: number) =>
+    `  P${i + 1}: ${p.name} - angle: ${p.description} - hook: "${p.hook}"`
+  ).join('\n')
+
+  return `
+CURRENT CLIENT: ${brandName}
+Industry: ${research.industry}
+Product Category: ${research.productCategory}
+Price Range: ${research.priceRange}
+
+Brand Voice: ${research.brandVoice}
+
+TARGET PERSONAS:
+${personasText}
+
+TOP PAIN POINTS: ${(research.painPoints || []).slice(0, 5).join('; ')}
+TOP MOTIVATORS: ${(research.motivators || []).slice(0, 5).join('; ')}
+COMPETITORS: ${(research.competitors || []).slice(0, 5).join(', ')}
+KEY PHRASES: ${(research.keyPhrases || []).slice(0, 5).join(', ')}
+AVOID: ${(research.avoidPhrases || []).slice(0, 3).join(', ')}
+
+VALUE PROPS: ${(research.valueProps || []).join('; ')}
+`
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,21 +55,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
-    const { messages, brandContext } = await req.json()
+    const { messages, brandId } = await req.json()
     if (!messages?.length) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
     }
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    // Load brand research from Supabase if brandId provided
+    let brandContextText = ''
+    if (brandId) {
+      try {
+        const supabase = createClient()
+        const { data: brand } = await supabase.from('brands').select('*').eq('id', brandId).single()
+        if (brand) {
+          brandContextText = buildBrandContext(brand.research, brand.name)
+        }
+      } catch (e) {
+        console.error('Failed to load brand context:', e)
+      }
+    }
 
-    const systemPrompt = brandContext
-      ? `${SYSTEM_PROMPT}\n\nCurrent brand context: ${brandContext}`
-      : SYSTEM_PROMPT
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: systemPrompt,
+      system: BASE_PROMPT + brandContextText,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,

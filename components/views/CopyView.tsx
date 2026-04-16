@@ -9,7 +9,7 @@ import { FormTextarea } from '@/components/ui/FormInput'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface CopyViewProps {
-  brandContext?: string
+  brandId?: string
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
 }
 
@@ -21,7 +21,7 @@ const CONTENT_TYPES = [
   { id: 'email', label: 'Email Copy', desc: 'Subject lines and email body' },
 ]
 
-export default function CopyView({ brandContext, onToast }: CopyViewProps) {
+export default function CopyView({ brandId, onToast }: CopyViewProps) {
   const [contentType, setContentType] = useState('ad-copy')
   const [persona, setPersona] = useState(DEFAULT_PERSONAS[0].name)
   const [tone, setTone] = useState('Empathetic')
@@ -47,7 +47,7 @@ export default function CopyView({ brandContext, onToast }: CopyViewProps) {
           tone,
           platform,
           prompt: `Content type: ${activeType?.label || 'Ad Copy'}. ${activeType?.desc || ''}.\n\n${prompt}`,
-          brandContext,
+          brandId,
           contentType,
         }),
       })

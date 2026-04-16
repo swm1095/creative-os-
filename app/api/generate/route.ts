@@ -124,7 +124,14 @@ export async function POST(req: NextRequest) {
     if (brand) {
       const parts = []
       if (brand.name) parts.push(`Brand: ${brand.name}`)
-      if (brand.tone_notes) parts.push(`Tone: ${brand.tone_notes}`)
+      // Use research data if available for richer context
+      if (brand.research) {
+        if (brand.research.brandVoice) parts.push(`Voice: ${brand.research.brandVoice}`)
+        if (brand.research.productCategory) parts.push(`Product: ${brand.research.productCategory}`)
+        if (brand.research.valueProps?.length) parts.push(`Value: ${brand.research.valueProps.slice(0, 3).join(', ')}`)
+      } else if (brand.tone_notes) {
+        parts.push(`Tone: ${brand.tone_notes}`)
+      }
       if (brand.brand_colors?.length) parts.push(`Colors: ${brand.brand_colors.join(', ')}`)
       brandContext = parts.join('. ')
     }
