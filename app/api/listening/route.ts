@@ -311,8 +311,17 @@ export async function POST(req: NextRequest) {
     console.log('Pass 2/3: Identifying patterns...')
     const patterns = await identifyPatterns(client, themes, trends, research)
 
+    // Include competitor intel if available
+    let competitorContext = ''
+    if (brand.competitor_research && Array.isArray(brand.competitor_research)) {
+      competitorContext = '\n\nCOMPETITOR INTELLIGENCE (from prior deep analysis):\n' +
+        (brand.competitor_research as Array<{ name: string; weaknesses?: string[]; adAngles?: string[] }>)
+          .map(c => `${c.name}: weaknesses: ${(c.weaknesses || []).slice(0, 3).join('; ')} | ad angles: ${(c.adAngles || []).slice(0, 3).join('; ')}`)
+          .join('\n')
+    }
+
     console.log('Pass 3/3: Building creative insights...')
-    const insights = await buildCreativeInsights(client, patterns, research, brand.name)
+    const insights = await buildCreativeInsights(client, patterns + competitorContext, research, brand.name)
 
     // Source breakdown for UI
     const sourceBreakdown = {

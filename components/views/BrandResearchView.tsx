@@ -111,6 +111,8 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
       if (data.error) throw new Error(data.error)
       setCompetitorInsights(data.competitors || [])
       onToast(`${data.competitors?.length || 0} competitors analyzed`, 'success')
+      // Scroll to results
+      setTimeout(() => document.getElementById('competitor-analysis')?.scrollIntoView({ behavior: 'smooth' }), 200)
     } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     setResearchingCompetitors(false)
   }
@@ -279,43 +281,88 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             </div>
           </div>
 
-          {/* COMPETITORS */}
-          <div>
-            <h3 className="text-lg font-black mb-4">Competitors</h3>
-            <Card>
-              <div className="flex flex-wrap gap-2 mb-3">
+          {/* COMPETITOR ANALYSIS */}
+          <div id="competitor-analysis">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-black">Competitor Analysis</h3>
+              <Button onClick={runCompetitorAnalysis} disabled={researchingCompetitors}>
+                {researchingCompetitors ? <><LoadingSpinner size={14} /> Analyzing...</> : 'Run Competitor Analysis'}
+              </Button>
+            </div>
+
+            {/* Known competitors */}
+            <Card className="mb-4">
+              <div className="text-sm font-bold mb-2">Known Competitors</div>
+              <div className="flex flex-wrap gap-2">
                 {research.competitors?.map((c, i) => (
-                  <span key={i} className="text-xs font-semibold bg-elevated border border-border px-2.5 py-1 rounded">{c}</span>
+                  <span key={i} className="text-sm font-semibold bg-elevated border border-border px-3 py-1.5 rounded">{c}</span>
                 ))}
               </div>
             </Card>
 
-            {/* Competitor deep analysis */}
-            {competitorInsights.length > 0 && (
-              <div className="space-y-4 mt-4">
+            {researchingCompetitors && (
+              <LoadingState size="md" title="Mining Reddit for competitor discussions..." subtitle="Claude is analyzing weaknesses, complaints, and ad opportunities" />
+            )}
+
+            {/* Competitor deep analysis results */}
+            {competitorInsights.length > 0 && !researchingCompetitors && (
+              <div className="space-y-4">
                 {competitorInsights.map((c, i) => (
                   <Card key={i}>
-                    <div className="text-sm font-bold mb-1">{c.name}</div>
-                    <div className="text-2xs text-text-dim mb-3">{c.positioning}</div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xs font-bold bg-red-light text-red px-2 py-0.5 rounded">vs</span>
+                      <span className="text-sm font-bold">{c.name}</span>
+                    </div>
+                    <p className="text-sm text-text-dim mb-3">{c.positioning}</p>
+
                     {c.weaknesses?.length > 0 && (
-                      <div className="mb-3">
-                        <div className="text-2xs font-bold text-red uppercase tracking-wider mb-1">Weaknesses</div>
-                        <ul className="space-y-0.5 list-disc list-inside">
-                          {c.weaknesses.slice(0, 4).map((w, j) => <li key={j} className="text-xs text-text-secondary">{w}</li>)}
+                      <div className="mb-4">
+                        <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Their Weaknesses</div>
+                        <ul className="space-y-1 list-disc list-inside">
+                          {c.weaknesses.map((w, j) => <li key={j} className="text-sm text-text-secondary">{w}</li>)}
                         </ul>
                       </div>
                     )}
+
+                    {c.customerComplaints?.length > 0 && (
+                      <div className="mb-4">
+                        <div className="text-xs font-bold text-amber uppercase tracking-wider mb-2">Customer Complaints</div>
+                        <ul className="space-y-1 list-disc list-inside">
+                          {c.customerComplaints.map((cc, j) => <li key={j} className="text-sm text-text-secondary italic">{cc}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
                     {c.adAngles?.length > 0 && (
+                      <div className="mb-4">
+                        <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Ad Angles Against Them</div>
+                        <ul className="space-y-1 list-disc list-inside">
+                          {c.adAngles.map((a, j) => <li key={j} className="text-sm text-text-secondary">{a}</li>)}
+                        </ul>
+                      </div>
+                    )}
+
+                    {c.opportunities?.length > 0 && (
                       <div>
-                        <div className="text-2xs font-bold text-fulton uppercase tracking-wider mb-1">Ad Angles</div>
-                        <ul className="space-y-0.5 list-disc list-inside">
-                          {c.adAngles.slice(0, 4).map((a, j) => <li key={j} className="text-xs text-text-secondary">{a}</li>)}
+                        <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">Opportunities</div>
+                        <ul className="space-y-1 list-disc list-inside">
+                          {c.opportunities.map((o, j) => <li key={j} className="text-sm text-text-secondary">{o}</li>)}
                         </ul>
                       </div>
                     )}
                   </Card>
                 ))}
               </div>
+            )}
+
+            {competitorInsights.length === 0 && !researchingCompetitors && (
+              <Card>
+                <div className="text-center py-8">
+                  <div className="text-2xl mb-2">⚔️</div>
+                  <div className="text-sm font-bold mb-1">No competitor analysis yet</div>
+                  <div className="text-xs text-text-dim">Click "Run Competitor Analysis" to mine Reddit for competitor weaknesses, customer complaints, and ad angles</div>
+                </div>
+              </Card>
             )}
           </div>
 
