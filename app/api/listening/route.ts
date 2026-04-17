@@ -271,22 +271,30 @@ export async function POST(req: NextRequest) {
 
     // ── Apify sources (scaffolded - flips on when APIFY_API_KEY set) ──
     if (apifyOn) {
-      console.log('=== APIFY ENABLED - running scrapers ===')
-      for (const keyword of (research.searchKeywords || []).slice(0, 3)) {
-        const tiktok = await searchApifyTikTok(keyword)
-        allSignals.push(...tiktok)
-      }
-      for (const keyword of (research.searchKeywords || []).slice(0, 2)) {
-        const reddit = await searchApifyReddit(keyword)
-        allSignals.push(...reddit)
-      }
-      // Amazon reviews from saved competitor product URLs
+      console.log('=== APIFY ENABLED - running scrapers in parallel ===')
+      const apifyPromises: Promise<SocialSignal[]>[] = []
+
+      // TikTok - top keyword only to save credits
+      const topKeyword = (research.searchKeywords || [])[0]
+      if (topKeyword) apifyPromises.push(searchApifyTikTok(topKeyword))
+
+      // Reddit - top keyword
+      if (topKeyword) apifyPromises.push(searchApifyReddit(topKeyword))
+
+      // Amazon - first 2 competitor URLs
       const competitorUrls: string[] = brand.competitor_urls || []
-      if (competitorUrls.length) {
-        console.log(`Apify Amazon: Mining ${competitorUrls.length} product URLs...`)
-        for (const url of competitorUrls.slice(0, 5)) {
-          const amazon = await searchApifyAmazon(url)
-          allSignals.push(...amazon)
+      for (const url of competitorUrls.slice(0, 2)) {
+        apifyPromises.push(searchApifyAmazon(url))
+      }
+
+      // Run all in parallel to stay within timeout
+      const apifyResults = await Promise.allSettled(apifyPromises)
+      for (const result of apifyResults) {
+        if (result.status === 'fulfilled') {
+          allSignals.push(...result.value)
+          console.log(`Apify: got ${result.value.length} signals`)
+        } else {
+          console.error('Apify scraper failed:', result.reason)
         }
       }
     }

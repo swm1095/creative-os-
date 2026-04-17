@@ -14,6 +14,8 @@ import Modal from '@/components/ui/Modal'
 import EmptyState from '@/components/ui/EmptyState'
 import TaskBar from '@/components/ui/TaskBar'
 import { useBackgroundTasks, BackgroundTask } from '@/lib/hooks/use-background-tasks'
+import { useAuth } from '@/lib/hooks/use-auth'
+import LoginView from '@/components/views/LoginView'
 
 // Views
 import HubView from '@/components/views/HubView'
@@ -32,6 +34,7 @@ import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
 
 export default function DashboardPage() {
+  const { user, loading: authLoading, login, loginWithGoogle, logout, isAdmin } = useAuth()
   const { brands, activeBrand, setActiveBrand, createBrand, updateBrand, refreshBrands } = useBrands()
   const { creatives, addCreatives } = useCreatives(activeBrand?.id)
   const { toasts, addToast, dismissToast } = useToast()
@@ -226,6 +229,10 @@ export default function DashboardPage() {
     }
   }
 
+  // Show login if not authenticated
+  if (authLoading) return <div className="h-screen bg-page" />
+  if (!user) return <LoginView onLogin={login} onGoogleLogin={loginWithGoogle} />
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -236,6 +243,9 @@ export default function DashboardPage() {
         onNavigate={navigate}
         onBrandSelect={setActiveBrand}
         onShowBrandModal={() => setShowBrandModal(true)}
+        userName={user?.name}
+        userEmail={user?.email}
+        onLogout={logout}
       />
 
       <main

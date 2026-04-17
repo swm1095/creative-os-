@@ -12,9 +12,12 @@ interface SidebarProps {
   onNavigate: (tool: ToolId, view: ViewId) => void
   onBrandSelect: (brand: Brand) => void
   onShowBrandModal: () => void
+  userName?: string
+  userEmail?: string
+  onLogout?: () => void
 }
 
-export default function Sidebar({ currentTool, activeView, activeBrand, brands, onNavigate, onBrandSelect, onShowBrandModal }: SidebarProps) {
+export default function Sidebar({ currentTool, activeView, activeBrand, brands, onNavigate, onBrandSelect, onShowBrandModal, userName, userEmail, onLogout }: SidebarProps) {
   const activeTool = TOOLS.find(t => t.id === currentTool)
 
   return (
@@ -116,12 +119,15 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
 
       {/* User footer */}
       <div className="px-3.5 py-3 border-t border-border">
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface cursor-pointer">
-          <div className="w-7 h-7 rounded-full bg-fulton text-white text-xs font-black flex items-center justify-center shrink-0">S</div>
-          <div className="min-w-0">
-            <div className="text-sm font-bold truncate">Sam Wolf</div>
-            <div className="text-2xs text-text-muted truncate">sam@hype10agency.com</div>
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface cursor-pointer group" onClick={onLogout}>
+          <div className="w-7 h-7 rounded-full bg-blue text-white text-xs font-black flex items-center justify-center shrink-0">
+            {(userName || 'U').charAt(0).toUpperCase()}
           </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold truncate">{userName || 'User'}</div>
+            <div className="text-2xs text-text-muted truncate">{userEmail || ''}</div>
+          </div>
+          <span className="text-2xs text-text-dim opacity-0 group-hover:opacity-100 transition-opacity">Logout</span>
         </div>
       </div>
     </nav>
