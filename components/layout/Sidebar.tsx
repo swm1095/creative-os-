@@ -59,6 +59,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
           <>
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
             <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
+            <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
             <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
 
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>

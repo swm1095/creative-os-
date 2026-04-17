@@ -27,6 +27,7 @@ import PerformanceView from '@/components/views/PerformanceView'
 import ResizeView from '@/components/views/ResizeView'
 import DataConnectionsView from '@/components/views/DataConnectionsView'
 import ListeningView from '@/components/views/ListeningView'
+import UGCTeamView from '@/components/views/UGCTeamView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
 
@@ -205,6 +206,8 @@ export default function DashboardPage() {
             <SavedInsightsView brand={activeBrand} onToast={addToast} onNavigate={navigate} />
           </div>
         )
+      case 'tracker':
+        return <UGCTeamView onToast={addToast} />
       case 'performance':
         return <PerformanceView />
       case 'coming-soon':
