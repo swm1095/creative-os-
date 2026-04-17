@@ -16,6 +16,7 @@ interface ListeningViewProps {
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
   onNavigate?: (tool: ToolId, view: ViewId, context?: Record<string, unknown>) => void
   onBrandUpdate?: (brandId: string, updates: Partial<Brand>) => void
+  addBackgroundTask?: (type: 'research' | 'competitor-analysis' | 'scan' | 'generate' | 'ugc-scripts', brandId: string, brandName: string, message: string, fn: (signal: AbortSignal) => Promise<unknown>) => string
 }
 
 const priorityColor: Record<string, 'green' | 'amber' | 'red'> = {
@@ -59,7 +60,7 @@ interface UGCScriptFramework {
   scene_notes?: string
 }
 
-export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdate }: ListeningViewProps) {
+export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdate, addBackgroundTask }: ListeningViewProps) {
   const [signals, setSignals] = useState<TrackedSignal[]>([])
   const [insights, setInsights] = useState<EnrichedInsight[]>([])
   const [trends, setTrends] = useState<{ keyword: string; trending: boolean; suggestions?: string[] }[]>([])
@@ -113,31 +114,41 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
     if (!brand?.id) { onToast('No brand selected', 'error'); return }
     if (!hasResearch) { onToast('Run brand research first', 'error'); return }
 
-    setLoading(true)
-    onToast('Scanning Reddit, HackerNews, YouTube, Google Trends...', 'info')
+    const doScan = async () => {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/listening', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brandId: brand.id }),
+        })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
 
-    try {
-      const res = await fetch('/api/listening', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandId: brand.id }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-
-      setSignals(data.signals || [])
-      setInsights(data.insights || [])
-      setTrends(data.trends || [])
-      setSourceBreakdown(data.sourceBreakdown || {})
-      setHasRun(true)
-      if (onBrandUpdate && brand) {
-        onBrandUpdate(brand.id, { last_scanned_at: data.scannedAt })
+        setSignals(data.signals || [])
+        setInsights(data.insights || [])
+        setTrends(data.trends || [])
+        setSourceBreakdown(data.sourceBreakdown || {})
+        setHasRun(true)
+        if (onBrandUpdate && brand) {
+          onBrandUpdate(brand.id, { last_scanned_at: data.scannedAt })
+        }
+        onToast(`Scan complete: ${data.signalCount} signals, ${data.insightCount} insights`, 'success')
+        return data
+      } catch (err: unknown) {
+        onToast(`Scan failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+        throw err
+      } finally {
+        setLoading(false)
       }
-      onToast(`Scan complete: ${data.signalCount} signals, ${data.insightCount} insights`, 'success')
-    } catch (err: unknown) {
-      onToast(`Scan failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
-    setLoading(false)
+
+    if (addBackgroundTask) {
+      addBackgroundTask('scan', brand.id, brand.name, 'Scanning signals', doScan)
+      onToast('Scan running in background - you can navigate freely', 'info')
+    } else {
+      await doScan()
+    }
   }
 
   const saveInsight = async (insight: EnrichedInsight) => {

@@ -12,6 +12,8 @@ import ToastContainer from '@/components/ui/Toast'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import EmptyState from '@/components/ui/EmptyState'
+import TaskBar from '@/components/ui/TaskBar'
+import { useBackgroundTasks, BackgroundTask } from '@/lib/hooks/use-background-tasks'
 
 // Views
 import HubView from '@/components/views/HubView'
@@ -31,6 +33,7 @@ export default function DashboardPage() {
   const { brands, activeBrand, setActiveBrand, createBrand, updateBrand, refreshBrands } = useBrands()
   const { creatives, addCreatives } = useCreatives(activeBrand?.id)
   const { toasts, addToast, dismissToast } = useToast()
+  const { tasks, addTask, dismissTask } = useBackgroundTasks()
 
   const [currentTool, setCurrentTool] = useState<ToolId>(null)
   const [activeView, setActiveView] = useState<ViewId>('hub')
@@ -161,7 +164,7 @@ export default function DashboardPage() {
       case 'copy':
         return <CopyView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'listening':
-        return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={updateBrand} />
+        return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={updateBrand} addBackgroundTask={addTask} />
       case 'brand-research':
         return (
           <BrandResearchView
@@ -173,6 +176,7 @@ export default function DashboardPage() {
             onSetActiveBrand={setActiveBrand}
             activeTab="research"
             onChangeTab={(tab) => navigate(null, tab === 'research' ? 'brand-research' : 'saved-insights')}
+            addBackgroundTask={addTask}
           />
         )
       case 'saved-insights':
@@ -396,6 +400,14 @@ export default function DashboardPage() {
         )}
       </Modal>
 
+      <TaskBar
+        tasks={tasks}
+        onDismiss={dismissTask}
+        onViewResult={(task: BackgroundTask) => {
+          if (task.type === 'research' || task.type === 'competitor-analysis') navigate(null, 'brand-research')
+          else if (task.type === 'scan') navigate('hyperlistening', 'listening')
+        }}
+      />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   )

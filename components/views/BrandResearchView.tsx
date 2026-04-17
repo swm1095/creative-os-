@@ -29,9 +29,10 @@ interface BrandResearchViewProps {
   onSetActiveBrand?: (brand: Brand) => void
   activeTab?: 'research' | 'saved-insights'
   onChangeTab?: (tab: 'research' | 'saved-insights') => void
+  addBackgroundTask?: (type: 'research' | 'competitor-analysis' | 'scan' | 'generate' | 'ugc-scripts', brandId: string, brandName: string, message: string, fn: (signal: AbortSignal) => Promise<unknown>) => string
 }
 
-export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab }: BrandResearchViewProps) {
+export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab, addBackgroundTask }: BrandResearchViewProps) {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
@@ -103,18 +104,31 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
   const runCompetitorAnalysis = async () => {
     if (!brand?.id) return
-    setResearchingCompetitors(true)
-    onToast('Mining Reddit for competitor discussions...', 'info')
-    try {
-      const res = await fetch('/api/competitor-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brand.id }) })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      setCompetitorInsights(data.competitors || [])
-      onToast(`${data.competitors?.length || 0} competitors analyzed`, 'success')
-      // Scroll to results
-      setTimeout(() => document.getElementById('competitor-analysis')?.scrollIntoView({ behavior: 'smooth' }), 200)
-    } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
-    setResearchingCompetitors(false)
+
+    const doAnalysis = async () => {
+      setResearchingCompetitors(true)
+      try {
+        const res = await fetch('/api/competitor-research', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brand.id }) })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        setCompetitorInsights(data.competitors || [])
+        onToast(`${data.competitors?.length || 0} competitors analyzed`, 'success')
+        setTimeout(() => document.getElementById('competitor-analysis')?.scrollIntoView({ behavior: 'smooth' }), 200)
+        return data
+      } catch (err: unknown) {
+        onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+        throw err
+      } finally {
+        setResearchingCompetitors(false)
+      }
+    }
+
+    if (addBackgroundTask) {
+      addBackgroundTask('competitor-analysis', brand.id, brand.name, 'Analyzing competitors', doAnalysis)
+      onToast('Competitor analysis running in background - you can navigate freely', 'info')
+    } else {
+      await doAnalysis()
+    }
   }
 
   return (
