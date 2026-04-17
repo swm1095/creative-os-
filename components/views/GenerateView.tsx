@@ -39,6 +39,9 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
   const [generationHistory, setGenerationHistory] = useState<string[]>([])
   const refInputRef = useRef<HTMLInputElement>(null)
   const productInputRef = useRef<HTMLInputElement>(null)
+  const refLibInputRef = useRef<HTMLInputElement>(null)
+  const [refLibImages, setRefLibImages] = useState<{ name: string; url: string }[]>([])
+  const [refLibLoading, setRefLibLoading] = useState(false)
 
   // Handle files dropped from global drag-and-drop
   useEffect(() => {
@@ -54,6 +57,33 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
       onDroppedFilesConsumed?.()
     }
   }, [droppedFiles])
+
+  // Load reference library from Supabase
+  useEffect(() => {
+    if (!brandId) return
+    setRefLibLoading(true)
+    fetch(`/api/reference-images?brandId=${brandId}`)
+      .then(res => res.json())
+      .then(data => { if (data.images) setRefLibImages(data.images) })
+      .catch(() => {})
+      .finally(() => setRefLibLoading(false))
+  }, [brandId])
+
+  const handleRefLibUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length || !brandId) return
+    const formData = new FormData()
+    formData.append('brandId', brandId)
+    files.forEach(f => formData.append('files', f))
+    try {
+      const res = await fetch('/api/reference-images', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.uploaded) {
+        setRefLibImages(prev => [...data.uploaded, ...prev])
+        onToast(`${data.count} reference image${data.count > 1 ? 's' : ''} uploaded to library`, 'success')
+      }
+    } catch { onToast('Upload failed', 'error') }
+  }
 
   // Pre-fill prompt from insight if navigated from HyperListening
   useEffect(() => {
@@ -217,6 +247,31 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
               <div className="text-2xs text-text-dim mt-0.5">Gemini will match its style and composition</div>
             </button>
           )}
+        </Card>
+
+        {/* Reference Image Library (shared, persisted) */}
+        <Card title="Reference Library" subtitle="Shared ad references - click any to use as reference">
+          <input ref={refLibInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleRefLibUpload} />
+          <div className="flex flex-wrap gap-2 mb-2">
+            {refLibImages.map((img, i) => (
+              <div
+                key={i}
+                className={`w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                  referencePreview === img.url ? 'border-blue ring-2 ring-blue/30' : 'border-border hover:border-blue/40'
+                }`}
+                onClick={() => { setReferencePreview(img.url); setReferenceImage(null) }}
+              >
+                <img src={img.url} alt="" className="w-full h-full object-cover" />
+              </div>
+            ))}
+            <button
+              onClick={() => refLibInputRef.current?.click()}
+              className="w-16 h-16 rounded-lg border-2 border-dashed border-border flex items-center justify-center hover:border-blue/40 transition-colors cursor-pointer"
+            >
+              <span className="text-sm">+</span>
+            </button>
+          </div>
+          {refLibLoading && <div className="text-2xs text-text-dim">Loading library...</div>}
         </Card>
 
         {/* Product images */}

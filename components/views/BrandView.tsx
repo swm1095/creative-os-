@@ -34,6 +34,8 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [removingBg, setRemovingBg] = useState<string | null>(null)
   const [showAddPersona, setShowAddPersona] = useState(false)
+  const [creatingLogin, setCreatingLogin] = useState(false)
+  const [clientLoginCreated, setClientLoginCreated] = useState(false)
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaDesc, setNewPersonaDesc] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
@@ -479,6 +481,63 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
           </Button>
         </Card>
       </div>
+
+      {/* Client Sign-In Section */}
+      {brand && (
+        <div className="col-span-full mt-6">
+          <Card title="Client Access" subtitle="Create a login for this client to view their dashboard">
+            {clientLoginCreated ? (
+              <div className="bg-green-light border border-green/20 rounded-lg p-4">
+                <div className="text-sm font-bold text-green mb-2">Login created</div>
+                <div className="space-y-1">
+                  <div className="text-sm"><span className="text-text-dim">Username:</span> <span className="font-bold">{brand.name.toLowerCase().replace(/\s+/g, '-')}</span></div>
+                  <div className="text-sm"><span className="text-text-dim">Password:</span> <span className="font-bold">{brand.name.replace(/\s+/g, '')}Hype10!</span></div>
+                </div>
+                <div className="text-2xs text-text-dim mt-2">Client can log in using the "Client Access" tab on the login screen</div>
+              </div>
+            ) : (
+              <div>
+                <div className="bg-surface border border-border rounded-lg p-4 mb-3">
+                  <div className="space-y-1">
+                    <div className="text-sm"><span className="text-text-dim">Username:</span> <span className="font-bold">{brand.name.toLowerCase().replace(/\s+/g, '-')}</span></div>
+                    <div className="text-sm"><span className="text-text-dim">Password:</span> <span className="font-bold">{brand.name.replace(/\s+/g, '')}Hype10!</span></div>
+                  </div>
+                </div>
+                <Button
+                  className="w-full justify-center"
+                  disabled={creatingLogin}
+                  onClick={async () => {
+                    setCreatingLogin(true)
+                    try {
+                      const res = await fetch('/api/auth/users', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          username: brand.name.toLowerCase().replace(/\s+/g, '-'),
+                          password: `${brand.name.replace(/\s+/g, '')}Hype10!`,
+                          name: brand.name,
+                          email: '',
+                          role: 'client',
+                          brand_id: brand.id,
+                        }),
+                      })
+                      const data = await res.json()
+                      if (data.error) throw new Error(data.error)
+                      setClientLoginCreated(true)
+                      onToast(`Client login created for ${brand.name}`, 'success')
+                    } catch (err: unknown) {
+                      onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+                    }
+                    setCreatingLogin(false)
+                  }}
+                >
+                  {creatingLogin ? 'Creating...' : 'Create Client Login'}
+                </Button>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
 
       <ImagePreview src={previewImage || ''} open={!!previewImage} onClose={() => setPreviewImage(null)} />
     </div>

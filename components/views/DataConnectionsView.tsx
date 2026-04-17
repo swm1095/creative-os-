@@ -1,9 +1,18 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Pill from '@/components/ui/Pill'
 import PageHeader from '@/components/ui/PageHeader'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
+
+interface HealthResult {
+  service: string
+  status: 'healthy' | 'degraded' | 'down'
+  responseTime?: number
+  error?: string
+}
 
 interface DataConnectionsViewProps {
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
@@ -58,11 +67,38 @@ const CONNECTIONS = [
 ]
 
 export default function DataConnectionsView({ onToast }: DataConnectionsViewProps) {
+  const [healthResults, setHealthResults] = useState<HealthResult[]>([])
+  const [checkingHealth, setCheckingHealth] = useState(false)
+
+  const runHealthCheck = async () => {
+    setCheckingHealth(true)
+    try {
+      const res = await fetch('/api/cron/health-check')
+      const data = await res.json()
+      if (data.results) setHealthResults(data.results)
+      const downCount = (data.downServices || []).length
+      if (downCount > 0) onToast(`${downCount} service${downCount > 1 ? 's' : ''} down`, 'error')
+      else onToast('All connections healthy', 'success')
+    } catch { onToast('Health check failed', 'error') }
+    setCheckingHealth(false)
+  }
+
+  useEffect(() => { runHealthCheck() }, [])
+
+  const getHealthStatus = (serviceName: string) => {
+    return healthResults.find(r => r.service === serviceName)
+  }
+
   return (
     <div className="animate-fadeIn">
       <PageHeader
         title="Data Connections"
         subtitle="Connect your ad platforms and tools to power HyperCreate"
+        action={
+          <Button variant="secondary" size="sm" onClick={runHealthCheck} disabled={checkingHealth}>
+            {checkingHealth ? <><LoadingSpinner size={12} /> Checking...</> : 'Run Health Check'}
+          </Button>
+        }
       />
 
       <div className="space-y-4">
@@ -78,6 +114,15 @@ export default function DataConnectionsView({ onToast }: DataConnectionsViewProp
                   <Pill variant={conn.status === 'connected' ? 'green' : 'gray'}>
                     {conn.status === 'connected' ? 'Connected' : 'Not Connected'}
                   </Pill>
+                  {(() => {
+                    const health = getHealthStatus(conn.name.replace(' (H10 API)', ''))
+                    if (!health) return null
+                    return (
+                      <Pill variant={health.status === 'healthy' ? 'green' : health.status === 'degraded' ? 'amber' : 'red'}>
+                        {health.status === 'healthy' ? `${health.responseTime}ms` : health.status}
+                      </Pill>
+                    )
+                  })()}
                 </div>
                 <p className="text-xs text-text-dim mb-3">{conn.description}</p>
                 <div className="flex flex-wrap gap-1.5 mb-2">
