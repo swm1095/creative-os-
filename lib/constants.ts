@@ -163,7 +163,13 @@ export const MOCK_TOP_CREATORS = [
 // ── Platform options for copy generation ─────────────────────
 export const PLATFORMS = ['Meta (Facebook/Instagram)', 'Google Ads', 'TikTok', 'Email', 'Landing Page']
 export const TONES = ['Professional', 'Conversational', 'Urgent', 'Empathetic', 'Bold', 'Playful']
-export const AI_MODELS = [
-  { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic' },
-]
+// Centralized model config - update here to auto-update across all tools
+// When new models release (e.g. Opus 4.7), change the ID here and
+// every tool (Chat, Copy, QC, Research, Listening) picks it up automatically
+export const AI_MODELS = {
+  fast: { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic' },
+  standard: { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', provider: 'anthropic' },
+  premium: { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', provider: 'anthropic' },
+  image: { id: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image', provider: 'google' },
+  imageAlt: { id: 'gemini-3.1-flash-image-preview', name: 'Gemini 3.1 Flash', provider: 'google' },
+}

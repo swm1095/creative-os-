@@ -106,7 +106,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
   }
 
   const handleExportAddresses = () => {
-    const text = creators.map(c => `${c.name}\n${c.address || 'No address'}\n${c.email || ''}\n`).join('\n---\n\n')
+    const text = creators.filter(c => c.address).map(c => c.address.replace(/\n/g, ', ')).join('\n')
     navigator.clipboard.writeText(text)
     onToast('All addresses copied to clipboard', 'success')
   }
@@ -149,7 +149,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
                     {creator.name.charAt(0)}
                   </div>
                   <div className="text-sm font-bold">{creator.name}</div>
-                  {creator.specialty && <div className="text-xs text-text-dim mt-1">{creator.specialty}</div>}
+                  {creator.specialty && <div className="text-xs text-text-dim mt-1 italic">{creator.specialty}</div>}
                   {creator.email && <div className="text-2xs text-text-dim mt-1">{creator.email}</div>}
                   <div className="flex gap-2 mt-3 justify-center">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(creator)}>Edit</Button>
@@ -222,16 +222,22 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
             <input type="text" placeholder="Full name" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" autoFocus />
           </div>
           <div>
-            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Specialty</label>
-            <input type="text" placeholder="e.g. Lifestyle, Fitness, Wellness" value={formData.specialty} onChange={e => setFormData(prev => ({ ...prev, specialty: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Notes</label>
+            <input type="text" placeholder="e.g. Lifestyle creator, great on camera, Fulton P1" value={formData.specialty} onChange={e => setFormData(prev => ({ ...prev, specialty: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
           </div>
           <div>
             <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Email</label>
             <input type="email" placeholder="creator@email.com" value={formData.email} onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
           </div>
+          <div className="text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Mailing Address</div>
           <div>
-            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Mailing Address</label>
-            <input type="text" placeholder="Full mailing address for shipments" value={formData.address} onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+            <input type="text" placeholder="Street address" value={formData.address.split('\n')[0] || ''} onChange={e => { const parts = formData.address.split('\n'); parts[0] = e.target.value; setFormData(prev => ({ ...prev, address: parts.join('\n') })) }} className="w-full px-3 py-2.5 bg-page border border-border rounded-t text-sm text-text-primary focus:border-blue focus:outline-none" />
+            <input type="text" placeholder="Apt, suite, unit (optional)" value={formData.address.split('\n')[1] || ''} onChange={e => { const parts = formData.address.split('\n'); parts[1] = e.target.value; setFormData(prev => ({ ...prev, address: parts.filter(Boolean).join('\n') })) }} className="w-full px-3 py-2.5 bg-page border-x border-border text-sm text-text-primary focus:border-blue focus:outline-none" />
+            <div className="flex">
+              <input type="text" placeholder="City" value={formData.address.split('\n')[2] || ''} onChange={e => { const parts = formData.address.split('\n'); parts[2] = e.target.value; setFormData(prev => ({ ...prev, address: parts.filter(Boolean).join('\n') })) }} className="flex-1 px-3 py-2.5 bg-page border border-border rounded-bl text-sm text-text-primary focus:border-blue focus:outline-none" />
+              <input type="text" placeholder="State" value={formData.address.split('\n')[3] || ''} onChange={e => { const parts = formData.address.split('\n'); parts[3] = e.target.value; setFormData(prev => ({ ...prev, address: parts.filter(Boolean).join('\n') })) }} className="w-20 px-3 py-2.5 bg-page border-y border-border text-sm text-text-primary focus:border-blue focus:outline-none" />
+              <input type="text" placeholder="ZIP" value={formData.address.split('\n')[4] || ''} onChange={e => { const parts = formData.address.split('\n'); parts[4] = e.target.value; setFormData(prev => ({ ...prev, address: parts.filter(Boolean).join('\n') })) }} className="w-24 px-3 py-2.5 bg-page border border-border rounded-br text-sm text-text-primary focus:border-blue focus:outline-none" />
+            </div>
           </div>
           <div>
             <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Portfolio URL (optional)</label>

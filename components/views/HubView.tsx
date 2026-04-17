@@ -12,7 +12,6 @@ interface HubViewProps {
   onNavigate: (tool: ToolId, view: ViewId) => void
 }
 
-// Mock top performing ads for HyperIntelligence preview
 const MOCK_TOP_ADS = [
   { id: '1', name: 'Cheaper Than PT - P1 Static', format: 'Static', roas: '7.6x', spend: '$1,240', platform: 'Meta', persona: 'Chronic Pain' },
   { id: '2', name: 'Science-Backed Relief - P4 Video', format: 'UGC Video', roas: '5.1x', spend: '$890', platform: 'Meta', persona: 'Health-Conscious' },
@@ -31,15 +30,30 @@ export default function HubView({ onNavigate }: HubViewProps) {
         <StatCard label="QC Pass Rate" value={`${MOCK_STATS.qcPassRate}%`} change="↑ 2% vs last batch" />
       </div>
 
+      {/* Top Creators */}
+      <SectionHeader title="Top Performing Creators" subtitle="Based on ROAS across all campaigns" />
+      <div className="flex gap-3 overflow-x-auto pb-2 mb-8 scrollbar-none">
+        {MOCK_TOP_CREATORS.map(creator => (
+          <div key={creator.name} className="shrink-0 bg-surface border border-border rounded-lg p-4 min-w-[140px] text-center">
+            <div className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-sm font-black" style={{ background: creator.color }}>
+              {creator.name.split(' ').map(n => n[0]).join('')}
+            </div>
+            <div className="text-sm font-bold truncate">{creator.name}</div>
+            <div className="text-xl font-black text-green mt-0.5">{creator.roas}x</div>
+            <div className="text-2xs text-text-dim">Avg ROAS · {creator.adCount} ads</div>
+          </div>
+        ))}
+      </div>
+
       {/* HyperIntelligence - Top Performing Creative */}
       <SectionHeader
         title="Top Performing Creative"
         subtitle="Across all connected ad accounts"
         action={<Pill variant="blue">HyperIntelligence</Pill>}
       />
-      <div className="space-y-2 mb-8">
+      <div className="space-y-2 mb-6">
         {MOCK_TOP_ADS.map(ad => (
-          <Card key={ad.id} className="hover:border-fulton/30 transition-colors">
+          <Card key={ad.id} className="hover:border-blue/30 transition-colors">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-elevated border border-border rounded-lg flex items-center justify-center shrink-0">
                 <span className="text-2xl">{ad.format === 'UGC Video' ? '🎬' : ad.format === 'Carousel' ? '📱' : '🖼'}</span>
@@ -70,21 +84,6 @@ export default function HubView({ onNavigate }: HubViewProps) {
         <div className="text-center pt-2">
           <span className="text-xs text-text-dim">Connect Meta and Google Ads to see real performance data</span>
         </div>
-      </div>
-
-      {/* Top Creators */}
-      <SectionHeader title="Top Performing Creators" subtitle="Based on ROAS across all campaigns" />
-      <div className="flex gap-3 overflow-x-auto pb-2 mb-6 scrollbar-none">
-        {MOCK_TOP_CREATORS.map(creator => (
-          <div key={creator.name} className="shrink-0 bg-surface border border-border rounded-lg p-4 min-w-[140px] text-center">
-            <div className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-sm font-black" style={{ background: creator.color }}>
-              {creator.name.split(' ').map(n => n[0]).join('')}
-            </div>
-            <div className="text-sm font-bold truncate">{creator.name}</div>
-            <div className="text-xl font-black text-green mt-0.5">{creator.roas}x</div>
-            <div className="text-2xs text-text-dim">Avg ROAS · {creator.adCount} ads</div>
-          </div>
-        ))}
       </div>
     </div>
   )

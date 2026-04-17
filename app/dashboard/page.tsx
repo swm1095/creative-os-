@@ -258,9 +258,7 @@ export default function DashboardPage() {
           title={topbar.title}
           subtitle={topbar.subtitle}
           actions={
-            activeView === 'hub' ? (
-              <Button onClick={() => navigate('hypeimage', 'generate')}>Launch HyperImage →</Button>
-            ) : activeView === 'image-dashboard' ? (
+            activeView === 'image-dashboard' ? (
               <Button onClick={() => navigate(currentTool, 'generate')}>+ New Generation</Button>
             ) : undefined
           }

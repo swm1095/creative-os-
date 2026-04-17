@@ -39,12 +39,16 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
           onClick={onShowBrandModal}
           className="w-full px-2.5 py-2 bg-page border border-border rounded-lg flex items-center gap-2 hover:border-fulton transition-colors text-left"
         >
-          <div
-            className="w-[22px] h-[22px] rounded-md flex items-center justify-center text-2xs font-black text-white shrink-0"
-            style={{ background: activeBrand?.color || '#2d7a54' }}
-          >
-            {activeBrand?.name?.charAt(0) || 'F'}
-          </div>
+          {activeBrand?.logo_url ? (
+            <img src={activeBrand.logo_url} alt="" className="w-[22px] h-[22px] rounded-md object-contain shrink-0" />
+          ) : (
+            <div
+              className="w-[22px] h-[22px] rounded-md flex items-center justify-center text-2xs font-black text-white shrink-0"
+              style={{ background: activeBrand?.color || '#2138ff' }}
+            >
+              {activeBrand?.name?.charAt(0) || '?'}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold truncate">{activeBrand?.name || 'Select brand'}</div>
           </div>
@@ -59,22 +63,30 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
           <>
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
             <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
+            <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
             <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
             <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
 
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
-            {TOOLS.map(tool => (
+            {TOOLS.filter(t => t.implemented).map(tool => (
               <NavItem
                 key={tool.id}
                 label={tool.name}
                 emoji={tool.emoji}
-                badge={!tool.implemented ? 'Soon' : undefined}
-                badgeVariant={!tool.implemented ? 'gold' : 'green'}
-                onClick={() => {
-                  if (tool.implemented) {
-                    onNavigate(tool.id, tool.defaultView)
-                  }
-                }}
+                onClick={() => onNavigate(tool.id, tool.defaultView)}
+              />
+            ))}
+            {TOOLS.filter(t => !t.implemented).length > 0 && (
+              <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Coming Soon</div>
+            )}
+            {TOOLS.filter(t => !t.implemented).map(tool => (
+              <NavItem
+                key={tool.id}
+                label={tool.name}
+                emoji={tool.emoji}
+                badge="Soon"
+                badgeVariant="gold"
+                onClick={() => {}}
               />
             ))}
           </>

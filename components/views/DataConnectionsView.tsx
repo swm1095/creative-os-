@@ -12,8 +12,8 @@ interface DataConnectionsViewProps {
 const CONNECTIONS = [
   {
     id: 'meta',
-    name: 'Meta Ads',
-    description: 'Connect your Meta Business Suite to pull ad performance data, creative analytics, and audience insights.',
+    name: 'Meta Ads (H10 API)',
+    description: 'Connect via Hype10\'s own Meta API integration. Pull ad performance data, creative analytics, and audience insights directly.',
     icon: '📱',
     status: 'not_connected' as const,
     fields: ['ROAS', 'CTR', 'CPC', 'CPM', 'Spend', 'Impressions', 'Reach', 'Frequency'],
