@@ -56,9 +56,9 @@ export const TOOLS: ToolDef[] = [
     shortName: 'Reports',
     emoji: '📊',
     description: 'Performance reporting',
-    defaultView: 'performance',
-    views: [{ id: 'performance', label: 'Dashboard' }],
-    implemented: true,
+    defaultView: 'coming-soon',
+    views: [],
+    implemented: false,
   },
   {
     id: 'hypervideo',
@@ -88,10 +88,13 @@ export const TOOLS: ToolDef[] = [
     name: 'HyperResearch',
     shortName: 'Research',
     emoji: '🔬',
-    description: 'AI-powered research',
-    defaultView: 'coming-soon',
-    views: [],
-    implemented: false,
+    description: 'Brand research & analysis',
+    defaultView: 'brand-research',
+    views: [
+      { id: 'brand-research' as const, label: 'Brand Research' },
+      { id: 'saved-insights' as const, label: 'Saved Insights' },
+    ],
+    implemented: true,
   },
 ]
 

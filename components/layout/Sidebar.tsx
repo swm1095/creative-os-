@@ -18,12 +18,17 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
   const activeTool = TOOLS.find(t => t.id === currentTool)
 
   return (
-    <nav className="w-sidebar min-w-sidebar bg-page border-r border-border flex flex-col h-screen fixed left-0 top-0 z-10">
+    <nav className="w-sidebar min-w-sidebar bg-[#060c16] border-r border-border flex flex-col h-screen fixed left-0 top-0 z-10">
       {/* Logo */}
       <div className="px-4 pt-4 pb-3 border-b border-border">
-        <button onClick={() => onNavigate(null, 'hub')} className="text-left">
-          <div className="text-xl font-black tracking-tighter text-text-primary">HyperCreate</div>
-          <div className="text-2xs text-text-muted font-semibold tracking-wide uppercase">by Hype10</div>
+        <button onClick={() => onNavigate(null, 'hub')} className="text-left flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-blue flex items-center justify-center">
+            <span className="text-white font-black text-xs">H10</span>
+          </div>
+          <div>
+            <div className="text-lg font-black tracking-tight text-text-primary">HyperCreate</div>
+            <div className="text-2xs text-blue font-bold tracking-wider uppercase">by Hype10</div>
+          </div>
         </button>
       </div>
 
@@ -42,7 +47,6 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-bold truncate">{activeBrand?.name || 'Select brand'}</div>
-            <div className="text-2xs text-text-muted">{activeBrand?.creative_count || 0} creatives</div>
           </div>
           <span className="text-text-dim text-xs">▾</span>
         </button>
@@ -55,9 +59,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
           <>
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
             <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
-            <NavItem label="Brand Research" emoji="🔬" active={activeView === 'brand-research' || activeView === 'saved-insights'} onClick={() => onNavigate(null, 'brand-research' as ViewId)} />
-            <NavItem label="Performance" emoji="📊" active={activeView === 'performance'} onClick={() => onNavigate('hyperinsights', 'performance')} />
-            <NavItem label="Creative Tracker" emoji="📋" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
+            <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
 
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
             {TOOLS.map(tool => (

@@ -9,11 +9,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dark mode base
-        page: '#101822',
-        surface: '#131d2e',
-        elevated: '#1c2a3e',
-        border: '#1c2a3c',
+        // Hype10 dark mode base
+        page: '#080e1a',
+        surface: '#0f1729',
+        elevated: '#172236',
+        border: '#1e2d44',
         // Text scale
         'text-primary': '#feffff',
         'text-secondary': '#d8dce8',
@@ -21,8 +21,9 @@ const config: Config = {
         'text-dim': '#8890b0',
         'text-faint': '#6870a0',
         'text-subtle': '#2a3650',
-        // Brand accents
+        // Hype10 brand accents
         blue: { DEFAULT: '#2138ff', dark: '#1a2ecc', light: '#0c1640', mid: '#111d4a' },
+        hype: { DEFAULT: '#2138ff', glow: 'rgba(33,56,255,0.15)' },
         fulton: { DEFAULT: '#2d7a54', dark: '#1B4332', light: '#0d2518', gold: '#d9a033', 'gold-light': '#271c08' },
         // Status
         green: { DEFAULT: '#34d399', light: '#0b2819' },

@@ -25,6 +25,7 @@ import ChatView from '@/components/views/ChatView'
 import CopyView from '@/components/views/CopyView'
 import PerformanceView from '@/components/views/PerformanceView'
 import ResizeView from '@/components/views/ResizeView'
+import DataConnectionsView from '@/components/views/DataConnectionsView'
 import ListeningView from '@/components/views/ListeningView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
@@ -157,6 +158,8 @@ export default function DashboardPage() {
         return <ResizeView formats={lastGeneratedFormats} headline={lastGeneratedHeadline} onToast={addToast} />
       case 'qc':
         return <QCView imageUrl={selectedCreative?.image_url} onToast={addToast} />
+      case 'integrations':
+        return <DataConnectionsView onToast={addToast} />
       case 'brand':
         return <BrandView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'chat':
@@ -360,7 +363,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1">
                     <div className="text-sm font-bold">{b.name}</div>
-                    <div className="text-2xs text-text-dim">{b.creative_count || 0} creatives</div>
+                    <div className="text-2xs text-text-dim">{b.url || 'No website'}</div>
                   </div>
                   {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
                 </button>

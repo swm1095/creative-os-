@@ -21,7 +21,7 @@ export default function NavItem({ label, emoji, active, badge, badgeVariant = 'g
       onClick={onClick}
       className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] cursor-pointer transition-all duration-150 text-left mb-px
         ${active
-          ? 'bg-fulton-light text-fulton font-bold'
+          ? 'bg-blue-light text-blue font-bold'
           : 'text-text-muted font-semibold hover:bg-surface hover:text-text-primary'
         }`}
     >

@@ -217,6 +217,7 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
     const apifyOn = isApifyEnabled()
+    console.log('APIFY_API_KEY present:', !!process.env.APIFY_API_KEY, '| apifyOn:', apifyOn)
     const allSignals: SocialSignal[] = []
 
     console.log('=== Deep scan starting ===')
@@ -270,7 +271,7 @@ export async function POST(req: NextRequest) {
 
     // ── Apify sources (scaffolded - flips on when APIFY_API_KEY set) ──
     if (apifyOn) {
-      console.log('Apify: TikTok, Reddit, Amazon...')
+      console.log('=== APIFY ENABLED - running scrapers ===')
       for (const keyword of (research.searchKeywords || []).slice(0, 3)) {
         const tiktok = await searchApifyTikTok(keyword)
         allSignals.push(...tiktok)

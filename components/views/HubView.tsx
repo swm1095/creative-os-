@@ -4,10 +4,21 @@ import { ToolId, ViewId } from '@/lib/types'
 import { MOCK_STATS, MOCK_TOP_CREATORS } from '@/lib/constants'
 import StatCard from '@/components/ui/StatCard'
 import SectionHeader from '@/components/ui/SectionHeader'
+import Button from '@/components/ui/Button'
+import Card from '@/components/ui/Card'
+import Pill from '@/components/ui/Pill'
 
 interface HubViewProps {
   onNavigate: (tool: ToolId, view: ViewId) => void
 }
+
+// Mock top performing ads for HyperIntelligence preview
+const MOCK_TOP_ADS = [
+  { id: '1', name: 'Cheaper Than PT - P1 Static', format: 'Static', roas: '7.6x', spend: '$1,240', platform: 'Meta', persona: 'Chronic Pain' },
+  { id: '2', name: 'Science-Backed Relief - P4 Video', format: 'UGC Video', roas: '5.1x', spend: '$890', platform: 'Meta', persona: 'Health-Conscious' },
+  { id: '3', name: 'Wasted Money on Slippers - P2', format: 'Static', roas: '4.3x', spend: '$2,100', platform: 'Meta', persona: 'Slipper Skeptics' },
+  { id: '4', name: 'All-Day WFH Comfort - P3', format: 'Carousel', roas: '3.9x', spend: '$1,560', platform: 'Google', persona: 'WFH Workers' },
+]
 
 export default function HubView({ onNavigate }: HubViewProps) {
   return (
@@ -18,6 +29,47 @@ export default function HubView({ onNavigate }: HubViewProps) {
         <StatCard label="Avg ROAS" value={`${MOCK_STATS.avgROAS}x`} change="↑ 0.3 vs last month" />
         <StatCard label="Live Signals" value={MOCK_STATS.liveSignals} change="2 actionable" changeColor="text-fulton-gold" />
         <StatCard label="QC Pass Rate" value={`${MOCK_STATS.qcPassRate}%`} change="↑ 2% vs last batch" />
+      </div>
+
+      {/* HyperIntelligence - Top Performing Creative */}
+      <SectionHeader
+        title="Top Performing Creative"
+        subtitle="Across all connected ad accounts"
+        action={<Pill variant="blue">HyperIntelligence</Pill>}
+      />
+      <div className="space-y-2 mb-8">
+        {MOCK_TOP_ADS.map(ad => (
+          <Card key={ad.id} className="hover:border-fulton/30 transition-colors">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-elevated border border-border rounded-lg flex items-center justify-center shrink-0">
+                <span className="text-2xl">{ad.format === 'UGC Video' ? '🎬' : ad.format === 'Carousel' ? '📱' : '🖼'}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-bold">{ad.name}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <Pill variant="gray">{ad.format}</Pill>
+                  <Pill variant="gray">{ad.platform}</Pill>
+                  <Pill variant="gray">{ad.persona}</Pill>
+                </div>
+              </div>
+              <div className="text-right shrink-0 mr-4">
+                <div className="text-xl font-black text-green">{ad.roas}</div>
+                <div className="text-2xs text-text-dim">{ad.spend} spend</div>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="secondary" onClick={() => onNavigate('hypercopy', 'copy')}>
+                  Recreate Script
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => onNavigate('hypeimage', 'generate')}>
+                  Recreate Image
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+        <div className="text-center pt-2">
+          <span className="text-xs text-text-dim">Connect Meta and Google Ads to see real performance data</span>
+        </div>
       </div>
 
       {/* Top Creators */}
@@ -33,35 +85,6 @@ export default function HubView({ onNavigate }: HubViewProps) {
             <div className="text-2xs text-text-dim">Avg ROAS · {creator.adCount} ads</div>
           </div>
         ))}
-      </div>
-
-      {/* Quick Actions */}
-      <SectionHeader title="Quick Actions" />
-      <div className="grid grid-cols-3 gap-3">
-        <button
-          onClick={() => onNavigate('hypeimage', 'generate')}
-          className="bg-surface border border-border rounded-lg p-4 text-left hover:border-fulton/40 transition-all"
-        >
-          <div className="text-lg mb-1">🖼</div>
-          <div className="text-sm font-bold">Generate Creatives</div>
-          <div className="text-xs text-text-dim mt-0.5">AI-powered image generation with Gemini</div>
-        </button>
-        <button
-          onClick={() => onNavigate('hypercopy', 'copy')}
-          className="bg-surface border border-border rounded-lg p-4 text-left hover:border-fulton/40 transition-all"
-        >
-          <div className="text-lg mb-1">✍️</div>
-          <div className="text-sm font-bold">Write Ad Copy</div>
-          <div className="text-xs text-text-dim mt-0.5">Claude generates headlines, CTAs & body copy</div>
-        </button>
-        <button
-          onClick={() => onNavigate('hyperchat', 'chat')}
-          className="bg-surface border border-border rounded-lg p-4 text-left hover:border-fulton/40 transition-all"
-        >
-          <div className="text-lg mb-1">💬</div>
-          <div className="text-sm font-bold">Chat with Claude</div>
-          <div className="text-xs text-text-dim mt-0.5">Strategy, research & brand analysis</div>
-        </button>
       </div>
     </div>
   )

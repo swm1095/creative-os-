@@ -4,19 +4,19 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; font-family: 'Inter', sans-serif; font-size: 13px; }
-body { background: #101822; color: #feffff; overflow: hidden; }
+html, body { height: 100%; font-family: 'Inter', sans-serif; font-size: 14.5px; }
+body { background: #080e1a; color: #feffff; overflow: hidden; }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-thumb { background: #2a3650; border-radius: 4px; }
+/* Scrollbar - branded */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: #1e2d44; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3d58; }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* Selection */
 ::selection { background: rgba(33, 56, 255, 0.3); }
 
 @layer components {
-  /* Transition utility */
   .transition-default {
     @apply transition-all duration-150 ease-in-out;
   }
