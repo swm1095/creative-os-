@@ -316,7 +316,9 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       onToast('Upload a creator photo first', 'error'); return
     }
 
-    const useVoice = voiceEnabled && voiceScript.trim() && selectedVoice
+    // Voice pipeline disabled for now - lip sync models not reliable yet
+    // Voice preview + download still works standalone
+    const useVoice = false
 
     cancelledRef.current = false
     setGenerating(true)
@@ -759,7 +761,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
           </Card>
 
           {/* Voice / ElevenLabs */}
-          <Card title="Voice (ElevenLabs)" subtitle="Add a voiceover to the generated video">
+          <Card title="Voice (ElevenLabs) - Beta" subtitle="Preview and download voiceovers separately. Auto-sync coming soon.">
             <div className="flex items-center gap-3 mb-3">
               <button
                 onClick={() => setVoiceEnabled(!voiceEnabled)}
