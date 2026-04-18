@@ -225,6 +225,68 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
 
   useEffect(() => () => stopPolling(), [stopPolling])
 
+  // Generate voice audio and upload to Supabase for lip sync
+  const generateVoiceForSync = async (): Promise<string | null> => {
+    if (!voiceScript.trim() || !selectedVoice) return null
+    const scriptText = productPhonetic && productName
+      ? voiceScript.replace(new RegExp(productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), productPhonetic)
+      : voiceScript
+    const res = await fetch('/api/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: scriptText,
+        voiceId: selectedVoice,
+        stability: voiceStability,
+        similarityBoost: voiceSimilarity,
+        style: voiceStyle,
+        upload: true,
+        brandId: brandId || brand?.id || 'shared',
+      }),
+    })
+    const data = await res.json()
+    if (data.error) throw new Error(`Voice: ${data.error}`)
+    return data.publicAudioUrl || null
+  }
+
+  // Run lip sync: merge video + audio
+  const runLipSync = async (vidUrl: string, audioPublicUrl: string): Promise<string> => {
+    setPollStatus('Syncing lips to audio...')
+
+    const res = await fetch('/api/lipsync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        videoUrl: vidUrl,
+        audioUrl: audioPublicUrl,
+        brandId: brandId || brand?.id,
+        async: true,
+      }),
+    })
+    const data = await res.json()
+    if (data.error) throw new Error(`Lip sync: ${data.error}`)
+
+    const lsResponseUrl = data.responseUrl
+    if (!lsResponseUrl) throw new Error('No lip sync response URL')
+
+    // Poll for lip sync completion
+    return new Promise((resolve, reject) => {
+      const lsPoll = setInterval(async () => {
+        if (cancelledRef.current) { clearInterval(lsPoll); reject(new Error('Cancelled')); return }
+        try {
+          const pollRes = await fetch(`/api/lipsync?responseUrl=${encodeURIComponent(lsResponseUrl)}`)
+          const pollData = await pollRes.json()
+          if (pollData.status === 'complete' && pollData.videoUrl) {
+            clearInterval(lsPoll)
+            resolve(pollData.videoUrl)
+          } else if (pollData.status === 'processing') {
+            setPollStatus(pollData.queuePosition ? `Lip sync (queue ${pollData.queuePosition})...` : 'Syncing lips to audio...')
+          }
+        } catch { /* retry */ }
+      }, 5000)
+    })
+  }
+
   const handleGenerate = async (feedbackText?: string) => {
     const effectivePrompt = feedbackText
       ? `${prompt}\n\nFEEDBACK ON PREVIOUS VERSION - APPLY THESE CHANGES:\n${feedbackText}`
@@ -235,6 +297,8 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       onToast('Upload a creator photo first', 'error'); return
     }
 
+    const useVoice = voiceEnabled && voiceScript.trim() && selectedVoice
+
     cancelledRef.current = false
     setGenerating(true)
     setVideoUrl(null)
@@ -242,8 +306,8 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     setElapsedTime(0)
     setPollStatus('Submitting job...')
 
-    // Estimate total time: ~60s base + ~15s per second of video duration
-    const estTotal = 60 + duration * 15
+    // Estimate: video time + voice (~5s) + lip sync (~60s) if voice enabled
+    const estTotal = (60 + duration * 15) + (useVoice ? 70 : 0)
     setEstimatedTotal(estTotal)
 
     const startTime = Date.now()
@@ -251,7 +315,6 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
 
     const isImageMode = mode === 'image-to-video' && creatorImageUrl
 
-    // Build prompt with product image context
     let fullPrompt = effectivePrompt
     if (productImageUrls.length > 0) {
       fullPrompt += `\n\nProduct reference images provided - ensure the product shown matches these references exactly.`
@@ -260,12 +323,15 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       fullPrompt += `\n\nReference video style provided - match the production quality, camera work, and aesthetic of the reference.`
     }
 
-    onToast(isImageMode
-      ? 'Animating creator photo with Seedance 2.0...'
-      : `Generating ${style} video with ${model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}...`, 'info')
+    onToast(useVoice
+      ? `Generating video + voiceover + lip sync pipeline...`
+      : isImageMode
+        ? 'Animating creator photo with Seedance 2.0...'
+        : `Generating ${style} video with ${model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}...`, 'info')
 
     try {
-      const res = await fetch('/api/video', {
+      // Step 1: Submit video job
+      const videoRes = await fetch('/api/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -279,16 +345,30 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
           async: true,
         }),
       })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-
+      const videoData = await videoRes.json()
+      if (videoData.error) throw new Error(videoData.error)
       if (cancelledRef.current) return
 
-      const responseUrl = data.responseUrl
+      const responseUrl = videoData.responseUrl
       if (!responseUrl) throw new Error('No response URL returned')
+
+      // Step 2: Generate voice in parallel (if enabled)
+      let voiceAudioPublicUrl: string | null = null
+      if (useVoice) {
+        setPollStatus('Generating video + voiceover in parallel...')
+        try {
+          voiceAudioPublicUrl = await generateVoiceForSync()
+          if (voiceAudioPublicUrl) {
+            onToast('Voiceover generated, waiting for video...', 'success')
+          }
+        } catch (voiceErr: unknown) {
+          onToast(`Voice generation failed: ${voiceErr instanceof Error ? voiceErr.message : String(voiceErr)}. Continuing without voice.`, 'error')
+        }
+      }
 
       setPollStatus('Processing video...')
 
+      // Step 3: Poll for video completion
       const poll = async () => {
         if (cancelledRef.current) return
         try {
@@ -298,22 +378,44 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
 
           if (pollData.status === 'complete' && pollData.videoUrl) {
             stopPolling()
-            setVideoUrl(pollData.videoUrl)
-            setGenerating(false)
-            setPollStatus('')
-            setGenerationCount(prev => prev + 1)
-            setFeedback('')
-            onToast('Video generated!', 'success')
 
-            // Generate voiceover if enabled
-            if (voiceEnabled && voiceScript.trim() && selectedVoice) {
-              generateVoiceover(pollData.videoUrl)
+            // Step 4: If voice was generated, run lip sync
+            if (voiceAudioPublicUrl) {
+              try {
+                const finalVideoUrl = await runLipSync(pollData.videoUrl, voiceAudioPublicUrl)
+                setVideoUrl(finalVideoUrl)
+                setGenerating(false)
+                setPollStatus('')
+                setGenerationCount(prev => prev + 1)
+                setFeedback('')
+                onToast('Video with synced voiceover ready!', 'success')
+              } catch (lsErr: unknown) {
+                // Lip sync failed, fall back to raw video
+                setVideoUrl(pollData.videoUrl)
+                setGenerating(false)
+                setPollStatus('')
+                setGenerationCount(prev => prev + 1)
+                setFeedback('')
+                const msg = lsErr instanceof Error ? lsErr.message : String(lsErr)
+                if (msg !== 'Cancelled') {
+                  onToast(`Lip sync failed (${msg}). Raw video delivered instead.`, 'error')
+                }
+              }
+            } else {
+              setVideoUrl(pollData.videoUrl)
+              setGenerating(false)
+              setPollStatus('')
+              setGenerationCount(prev => prev + 1)
+              setFeedback('')
+              onToast('Video generated!', 'success')
             }
             return
           }
 
           if (pollData.status === 'processing') {
-            setPollStatus(pollData.queuePosition ? `In queue (position ${pollData.queuePosition})...` : 'Processing video...')
+            setPollStatus(pollData.queuePosition
+              ? `Video in queue (position ${pollData.queuePosition})...`
+              : useVoice ? 'Processing video (voiceover ready)...' : 'Processing video...')
           }
         } catch { /* retry */ }
       }
@@ -369,36 +471,6 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     setVoicePreviewing(false)
   }
 
-  const generateVoiceover = async (vidUrl: string) => {
-    if (!voiceScript.trim() || !selectedVoice) return
-    setVoiceLoading(true)
-    onToast('Generating voiceover with ElevenLabs...', 'info')
-    try {
-      const res = await fetch('/api/voice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: productPhonetic
-            ? voiceScript.replace(new RegExp(productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), productPhonetic)
-            : voiceScript,
-          voiceId: selectedVoice,
-          videoUrl: vidUrl,
-          stability: voiceStability,
-          similarityBoost: voiceSimilarity,
-          style: voiceStyle,
-          speed: voiceSpeed,
-        }),
-      })
-      const data = await res.json()
-      if (data.error) throw new Error(data.error)
-      if (data.audioUrl) {
-        onToast('Voiceover generated! Audio ready for download.', 'success')
-      }
-    } catch (err: unknown) {
-      onToast(`Voiceover failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
-    setVoiceLoading(false)
-  }
 
   return (
     <div className="animate-fadeIn">
