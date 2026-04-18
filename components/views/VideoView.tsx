@@ -372,14 +372,25 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
         if (cancelledRef.current) return
         pollCount++
         try {
-          const pollRes = await fetch(`/api/video?responseUrl=${encodeURIComponent(responseUrl)}`)
+          const pollRes = await fetch(`/api/video?responseUrl=${encodeURIComponent(responseUrl)}&_t=${Date.now()}`)
           const pollData = await pollRes.json()
           if (cancelledRef.current) return
           consecutiveErrors = 0 // reset on successful poll
 
+          // Auto-timeout at 8 minutes
+          if (pollCount >= 160) { // ~8 minutes
+            stopPolling()
+            setError('Generation timed out after 8 minutes. Please try again.')
+            setGenerating(false)
+            setPollStatus('')
+            setGenWarning(null)
+            onToast('Video timed out. Cancel and try again.', 'error')
+            return
+          }
+
           // Persistent status notifications at time thresholds (polling every 3s)
           if (pollCount >= 120) { // ~6 minutes
-            setGenWarning({ message: 'Generation may have stalled. Cancel and try again with a shorter prompt.', level: 'error' })
+            setGenWarning({ message: 'Generation may have stalled. Cancel and try again.', level: 'error' })
           } else if (pollCount >= 80) { // ~4 minutes
             setGenWarning({ message: 'Taking longer than usual. You can keep waiting or cancel and retry.', level: 'warn' })
           } else if (pollCount >= 40) { // ~2 minutes

@@ -255,8 +255,14 @@ export async function GET(req: NextRequest) {
     const responseUrl = req.nextUrl.searchParams.get('responseUrl')
     if (!responseUrl) return NextResponse.json({ error: 'responseUrl required' }, { status: 400 })
 
-    const res = await fetch(responseUrl, {
+    // Add cache-busting and no-cache headers to prevent stale responses
+    const fetchUrl = responseUrl.includes('?')
+      ? `${responseUrl}&_t=${Date.now()}`
+      : `${responseUrl}?_t=${Date.now()}`
+
+    const res = await fetch(fetchUrl, {
       headers: { 'Authorization': `Key ${falKey}` },
+      cache: 'no-store',
     })
 
     if (res.status === 200) {
@@ -270,25 +276,33 @@ export async function GET(req: NextRequest) {
         if (urlMatch) videoUrl = urlMatch[0]
       }
 
-      // Log the full response for debugging if no URL found
       if (!videoUrl) {
-        console.log('Video response 200 but no URL found. Keys:', Object.keys(data), 'Full:', JSON.stringify(data).slice(0, 500))
+        console.log('Video 200 but no URL. Full response:', JSON.stringify(data).slice(0, 500))
         return NextResponse.json({ status: 'complete', videoUrl: null, debug: Object.keys(data) })
       }
 
-      return NextResponse.json({ status: 'complete', videoUrl })
+      return NextResponse.json(
+        { status: 'complete', videoUrl },
+        { headers: { 'Cache-Control': 'no-store' } }
+      )
     }
 
     if (res.status === 202) {
       const data = await res.json().catch(() => ({}))
-      return NextResponse.json({ status: 'processing', queuePosition: data.queue_position })
+      return NextResponse.json(
+        { status: 'processing', queuePosition: data.queue_position },
+        { headers: { 'Cache-Control': 'no-store' } }
+      )
     }
 
-    // Any other status - try to get error info
+    // Any other status
     const errBody = await res.text().catch(() => '')
-    console.log(`Video poll unexpected status ${res.status}:`, errBody.slice(0, 200))
-    return NextResponse.json({ status: 'processing' })
+    console.log(`Video poll status ${res.status}:`, errBody.slice(0, 200))
+    return NextResponse.json({ status: 'processing' }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
 }
+
+// Force dynamic rendering - prevent Next.js from caching this route
+export const dynamic = 'force-dynamic'
