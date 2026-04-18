@@ -14,6 +14,7 @@ export type ViewId =
   | 'performance'
   | 'tracker'
   | 'listening'
+  | 'video'
   | 'brand-research'
   | 'saved-insights'
   | 'coming-soon'

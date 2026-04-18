@@ -66,9 +66,9 @@ export const TOOLS: ToolDef[] = [
     shortName: 'Video Gen',
     emoji: '🎬',
     description: 'AI video generation',
-    defaultView: 'coming-soon',
-    views: [],
-    implemented: false,
+    defaultView: 'video',
+    views: [{ id: 'video' as const, label: 'Generate' }],
+    implemented: true,
   },
   {
     id: 'hyperlistening',

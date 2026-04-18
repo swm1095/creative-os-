@@ -30,6 +30,7 @@ import ResizeView from '@/components/views/ResizeView'
 import DataConnectionsView from '@/components/views/DataConnectionsView'
 import ListeningView from '@/components/views/ListeningView'
 import UGCTeamView from '@/components/views/UGCTeamView'
+import VideoView from '@/components/views/VideoView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
 
@@ -219,6 +220,8 @@ export default function DashboardPage() {
             <SavedInsightsView brand={activeBrand} onToast={addToast} onNavigate={navigate} />
           </div>
         )
+      case 'video':
+        return <VideoView brand={activeBrand} brandId={activeBrand?.id} onToast={addToast} />
       case 'tracker':
         return <UGCTeamView onToast={addToast} />
       case 'performance':
