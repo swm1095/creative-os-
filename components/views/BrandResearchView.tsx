@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Brand, BrandResearch } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -43,6 +43,14 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
     const b = brand as Brand & { competitor_research?: CompetitorInsight[] }
     return b?.competitor_research || []
   })
+
+  // Sync local state when brand changes
+  useEffect(() => {
+    setResearch(brand?.research as BrandResearch || null)
+    const b = brand as Brand & { competitor_research?: CompetitorInsight[] }
+    setCompetitorInsights(b?.competitor_research || [])
+    setCompetitorUrls(brand?.competitor_urls || [])
+  }, [brand?.id])
   const [competitorUrls, setCompetitorUrls] = useState<string[]>(brand?.competitor_urls || [])
   const [newCompetitorUrl, setNewCompetitorUrl] = useState('')
   const [savingUrls, setSavingUrls] = useState(false)
