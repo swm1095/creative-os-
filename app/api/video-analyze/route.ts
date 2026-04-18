@@ -40,7 +40,7 @@ Write ONLY the prompt, nothing else. No labels, no explanations - just the promp
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6-20250514',
         max_tokens: 500,
         system: systemPrompt,
         messages: [
