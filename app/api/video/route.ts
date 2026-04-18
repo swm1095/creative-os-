@@ -255,35 +255,34 @@ export async function GET(req: NextRequest) {
     const responseUrl = req.nextUrl.searchParams.get('responseUrl')
     if (!responseUrl) return NextResponse.json({ error: 'responseUrl required' }, { status: 400 })
 
-    // Add cache-busting and no-cache headers to prevent stale responses
-    const fetchUrl = responseUrl.includes('?')
-      ? `${responseUrl}&_t=${Date.now()}`
-      : `${responseUrl}?_t=${Date.now()}`
-
-    const res = await fetch(fetchUrl, {
-      headers: { 'Authorization': `Key ${falKey}` },
+    // Do NOT add query params to fal.ai URLs - it breaks them
+    const res = await fetch(responseUrl, {
+      headers: {
+        'Authorization': `Key ${falKey}`,
+        'Cache-Control': 'no-cache',
+      },
       cache: 'no-store',
     })
 
+    console.log(`Poll status=${res.status} url=...${responseUrl.slice(-30)}`)
+
     if (res.status === 200) {
       const data = await res.json()
-      let videoUrl = data.video?.url || data.output?.url || data.url
+      console.log('Poll 200 keys:', Object.keys(data))
 
-      // Try regex match for any video URL in response
+      let videoUrl = data.video?.url || data.output?.url || data.url
       if (!videoUrl) {
         const jsonStr = JSON.stringify(data)
         const urlMatch = jsonStr.match(/https?:\/\/[^"]+\.(mp4|webm|mov)[^"]*/i)
         if (urlMatch) videoUrl = urlMatch[0]
       }
-
       if (!videoUrl) {
-        console.log('Video 200 but no URL. Full response:', JSON.stringify(data).slice(0, 500))
-        return NextResponse.json({ status: 'complete', videoUrl: null, debug: Object.keys(data) })
+        console.log('200 but no URL found:', JSON.stringify(data).slice(0, 500))
       }
 
       return NextResponse.json(
-        { status: 'complete', videoUrl },
-        { headers: { 'Cache-Control': 'no-store' } }
+        { status: 'complete', videoUrl: videoUrl || null },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
       )
     }
 
@@ -291,14 +290,16 @@ export async function GET(req: NextRequest) {
       const data = await res.json().catch(() => ({}))
       return NextResponse.json(
         { status: 'processing', queuePosition: data.queue_position },
-        { headers: { 'Cache-Control': 'no-store' } }
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
       )
     }
 
-    // Any other status
     const errBody = await res.text().catch(() => '')
-    console.log(`Video poll status ${res.status}:`, errBody.slice(0, 200))
-    return NextResponse.json({ status: 'processing' }, { headers: { 'Cache-Control': 'no-store' } })
+    console.log(`Poll unexpected ${res.status}:`, errBody.slice(0, 300))
+    return NextResponse.json(
+      { status: 'error', error: `fal.ai returned status ${res.status}` },
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+    )
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }

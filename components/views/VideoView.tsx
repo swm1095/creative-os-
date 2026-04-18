@@ -391,7 +391,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
         if (cancelledRef.current) return
         pollCount++
         try {
-          const pollRes = await fetch(`/api/video?responseUrl=${encodeURIComponent(responseUrl)}&_t=${Date.now()}`)
+          const pollRes = await fetch(`/api/video?responseUrl=${encodeURIComponent(responseUrl)}`, { cache: 'no-store' })
           const pollData = await pollRes.json()
           if (cancelledRef.current) return
           consecutiveErrors = 0 // reset on successful poll
