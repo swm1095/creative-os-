@@ -369,12 +369,26 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       setPollStatus('Processing video...')
 
       // Step 3: Poll for video completion
+      let pollCount = 0
+      let consecutiveErrors = 0
       const poll = async () => {
         if (cancelledRef.current) return
+        pollCount++
         try {
           const pollRes = await fetch(`/api/video?responseUrl=${encodeURIComponent(responseUrl)}`)
           const pollData = await pollRes.json()
           if (cancelledRef.current) return
+          consecutiveErrors = 0 // reset on successful poll
+
+          // Notify at time thresholds
+          if (pollCount === 24) { // ~2 minutes
+            onToast('Still processing - longer videos can take a few minutes', 'info')
+          } else if (pollCount === 48) { // ~4 minutes
+            onToast('This is taking longer than usual. You can keep waiting or cancel and try again.', 'info')
+          } else if (pollCount === 72) { // ~6 minutes
+            onToast('Generation may have stalled. Consider cancelling and restarting.', 'error')
+            setPollStatus('May have stalled - consider cancelling...')
+          }
 
           if (pollData.status === 'complete' && pollData.videoUrl) {
             stopPolling()
@@ -416,8 +430,22 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             setPollStatus(pollData.queuePosition
               ? `Video in queue (position ${pollData.queuePosition})...`
               : useVoice ? 'Processing video (voiceover ready)...' : 'Processing video...')
+          } else if (pollData.error) {
+            stopPolling()
+            setError(pollData.error)
+            setGenerating(false)
+            setPollStatus('')
+            onToast(`Video failed: ${pollData.error}`, 'error')
+            return
           }
-        } catch { /* retry */ }
+        } catch {
+          consecutiveErrors++
+          if (consecutiveErrors >= 5) {
+            onToast('Having trouble checking status. Check your connection or cancel and retry.', 'error')
+            setPollStatus('Connection issues - retrying...')
+            consecutiveErrors = 0
+          }
+        }
       }
 
       pollIntervalRef.current = setInterval(poll, 5000)
