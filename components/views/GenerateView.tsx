@@ -394,6 +394,33 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
                     </div>
                   )}
                   <span className="absolute top-1.5 left-1.5 bg-black/60 text-white text-2xs font-bold px-1.5 py-0.5 rounded">P{i + 1}</span>
+                  {/* Action buttons overlay at bottom */}
+                  {r.imageUrl && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigator.clipboard.writeText(r.imageUrl)
+                            onToast('Image URL copied - paste in Figma plugin', 'success')
+                          }}
+                          className="flex-1 px-2 py-1.5 bg-blue text-white text-2xs font-bold rounded hover:bg-blue-dark transition-colors"
+                        >
+                          Send to Figma
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigator.clipboard.writeText(r.imageUrl)
+                            onToast('Image URL copied', 'success')
+                          }}
+                          className="px-2 py-1.5 bg-white/20 text-white text-2xs font-bold rounded hover:bg-white/30 transition-colors"
+                        >
+                          Copy URL
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (

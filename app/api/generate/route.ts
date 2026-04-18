@@ -73,15 +73,13 @@ function buildPrompt(
   }
 
   lines.push('')
-  lines.push(`Headline text on the image: "${persona.hook || persona.angle}"`)
-  lines.push(`CTA button: "Shop Now"`)
   lines.push(`Target audience: ${persona.name}`)
-  lines.push(`Ad angle: ${persona.angle}`)
+  lines.push(`Mood/angle: ${persona.angle}`)
   if (brandContext) lines.push(`Brand: ${brandContext}`)
   lines.push('')
   lines.push(`Scene: ${concept}`)
   lines.push('')
-  lines.push('Make it look like a real paid social media ad. Include the headline text prominently and a CTA button. Professional quality, clean design.')
+  lines.push('Generate a clean product/lifestyle photograph only. Do NOT add any text, headlines, buttons, logos, or typography. The image will be used as a base layer with text added separately in Figma. Focus on composition, lighting, and product placement.')
 
   return lines.join('\n')
 }
