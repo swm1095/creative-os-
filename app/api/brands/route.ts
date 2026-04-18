@@ -10,7 +10,7 @@ export async function GET() {
     const { data, error } = await supabase
       .from('brands')
       .select('*, creatives(count)')
-      .order('created_at', { ascending: false })
+      .order('name', { ascending: true })
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
