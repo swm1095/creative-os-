@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
 
-    const { videoUrl, style, brandName, brandResearch, model } = await req.json()
+    const { videoUrl, style, brandName, brandResearch, model, productName, productPhonetic, productImageUrls } = await req.json()
     if (!videoUrl) return NextResponse.json({ error: 'videoUrl required' }, { status: 400 })
 
     // Download the video and convert to base64 for Gemini
@@ -71,9 +71,11 @@ Target Personas:
 Key Pain Points: ${(r.painPoints || []).slice(0, 5).join('; ')}
 Key Motivators: ${(r.motivators || []).slice(0, 5).join('; ')}
 Key Phrases to Use: ${(r.keyPhrases || []).slice(0, 5).join(', ')}
-Phrases to Avoid: ${(r.avoidPhrases || []).slice(0, 3).join(', ')}`
+Phrases to Avoid: ${(r.avoidPhrases || []).slice(0, 3).join(', ')}
+${productName ? `SPECIFIC PRODUCT: ${productName}${productPhonetic ? ` (pronounced: ${productPhonetic})` : ''}` : ''}
+${productImageUrls?.length ? `Product reference images are provided - the product in the video must match these images exactly.` : ''}`
     } else if (brandName) {
-      brandBlock = `CURRENT CLIENT: ${brandName}`
+      brandBlock = `CURRENT CLIENT: ${brandName}${productName ? `\nSPECIFIC PRODUCT: ${productName}` : ''}`
     }
 
     const promptText = `You are a creative director at a performance marketing agency who specializes in AI video generation. You are analyzing a reference video to recreate a similar ad for a specific client using ${modelKey === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}.
@@ -102,7 +104,31 @@ CRITICAL:
 - Be specific and complete, every sentence must be finished
 - Do NOT use emdashes, use commas or hyphens instead
 - Write ONLY the prompt, no labels, no explanations, no intro
-- Follow the word count guidelines for this model`
+- Follow the word count guidelines for this model
+${productName ? `- The product in the video is "${productName}" - name it specifically in the prompt` : ''}
+${productImageUrls?.length ? `- Product reference images are included below - describe the product's actual appearance (shape, color, packaging) in the prompt so the video model renders it accurately` : ''}`
+
+    // Build content parts: video + product images + prompt text
+    const parts: { inlineData?: { mimeType: string; data: string }; text?: string }[] = [
+      { inlineData: { mimeType, data: base64Video } },
+    ]
+
+    // Add product images so Gemini can see the actual product
+    if (productImageUrls?.length) {
+      for (const imgUrl of productImageUrls.slice(0, 3)) {
+        try {
+          const imgRes = await fetch(imgUrl)
+          if (imgRes.ok) {
+            const imgBuf = await imgRes.arrayBuffer()
+            const imgBase64 = Buffer.from(imgBuf).toString('base64')
+            const imgType = imgUrl.match(/\.png/i) ? 'image/png' : 'image/jpeg'
+            parts.push({ inlineData: { mimeType: imgType, data: imgBase64 } })
+          }
+        } catch { /* skip failed image fetches */ }
+      }
+    }
+
+    parts.push({ text: promptText })
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -111,17 +137,7 @@ CRITICAL:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [
-            {
-              parts: [
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64Video,
-                  },
-                },
-                { text: promptText },
-              ],
-            },
+            { parts },
           ],
           generationConfig: {
             maxOutputTokens: 2048,

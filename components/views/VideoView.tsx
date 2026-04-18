@@ -65,6 +65,10 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   // Video analysis
   const [analyzing, setAnalyzing] = useState(false)
 
+  // Product name + phonetic
+  const [productName, setProductName] = useState('')
+  const [productPhonetic, setProductPhonetic] = useState('')
+
   // Voice (ElevenLabs)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [voiceScript, setVoiceScript] = useState('')
@@ -170,7 +174,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const handleAnalyzeVideo = async () => {
     if (!refVideoUrl) { onToast('Upload a reference video first', 'error'); return }
     setAnalyzing(true)
-    onToast('Analyzing reference video with Claude...', 'info')
+    onToast('Analyzing reference video with Gemini...', 'info')
     try {
       const res = await fetch('/api/video-analyze', {
         method: 'POST',
@@ -181,6 +185,9 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
           model,
           brandName: brand?.name || '',
           brandResearch: brand?.research || null,
+          productName: productName || brand?.name || '',
+          productPhonetic,
+          productImageUrls: productImageUrls.length > 0 ? productImageUrls : undefined,
         }),
       })
       const data = await res.json()
@@ -326,7 +333,9 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: voiceScript,
+          text: productPhonetic
+            ? voiceScript.replace(new RegExp(productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), productPhonetic)
+            : voiceScript,
           voiceId: selectedVoice,
           videoUrl: vidUrl,
         }),
@@ -431,6 +440,27 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                 <span className="text-sm">+</span>
                 <span className="text-2xs text-text-dim">Add</span>
               </button>
+            </div>
+          </Card>
+
+          {/* Product Name + Phonetic */}
+          <Card title="Product Name" subtitle="Used in prompts and voiceover scripts">
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={productName}
+                onChange={e => setProductName(e.target.value)}
+                placeholder={brand?.name ? `e.g. ${brand.name} Daily Multivitamin` : 'e.g. GlowSerum Pro'}
+                className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none"
+              />
+              <input
+                type="text"
+                value={productPhonetic}
+                onChange={e => setProductPhonetic(e.target.value)}
+                placeholder="Phonetic spelling for voiceover (e.g. GLOW-seer-um)"
+                className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-muted focus:border-blue focus:outline-none"
+              />
+              <div className="text-2xs text-text-dim">Phonetic spelling helps ElevenLabs pronounce the product name correctly</div>
             </div>
           </Card>
 
@@ -583,6 +613,12 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                 </div>
                 <div>
                   <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Script</label>
+                  {(productName || productPhonetic) && (
+                    <div className="text-2xs text-text-dim mb-1.5 p-2 bg-page rounded border border-border">
+                      Product: <span className="font-semibold text-text-muted">{productName || brand?.name || 'Not set'}</span>
+                      {productPhonetic && <> - say it as: <span className="font-semibold text-blue">{productPhonetic}</span></>}
+                    </div>
+                  )}
                   <textarea
                     value={voiceScript}
                     onChange={e => setVoiceScript(e.target.value)}
