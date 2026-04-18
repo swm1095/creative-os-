@@ -62,6 +62,9 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [feedback, setFeedback] = useState('')
   const [generationCount, setGenerationCount] = useState(0)
 
+  // Video analysis
+  const [analyzing, setAnalyzing] = useState(false)
+
   // Voice (ElevenLabs)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [voiceScript, setVoiceScript] = useState('')
@@ -153,6 +156,32 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
         }
       })
       .catch(() => onToast('Upload failed', 'error'))
+  }
+
+  const handleAnalyzeVideo = async () => {
+    if (!refVideoUrl) { onToast('Upload a reference video first', 'error'); return }
+    setAnalyzing(true)
+    onToast('Analyzing reference video with Claude...', 'info')
+    try {
+      const res = await fetch('/api/video-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl: refVideoUrl,
+          style,
+          brandContext: brand?.name || '',
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      if (data.prompt) {
+        setPrompt(data.prompt)
+        onToast('Prompt generated from reference video', 'success')
+      }
+    } catch (err: unknown) {
+      onToast(`Analysis failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setAnalyzing(false)
   }
 
   const stopPolling = useCallback(() => {
@@ -398,13 +427,24 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
           <Card title="Reference Video" subtitle="Upload a high-production video to match its style (optional)">
             <input ref={refVideoInputRef} type="file" accept="video/*" className="hidden" onChange={handleRefVideoUpload} />
             {refVideoPreview ? (
-              <div className="flex items-center gap-3">
-                <video src={refVideoPreview} className="w-24 h-16 object-cover rounded-lg border border-border" muted />
-                <div className="flex-1">
-                  <div className="text-sm font-semibold text-green">Reference uploaded</div>
-                  <div className="text-2xs text-text-dim">Style will be matched</div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <video src={refVideoPreview} className="w-24 h-16 object-cover rounded-lg border border-border" muted />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-green">Reference uploaded</div>
+                    <div className="text-2xs text-text-dim">Style will be matched</div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setRefVideoPreview(null); setRefVideoUrl(null) }}>Remove</Button>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => { setRefVideoPreview(null); setRefVideoUrl(null) }}>Remove</Button>
+                <Button
+                  onClick={handleAnalyzeVideo}
+                  disabled={analyzing || !refVideoUrl}
+                  variant="secondary"
+                  className="w-full justify-center"
+                  size="sm"
+                >
+                  {analyzing ? <><LoadingSpinner size={14} /> Analyzing Video...</> : 'Analyze & Generate Prompt'}
+                </Button>
               </div>
             ) : (
               <button
