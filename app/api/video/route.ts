@@ -17,6 +17,26 @@ interface VideoScene {
   style: string
 }
 
+// Submit an image-to-video job (creator photo -> animated video)
+async function submitImageToVideo(prompt: string, imageUrl: string, aspectRatio: string, duration: number): Promise<{ requestId: string; statusUrl: string; responseUrl: string }> {
+  const falKey = process.env.FAL_KEY
+  if (!falKey) throw new Error('FAL_KEY not configured')
+
+  const res = await fetch(`${FAL_BASE}/fal-ai/seedance-2/image-to-video`, {
+    method: 'POST',
+    headers: { 'Authorization': `Key ${falKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, image_url: imageUrl, aspect_ratio: aspectRatio, duration }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Seedance image-to-video failed: ${res.status} ${err.slice(0, 200)}`)
+  }
+
+  const data = await res.json()
+  return { requestId: data.request_id, statusUrl: data.status_url, responseUrl: data.response_url }
+}
+
 // Submit a video generation job to fal.ai
 async function submitVideoJob(model: VideoModel, prompt: string, aspectRatio: string, duration: number): Promise<{ requestId: string; statusUrl: string; responseUrl: string }> {
   const falKey = process.env.FAL_KEY
@@ -118,6 +138,7 @@ export async function POST(req: NextRequest) {
       aspectRatio = '9:16',
       duration = 5,
       brandId,
+      imageUrl, // Creator photo for image-to-video mode
       scenes, // Optional: pre-broken scenes from Claude
     } = body
 
@@ -150,6 +171,28 @@ export async function POST(req: NextRequest) {
         }
       }
       return NextResponse.json({ results, mode: 'multi-scene' })
+    }
+
+    // Image-to-video mode (creator photo -> animated video)
+    if (imageUrl) {
+      console.log(`Image-to-video: Seedance 2.0, ${aspectRatio}, ${duration}s`)
+      const job = await submitImageToVideo(enhancedPrompt, imageUrl, aspectRatio, duration)
+      console.log(`Job submitted: ${job.requestId}`)
+      const result = await pollForResult(job.responseUrl)
+      console.log('Video URL:', result.videoUrl)
+
+      if (brandId) {
+        try {
+          const supabase = createClient()
+          await supabase.from('creatives').insert({
+            brand_id: brandId, title: `UGC Video: ${prompt.slice(0, 50)}`,
+            concept: prompt, image_url: result.videoUrl,
+            format: aspectRatio.replace(':', 'x'), generator: 'seedance',
+          })
+        } catch { /* silent */ }
+      }
+
+      return NextResponse.json({ videoUrl: result.videoUrl, model: 'seedance', style, aspectRatio, duration, mode: 'image-to-video' })
     }
 
     // Single video generation

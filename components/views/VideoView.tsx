@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Brand } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -38,6 +38,10 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [generating, setGenerating] = useState(false)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [mode, setMode] = useState<'text-to-video' | 'image-to-video'>('text-to-video')
+  const [creatorImageUrl, setCreatorImageUrl] = useState('')
+  const [creatorImagePreview, setCreatorImagePreview] = useState<string | null>(null)
+  const creatorImageRef = useRef<HTMLInputElement>(null)
 
   // Pre-fill from HyperListening if navigated with a video prompt
   useEffect(() => {
@@ -49,13 +53,41 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     if (savedStyle && ['ugc', 'cinematic', 'animated', 'product'].includes(savedStyle)) { setStyle(savedStyle as VideoStyle); localStorage.removeItem('hc-video-style') }
   }, [])
 
+  const handleCreatorImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setCreatorImagePreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    // Upload to Supabase for a public URL
+    const formData = new FormData()
+    formData.append('brandId', brandId || 'shared')
+    formData.append('files', file)
+    fetch('/api/reference-images', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.uploaded?.[0]?.url) {
+          setCreatorImageUrl(data.uploaded[0].url)
+          onToast('Creator photo uploaded', 'success')
+        }
+      })
+      .catch(() => onToast('Upload failed', 'error'))
+  }
+
   const handleGenerate = async () => {
     if (!prompt.trim()) { onToast('Enter a video prompt', 'error'); return }
+    if (mode === 'image-to-video' && !creatorImageUrl && !creatorImagePreview) {
+      onToast('Upload a creator photo first', 'error'); return
+    }
 
     setGenerating(true)
     setVideoUrl(null)
     setError('')
-    onToast(`Generating ${style} video with ${model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}... This takes 1-3 minutes.`, 'info')
+
+    const isImageMode = mode === 'image-to-video' && creatorImageUrl
+    onToast(isImageMode
+      ? 'Animating creator photo with Seedance 2.0... This takes 1-3 minutes.'
+      : `Generating ${style} video with ${model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}... This takes 1-3 minutes.`, 'info')
 
     try {
       const res = await fetch('/api/video', {
@@ -63,11 +95,12 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt,
-          model,
+          model: isImageMode ? 'seedance' : model,
           style,
           aspectRatio,
           duration,
           brandId: brandId || brand?.id,
+          imageUrl: isImageMode ? creatorImageUrl : undefined,
         }),
       })
       const data = await res.json()
@@ -92,8 +125,70 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       <div className="grid grid-cols-[1fr_380px] gap-4">
         {/* Left - Controls */}
         <div className="space-y-4">
+          {/* Mode selector */}
+          <Card title="Generation Mode">
+            <div className="flex gap-3">
+              <button
+                onClick={() => setMode('text-to-video')}
+                className={`flex-1 p-3 rounded-lg border text-left transition-all ${
+                  mode === 'text-to-video' ? 'border-blue bg-blue-light' : 'border-border bg-page hover:border-text-subtle'
+                }`}
+              >
+                <div className="text-lg mb-1">✨</div>
+                <div className="text-sm font-bold">Text to Video</div>
+                <div className="text-2xs text-text-dim">Generate from a text prompt</div>
+              </button>
+              <button
+                onClick={() => { setMode('image-to-video'); setModel('seedance') }}
+                className={`flex-1 p-3 rounded-lg border text-left transition-all ${
+                  mode === 'image-to-video' ? 'border-blue bg-blue-light' : 'border-border bg-page hover:border-text-subtle'
+                }`}
+              >
+                <div className="text-lg mb-1">📸</div>
+                <div className="text-sm font-bold">UGC Recreation</div>
+                <div className="text-2xs text-text-dim">Animate a creator photo with Seedance</div>
+              </button>
+            </div>
+          </Card>
+
+          {/* Creator photo upload (image-to-video mode) */}
+          {mode === 'image-to-video' && (
+            <Card title="Creator Photo" subtitle="Upload a photo of the creator - Seedance will animate them">
+              <input ref={creatorImageRef} type="file" accept="image/*" className="hidden" onChange={handleCreatorImageUpload} />
+              {creatorImagePreview ? (
+                <div className="flex items-center gap-3">
+                  <img src={creatorImagePreview} alt="Creator" className="w-20 h-20 object-cover rounded-lg border border-border" />
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-green">Photo uploaded</div>
+                    <div className="text-2xs text-text-dim">Seedance will animate this person</div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setCreatorImagePreview(null); setCreatorImageUrl('') }}>Change</Button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => creatorImageRef.current?.click()}
+                  className="w-full p-6 border-2 border-dashed border-border rounded-lg text-center hover:border-blue/40 transition-colors"
+                >
+                  <div className="text-2xl mb-2">📸</div>
+                  <div className="text-sm font-semibold text-text-muted">Click to upload creator photo</div>
+                  <div className="text-2xs text-text-dim mt-1">Best results: clear face, good lighting, front-facing</div>
+                </button>
+              )}
+              {creatorImageUrl && (
+                <div className="text-2xs text-text-dim mt-2">Or paste a URL:</div>
+              )}
+              <input
+                type="url"
+                placeholder="Or paste creator photo URL..."
+                value={creatorImageUrl}
+                onChange={e => { setCreatorImageUrl(e.target.value); if (e.target.value) setCreatorImagePreview(e.target.value) }}
+                className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-blue focus:outline-none mt-2"
+              />
+            </Card>
+          )}
+
           {/* Model selector */}
-          <Card title="Video Model">
+          {mode === 'text-to-video' && <Card title="Video Model">
             <div className="flex gap-3">
               {MODELS.map(m => (
                 <button
@@ -108,7 +203,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                 </button>
               ))}
             </div>
-          </Card>
+          </Card>}
 
           {/* Style selector */}
           <Card title="Video Style">
