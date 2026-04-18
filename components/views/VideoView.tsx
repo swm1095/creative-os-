@@ -726,7 +726,20 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                 {voicePreviewUrl && (
                   <div className="space-y-2">
                     <audio ref={voiceAudioRef} src={voicePreviewUrl} controls className="w-full h-8" />
-                    <div className="text-2xs text-text-dim">Adjust your script and preview again until it sounds right</div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const a = document.createElement('a')
+                          a.href = voicePreviewUrl
+                          a.download = `voiceover-${productName || 'preview'}-${Date.now()}.mp3`
+                          a.click()
+                        }}
+                        className="text-2xs text-blue hover:underline"
+                      >
+                        Download MP3
+                      </button>
+                      <span className="text-2xs text-text-dim">Adjust your script and preview again until it sounds right</span>
+                    </div>
                   </div>
                 )}
                 {voiceLoading && (
