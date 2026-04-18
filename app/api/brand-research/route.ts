@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { CONTENT_FILTER } from '@/lib/content-filter'
 import { BrandResearch } from '@/lib/types'
 
 export const maxDuration = 120
@@ -46,7 +47,8 @@ Respond in this EXACT JSON format with no other text:
   "summary": "3-4 sentence executive summary of the brand"
 }
 
-Generate 4 distinct personas that represent different audience segments. Make them specific enough to write targeted ad copy for each one.`
+Generate 4 distinct personas that represent different audience segments. Make them specific enough to write targeted ad copy for each one.
+${CONTENT_FILTER}`
 
 export async function POST(req: NextRequest) {
   try {

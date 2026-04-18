@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { SocialSignal, ListeningInsight, BrandResearch } from '@/lib/types'
+import { CONTENT_FILTER, RELEVANCE_FILTER } from '@/lib/content-filter'
 import {
   searchRedditDeep,
   getRedditCommentsDeep,
@@ -95,7 +96,9 @@ async function extractThemes(
 Brand context: ${research.industry || 'Unknown'}, personas: ${(research.personas || []).map(p => p.name).join('; ')}.
 Focus on: recurring pain points, customer language patterns, emerging trends, competitor mentions, unmet needs.
 Do not synthesize yet - just list the themes you see with supporting quotes.
-Never use emdashes. Use hyphens.`,
+Never use emdashes. Use hyphens.
+${CONTENT_FILTER}
+${RELEVANCE_FILTER}`,
     messages: [{
       role: 'user',
       content: `Analyze these signals and list the top 15-20 raw themes you see. For each theme include 1-2 actual quotes from the data that support it.\n\n${signalText}`,
@@ -126,6 +129,8 @@ Look for:
 - Cross-validated signals (multiple sources mention same thing)
 - Gaps between what customers say vs what brands offer
 - Emerging language shifts
+${CONTENT_FILTER}
+${RELEVANCE_FILTER}
 - Competitor vulnerabilities
 
 Never use emdashes.`,
@@ -161,6 +166,8 @@ GOLDEN RULES:
 - Quote real customer language verbatim when relevant (these become ad copy)
 - Prioritize by creative opportunity, not interestingness
 - Never use emdashes
+${CONTENT_FILTER}
+${RELEVANCE_FILTER}
 
 For each insight:
 - type: "trend" | "pain_point" | "competitor" | "opportunity" | "language"

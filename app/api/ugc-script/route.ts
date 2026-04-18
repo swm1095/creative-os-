@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { CONTENT_FILTER } from '@/lib/content-filter'
 import { BrandResearch, ResearchPersona } from '@/lib/types'
 
 export const maxDuration = 60
@@ -61,6 +62,7 @@ Key phrases: ${(research.keyPhrases || []).slice(0, 5).join(', ')}
 Avoid: ${(research.avoidPhrases || []).slice(0, 3).join(', ')}
 
 NEVER use emdashes. Use hyphens or commas.
+${CONTENT_FILTER}
 
 Respond in this EXACT JSON format:
 {

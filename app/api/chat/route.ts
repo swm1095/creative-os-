@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { CONTENT_FILTER } from '@/lib/content-filter'
 import { BrandResearch, ResearchPersona } from '@/lib/types'
 
 export const maxDuration = 60
@@ -19,7 +20,8 @@ FORMATTING RULES - THIS IS CRITICAL:
 - Never say "Here's" or "I'd suggest" - just say it directly
 - Keep it tight - 3-5 bullet points max per section
 - When writing ad copy examples, just write the copy itself, don't label it "Headline:" or "Body:"
-- Sound like a person on a Slack thread, not a formal report`
+- Sound like a person on a Slack thread, not a formal report
+${CONTENT_FILTER}`
 
 function buildBrandContext(research: BrandResearch | null, brandName: string): string {
   if (!research) return `\nCURRENT CLIENT: ${brandName} (no deep research yet - ask the user to run brand research for better insights)`

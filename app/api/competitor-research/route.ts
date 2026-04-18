@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { CONTENT_FILTER } from '@/lib/content-filter'
 import { BrandResearch } from '@/lib/types'
 import { searchRedditDeep, getRedditCommentsDeep } from '@/lib/signal-sources'
 
@@ -80,6 +81,7 @@ For each competitor below, analyze the Reddit discussions and extract:
 - adAngles (specific angles we could run against them)
 
 Focus on finding WEAKNESSES we can attack. Quote real customer language verbatim. Never use emdashes.
+${CONTENT_FILTER}
 
 Respond in JSON:
 {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
+import { CONTENT_FILTER } from '@/lib/content-filter'
 import { BrandResearch } from '@/lib/types'
 
 export const maxDuration = 60
@@ -68,6 +69,7 @@ Content type specific:
 - Static Headlines: Bold, pain-point specific, outcome-focused, 3-8 words max.
 
 Match the requested tone exactly. Write for the specified platform.
+${CONTENT_FILTER}
 
 Respond with EXACTLY this JSON format, no other text:
 {
