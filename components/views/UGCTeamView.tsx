@@ -17,6 +17,12 @@ interface Creator {
   portfolio_url: string
   color: string
   brand_id?: string
+  ig_handle?: string
+  gender?: string
+  demo?: string
+  deliverables?: number
+  tracker_link?: string
+  website?: string
 }
 
 type TabId = 'team' | 'addresses'
@@ -27,7 +33,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingCreator, setEditingCreator] = useState<Creator | null>(null)
-  const [formData, setFormData] = useState({ name: '', specialty: '', email: '', address: '', portfolio_url: '' })
+  const [formData, setFormData] = useState({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' })
 
   const loadCreators = useCallback(async () => {
     try {
@@ -71,7 +77,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
       onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
 
-    setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '' })
+    setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' })
     setShowAddModal(false)
     setEditingCreator(null)
   }
@@ -101,6 +107,12 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
       email: creator.email || '',
       address: creator.address || '',
       portfolio_url: creator.portfolio_url || '',
+      ig_handle: creator.ig_handle || '',
+      gender: creator.gender || '',
+      demo: creator.demo || '',
+      deliverables: creator.deliverables || 0,
+      tracker_link: creator.tracker_link || '',
+      website: creator.website || '',
     })
     setShowAddModal(true)
   }
@@ -131,7 +143,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
           <PageHeader
             title="UGC Team Roster"
             subtitle="Manage your creator network"
-            action={<Button onClick={() => { setEditingCreator(null); setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '' }); setShowAddModal(true) }}>+ Add Creator</Button>}
+            action={<Button onClick={() => { setEditingCreator(null); setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' }); setShowAddModal(true) }}>+ Add Creator</Button>}
           />
 
           {creators.length === 0 ? (
@@ -144,15 +156,26 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
               {creators.map(creator => (
-                <Card key={creator.id} className="text-center hover:border-blue/40 transition-colors">
-                  <div className="w-16 h-16 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl font-black text-white" style={{ background: creator.color || '#2138ff' }}>
-                    {creator.name.charAt(0)}
+                <Card key={creator.id} className="hover:border-blue/40 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black text-white shrink-0" style={{ background: creator.color || '#2138ff' }}>
+                      {creator.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold">{creator.name}</div>
+                      {creator.ig_handle && <div className="text-2xs text-blue">@{creator.ig_handle.replace('@', '')}</div>}
+                      <div className="flex gap-2 mt-1 flex-wrap">
+                        {creator.gender && <span className="text-2xs bg-elevated border border-border px-1.5 py-0.5 rounded">{creator.gender}</span>}
+                        {creator.demo && <span className="text-2xs bg-elevated border border-border px-1.5 py-0.5 rounded">{creator.demo}</span>}
+                        {(creator.deliverables || 0) > 0 && <span className="text-2xs bg-blue-light text-blue px-1.5 py-0.5 rounded font-bold">{creator.deliverables} deliverables</span>}
+                      </div>
+                      {creator.specialty && <div className="text-2xs text-text-dim mt-1 italic">{creator.specialty}</div>}
+                    </div>
                   </div>
-                  <div className="text-sm font-bold">{creator.name}</div>
-                  {creator.specialty && <div className="text-xs text-text-dim mt-1 italic">{creator.specialty}</div>}
-                  {creator.email && <div className="text-2xs text-text-dim mt-1">{creator.email}</div>}
-                  <div className="flex gap-2 mt-3 justify-center">
+                  <div className="flex gap-2 mt-3">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(creator)}>Edit</Button>
+                    {creator.website && <Button size="sm" variant="ghost" onClick={() => window.open(creator.website, '_blank')}>Site</Button>}
+                    {creator.tracker_link && <Button size="sm" variant="ghost" onClick={() => window.open(creator.tracker_link, '_blank')}>Tracker</Button>}
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(creator)}>Remove</Button>
                   </div>
                 </Card>
@@ -160,7 +183,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
 
               {/* Add creator card */}
               <button
-                onClick={() => { setEditingCreator(null); setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '' }); setShowAddModal(true) }}
+                onClick={() => { setEditingCreator(null); setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' }); setShowAddModal(true) }}
                 className="border-2 border-dashed border-border rounded-lg p-5 text-center cursor-pointer flex flex-col items-center justify-center min-h-[200px] hover:border-blue/40 transition-colors"
               >
                 <div className="text-4xl opacity-30 mb-2">+</div>
@@ -185,17 +208,21 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
             <EmptyState emoji="📋" title="No addresses" subtitle="Add creators to the roster first" />
           ) : (
             <Card padding={false}>
-              <div className="grid grid-cols-[180px_1fr_180px_120px] gap-0 px-5 py-3 border-b border-border">
+              <div className="grid grid-cols-[160px_1fr_120px_100px_80px_100px] gap-0 px-5 py-3 border-b border-border">
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Name</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Address</span>
-                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Email</span>
+                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">IG</span>
+                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Demo</span>
+                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Count</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Action</span>
               </div>
               {creators.map(creator => (
-                <div key={creator.id} className="grid grid-cols-[180px_1fr_180px_120px] gap-0 px-5 py-3 border-b border-border/50 items-center hover:bg-elevated/50 transition-colors">
+                <div key={creator.id} className="grid grid-cols-[160px_1fr_120px_100px_80px_100px] gap-0 px-5 py-3 border-b border-border/50 items-center hover:bg-elevated/50 transition-colors">
                   <span className="text-sm font-bold">{creator.name}</span>
                   <span className="text-xs text-text-dim">{creator.address || 'No address on file'}</span>
-                  <span className="text-xs text-text-dim">{creator.email || '-'}</span>
+                  <span className="text-xs text-blue">{creator.ig_handle ? `@${creator.ig_handle.replace('@', '')}` : '-'}</span>
+                  <span className="text-xs text-text-dim">{creator.demo || '-'}</span>
+                  <span className="text-xs font-bold">{creator.deliverables || 0}</span>
                   <Button size="sm" variant="ghost" onClick={() => {
                     navigator.clipboard.writeText(`${creator.name}\n${creator.address || ''}\n${creator.email || ''}`)
                     onToast(`${creator.name}'s info copied`, 'success')
@@ -217,17 +244,50 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
         subtitle={editingCreator ? `Update ${editingCreator.name}'s info` : 'Add a new UGC creator to your roster'}
       >
         <div className="space-y-3">
-          <div>
-            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Name *</label>
-            <input type="text" placeholder="Full name" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" autoFocus />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Name *</label>
+              <input type="text" placeholder="Full name" value={formData.name} onChange={e => setFormData(prev => ({ ...prev, name: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" autoFocus />
+            </div>
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">IG Handle</label>
+              <input type="text" placeholder="@handle" value={formData.ig_handle} onChange={e => setFormData(prev => ({ ...prev, ig_handle: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+            </div>
           </div>
-          <div>
-            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Notes</label>
-            <input type="text" placeholder="e.g. Lifestyle creator, great on camera, Fulton P1" value={formData.specialty} onChange={e => setFormData(prev => ({ ...prev, specialty: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Gender</label>
+              <select value={formData.gender} onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none">
+                <option value="">Select</option>
+                <option value="Female">Female</option>
+                <option value="Male">Male</option>
+                <option value="Non-binary">Non-binary</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Demo</label>
+              <input type="text" placeholder="e.g. Mid 20s woman" value={formData.demo} onChange={e => setFormData(prev => ({ ...prev, demo: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Deliverables</label>
+              <input type="number" placeholder="0" value={formData.deliverables} onChange={e => setFormData(prev => ({ ...prev, deliverables: parseInt(e.target.value) || 0 }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+            </div>
           </div>
           <div>
             <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Email</label>
             <input type="email" placeholder="creator@email.com" value={formData.email} onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Website / Portfolio</label>
+            <input type="url" placeholder="https://..." value={formData.website} onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Tracker Link</label>
+            <input type="url" placeholder="Google Sheets or tracking URL" value={formData.tracker_link} onChange={e => setFormData(prev => ({ ...prev, tracker_link: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Notes</label>
+            <input type="text" placeholder="e.g. Great on camera, specializes in lifestyle" value={formData.specialty} onChange={e => setFormData(prev => ({ ...prev, specialty: e.target.value }))} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none" />
           </div>
           <div className="text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Mailing Address</div>
           <div>

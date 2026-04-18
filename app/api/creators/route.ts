@@ -25,13 +25,16 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
     const body = await req.json()
-    const { name, specialty, email, address, portfolio_url, color, brand_id } = body
+    const { name, specialty, email, address, portfolio_url, color, brand_id, ig_handle, gender, demo, deliverables, tracker_link, website } = body
     if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
 
     const { data, error } = await supabase.from('creators').insert({
-      name, specialty, email, address, portfolio_url,
+      name, specialty, email, address, portfolio_url, website,
       color: color || '#2138ff',
       brand_id: brand_id || null,
+      ig_handle, gender, demo,
+      deliverables: deliverables || 0,
+      tracker_link,
     }).select().single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
