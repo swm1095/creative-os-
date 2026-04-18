@@ -173,11 +173,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ results, mode: 'multi-scene' })
     }
 
+    // Async mode: submit job and return immediately for client-side polling
+    const asyncMode = body.async === true
+
     // Image-to-video mode (creator photo -> animated video)
     if (imageUrl) {
       console.log(`Image-to-video: Seedance 2.0, ${aspectRatio}, ${duration}s`)
       const job = await submitImageToVideo(enhancedPrompt, imageUrl, aspectRatio, duration)
       console.log(`Job submitted: ${job.requestId}`)
+
+      if (asyncMode) {
+        return NextResponse.json({ responseUrl: job.responseUrl, requestId: job.requestId, model: 'seedance', style, aspectRatio, duration, mode: 'image-to-video', status: 'queued' })
+      }
+
       const result = await pollForResult(job.responseUrl)
       console.log('Video URL:', result.videoUrl)
 
@@ -200,6 +208,10 @@ export async function POST(req: NextRequest) {
     const job = await submitVideoJob(model as VideoModel, enhancedPrompt, aspectRatio, duration)
     console.log(`Job submitted: ${job.requestId}`)
 
+    if (asyncMode) {
+      return NextResponse.json({ responseUrl: job.responseUrl, requestId: job.requestId, model, style, aspectRatio, duration, status: 'queued' })
+    }
+
     // Poll for result
     const result = await pollForResult(job.responseUrl)
     console.log('Video URL:', result.videoUrl)
@@ -212,7 +224,7 @@ export async function POST(req: NextRequest) {
           brand_id: brandId,
           title: `Video: ${prompt.slice(0, 50)}`,
           concept: prompt,
-          image_url: result.videoUrl, // Using image_url field for video URL too
+          image_url: result.videoUrl,
           format: aspectRatio.replace(':', 'x'),
           generator: model,
         })
@@ -248,7 +260,12 @@ export async function GET(req: NextRequest) {
 
     if (res.status === 200) {
       const data = await res.json()
-      const videoUrl = data.video?.url || data.output?.url || data.url
+      let videoUrl = data.video?.url || data.output?.url || data.url
+      if (!videoUrl) {
+        const jsonStr = JSON.stringify(data)
+        const urlMatch = jsonStr.match(/https?:\/\/[^"]+\.(mp4|webm|mov)[^"]*/i)
+        if (urlMatch) videoUrl = urlMatch[0]
+      }
       return NextResponse.json({ status: 'complete', videoUrl })
     }
 

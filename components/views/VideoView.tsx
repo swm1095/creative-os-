@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Brand } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { FormTextarea } from '@/components/ui/FormInput'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import PageHeader from '@/components/ui/PageHeader'
 
 interface VideoViewProps {
   brand?: Brand | null
@@ -42,6 +41,32 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [creatorImageUrl, setCreatorImageUrl] = useState('')
   const [creatorImagePreview, setCreatorImagePreview] = useState<string | null>(null)
   const creatorImageRef = useRef<HTMLInputElement>(null)
+  const [pollStatus, setPollStatus] = useState<string>('')
+  const [elapsedTime, setElapsedTime] = useState(0)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const cancelledRef = useRef(false)
+
+  // Product images
+  const [productImagePreviews, setProductImagePreviews] = useState<string[]>([])
+  const [productImageUrls, setProductImageUrls] = useState<string[]>([])
+  const productInputRef = useRef<HTMLInputElement>(null)
+
+  // Reference video
+  const [refVideoPreview, setRefVideoPreview] = useState<string | null>(null)
+  const [refVideoUrl, setRefVideoUrl] = useState<string | null>(null)
+  const refVideoInputRef = useRef<HTMLInputElement>(null)
+
+  // Feedback chat
+  const [feedback, setFeedback] = useState('')
+  const [generationCount, setGenerationCount] = useState(0)
+
+  // Voice (ElevenLabs)
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [voiceScript, setVoiceScript] = useState('')
+  const [selectedVoice, setSelectedVoice] = useState('')
+  const [voices, setVoices] = useState<{ voice_id: string; name: string; category: string }[]>([])
+  const [voiceLoading, setVoiceLoading] = useState(false)
 
   // Pre-fill from HyperListening if navigated with a video prompt
   useEffect(() => {
@@ -53,13 +78,26 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     if (savedStyle && ['ugc', 'cinematic', 'animated', 'product'].includes(savedStyle)) { setStyle(savedStyle as VideoStyle); localStorage.removeItem('hc-video-style') }
   }, [])
 
+  // Load ElevenLabs voices when voice is enabled
+  useEffect(() => {
+    if (!voiceEnabled || voices.length > 0) return
+    fetch('/api/voice?action=voices')
+      .then(r => r.json())
+      .then(data => {
+        if (data.voices) {
+          setVoices(data.voices)
+          if (data.voices.length > 0) setSelectedVoice(data.voices[0].voice_id)
+        }
+      })
+      .catch(() => onToast('Could not load voices - check ElevenLabs API key', 'error'))
+  }, [voiceEnabled, voices.length, onToast])
+
   const handleCreatorImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => setCreatorImagePreview(ev.target?.result as string)
     reader.readAsDataURL(file)
-    // Upload to Supabase for a public URL
     const formData = new FormData()
     formData.append('brandId', brandId || 'shared')
     formData.append('files', file)
@@ -74,50 +112,189 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       .catch(() => onToast('Upload failed', 'error'))
   }
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) { onToast('Enter a video prompt', 'error'); return }
+  const handleProductImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = (ev) => setProductImagePreviews(prev => [...prev, ev.target?.result as string])
+      reader.readAsDataURL(file)
+      // Upload for public URL
+      const formData = new FormData()
+      formData.append('brandId', brandId || 'shared')
+      formData.append('files', file)
+      fetch('/api/reference-images', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+          if (data.uploaded?.[0]?.url) {
+            setProductImageUrls(prev => [...prev, data.uploaded[0].url])
+          }
+        })
+        .catch(() => {})
+    })
+    if (files.length) onToast(`${files.length} product image${files.length > 1 ? 's' : ''} added`, 'success')
+  }
+
+  const handleRefVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => setRefVideoPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    const formData = new FormData()
+    formData.append('brandId', brandId || 'shared')
+    formData.append('files', file)
+    fetch('/api/reference-images', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.uploaded?.[0]?.url) {
+          setRefVideoUrl(data.uploaded[0].url)
+          onToast('Reference video uploaded', 'success')
+        }
+      })
+      .catch(() => onToast('Upload failed', 'error'))
+  }
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null }
+    if (timerIntervalRef.current) { clearInterval(timerIntervalRef.current); timerIntervalRef.current = null }
+  }, [])
+
+  const handleCancel = useCallback(() => {
+    cancelledRef.current = true
+    stopPolling()
+    setGenerating(false)
+    setPollStatus('')
+    setElapsedTime(0)
+    onToast('Video generation cancelled', 'info')
+  }, [stopPolling, onToast])
+
+  useEffect(() => () => stopPolling(), [stopPolling])
+
+  const handleGenerate = async (feedbackText?: string) => {
+    const effectivePrompt = feedbackText
+      ? `${prompt}\n\nFEEDBACK ON PREVIOUS VERSION - APPLY THESE CHANGES:\n${feedbackText}`
+      : prompt
+
+    if (!effectivePrompt.trim()) { onToast('Enter a video prompt', 'error'); return }
     if (mode === 'image-to-video' && !creatorImageUrl && !creatorImagePreview) {
       onToast('Upload a creator photo first', 'error'); return
     }
 
+    cancelledRef.current = false
     setGenerating(true)
     setVideoUrl(null)
     setError('')
+    setElapsedTime(0)
+    setPollStatus('Submitting job...')
+
+    const startTime = Date.now()
+    timerIntervalRef.current = setInterval(() => setElapsedTime(Math.floor((Date.now() - startTime) / 1000)), 1000)
 
     const isImageMode = mode === 'image-to-video' && creatorImageUrl
+
+    // Build prompt with product image context
+    let fullPrompt = effectivePrompt
+    if (productImageUrls.length > 0) {
+      fullPrompt += `\n\nProduct reference images provided - ensure the product shown matches these references exactly.`
+    }
+    if (refVideoUrl) {
+      fullPrompt += `\n\nReference video style provided - match the production quality, camera work, and aesthetic of the reference.`
+    }
+
     onToast(isImageMode
-      ? 'Animating creator photo with Seedance 2.0... This takes 1-3 minutes.'
-      : `Generating ${style} video with ${model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}... This takes 1-3 minutes.`, 'info')
+      ? 'Animating creator photo with Seedance 2.0...'
+      : `Generating ${style} video with ${model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}...`, 'info')
 
     try {
       const res = await fetch('/api/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt,
+          prompt: fullPrompt,
           model: isImageMode ? 'seedance' : model,
           style,
           aspectRatio,
           duration,
           brandId: brandId || brand?.id,
-          imageUrl: isImageMode ? creatorImageUrl : undefined,
+          imageUrl: isImageMode ? creatorImageUrl : (productImageUrls[0] || undefined),
+          async: true,
         }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
 
-      if (data.videoUrl) {
-        setVideoUrl(data.videoUrl)
-        onToast('Video generated!', 'success')
-      } else {
-        throw new Error('No video URL returned')
+      if (cancelledRef.current) return
+
+      const responseUrl = data.responseUrl
+      if (!responseUrl) throw new Error('No response URL returned')
+
+      setPollStatus('Processing video...')
+
+      const poll = async () => {
+        if (cancelledRef.current) return
+        try {
+          const pollRes = await fetch(`/api/video?responseUrl=${encodeURIComponent(responseUrl)}`)
+          const pollData = await pollRes.json()
+          if (cancelledRef.current) return
+
+          if (pollData.status === 'complete' && pollData.videoUrl) {
+            stopPolling()
+            setVideoUrl(pollData.videoUrl)
+            setGenerating(false)
+            setPollStatus('')
+            setGenerationCount(prev => prev + 1)
+            setFeedback('')
+            onToast('Video generated!', 'success')
+
+            // Generate voiceover if enabled
+            if (voiceEnabled && voiceScript.trim() && selectedVoice) {
+              generateVoiceover(pollData.videoUrl)
+            }
+            return
+          }
+
+          if (pollData.status === 'processing') {
+            setPollStatus(pollData.queuePosition ? `In queue (position ${pollData.queuePosition})...` : 'Processing video...')
+          }
+        } catch { /* retry */ }
       }
+
+      pollIntervalRef.current = setInterval(poll, 5000)
+      setTimeout(poll, 3000)
+
     } catch (err: unknown) {
+      stopPolling()
       const msg = err instanceof Error ? err.message : String(err)
       setError(msg)
+      setGenerating(false)
+      setPollStatus('')
       onToast(`Video failed: ${msg}`, 'error')
     }
-    setGenerating(false)
+  }
+
+  const generateVoiceover = async (vidUrl: string) => {
+    if (!voiceScript.trim() || !selectedVoice) return
+    setVoiceLoading(true)
+    onToast('Generating voiceover with ElevenLabs...', 'info')
+    try {
+      const res = await fetch('/api/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: voiceScript,
+          voiceId: selectedVoice,
+          videoUrl: vidUrl,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      if (data.audioUrl) {
+        onToast('Voiceover generated! Audio ready for download.', 'success')
+      }
+    } catch (err: unknown) {
+      onToast(`Voiceover failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setVoiceLoading(false)
   }
 
   return (
@@ -174,9 +351,6 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                   <div className="text-2xs text-text-dim mt-1">Best results: clear face, good lighting, front-facing</div>
                 </button>
               )}
-              {creatorImageUrl && (
-                <div className="text-2xs text-text-dim mt-2">Or paste a URL:</div>
-              )}
               <input
                 type="url"
                 placeholder="Or paste creator photo URL..."
@@ -186,6 +360,57 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
               />
             </Card>
           )}
+
+          {/* Product Images */}
+          <Card title="Product Images" subtitle="Upload product photos so the AI knows what to feature (optional)">
+            <input ref={productInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleProductImageUpload} />
+            <div className="flex gap-2 flex-wrap">
+              {productImagePreviews.map((src, i) => (
+                <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-border group">
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => {
+                      setProductImagePreviews(prev => prev.filter((_, idx) => idx !== i))
+                      setProductImageUrls(prev => prev.filter((_, idx) => idx !== i))
+                    }}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/60 text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  >
+                    x
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={() => productInputRef.current?.click()}
+                className="w-16 h-16 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center hover:border-blue/40 transition-colors cursor-pointer"
+              >
+                <span className="text-sm">+</span>
+                <span className="text-2xs text-text-dim">Add</span>
+              </button>
+            </div>
+          </Card>
+
+          {/* Reference Video */}
+          <Card title="Reference Video" subtitle="Upload a high-production video to match its style (optional)">
+            <input ref={refVideoInputRef} type="file" accept="video/*" className="hidden" onChange={handleRefVideoUpload} />
+            {refVideoPreview ? (
+              <div className="flex items-center gap-3">
+                <video src={refVideoPreview} className="w-24 h-16 object-cover rounded-lg border border-border" muted />
+                <div className="flex-1">
+                  <div className="text-sm font-semibold text-green">Reference uploaded</div>
+                  <div className="text-2xs text-text-dim">Style will be matched</div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => { setRefVideoPreview(null); setRefVideoUrl(null) }}>Remove</Button>
+              </div>
+            ) : (
+              <button
+                onClick={() => refVideoInputRef.current?.click()}
+                className="w-full p-4 border-2 border-dashed border-border rounded-lg text-center hover:border-blue/40 transition-colors"
+              >
+                <div className="text-sm font-semibold text-text-muted">Click to upload reference video</div>
+                <div className="text-2xs text-text-dim mt-1">MP4, MOV - the AI will match this production style</div>
+              </button>
+            )}
+          </Card>
 
           {/* Model selector */}
           {mode === 'text-to-video' && <Card title="Video Model">
@@ -274,6 +499,51 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             )}
           </Card>
 
+          {/* Voice / ElevenLabs */}
+          <Card title="Voice (ElevenLabs)" subtitle="Add a voiceover to the generated video">
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={() => setVoiceEnabled(!voiceEnabled)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${voiceEnabled ? 'bg-blue' : 'bg-border'}`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${voiceEnabled ? 'left-5' : 'left-0.5'}`} />
+              </button>
+              <span className="text-sm text-text-muted">{voiceEnabled ? 'Voice enabled' : 'No voice'}</span>
+            </div>
+            {voiceEnabled && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Voice</label>
+                  <select
+                    value={selectedVoice}
+                    onChange={e => setSelectedVoice(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none"
+                  >
+                    {voices.length === 0 && <option value="">Loading voices...</option>}
+                    {voices.map(v => (
+                      <option key={v.voice_id} value={v.voice_id}>{v.name} ({v.category})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Script</label>
+                  <textarea
+                    value={voiceScript}
+                    onChange={e => setVoiceScript(e.target.value)}
+                    placeholder="Write the voiceover script here... This is what the creator will say."
+                    className="w-full px-3 py-2.5 text-sm text-text-primary bg-page border border-border rounded focus:border-blue focus:outline-none transition-colors resize-y min-h-[60px]"
+                    rows={3}
+                  />
+                </div>
+                {voiceLoading && (
+                  <div className="flex items-center gap-2 text-xs text-text-dim">
+                    <LoadingSpinner size={12} /> Generating voiceover...
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
           {/* Settings */}
           <Card title="Settings">
             <div className="grid grid-cols-2 gap-3">
@@ -300,26 +570,74 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                   <option value={3}>3 seconds</option>
                   <option value={5}>5 seconds</option>
                   <option value={10}>10 seconds</option>
+                  <option value={15}>15 seconds</option>
+                  <option value={20}>20 seconds</option>
+                  <option value={30}>30 seconds</option>
                 </select>
+                {duration > 10 && (
+                  <div className="text-2xs text-text-dim mt-1">Longer videos take more time to generate</div>
+                )}
               </div>
+            </div>
+            {/* Quick format buttons */}
+            <div className="flex gap-2 mt-3">
+              {[
+                { label: '9:16', value: '9:16' },
+                { label: '4:5', value: '4:5' },
+                { label: '1:1', value: '1:1' },
+                { label: '16:9', value: '16:9' },
+              ].map(f => (
+                <button
+                  key={f.value}
+                  onClick={() => setAspectRatio(f.value)}
+                  className={`flex-1 py-1.5 text-xs rounded border transition-all ${
+                    aspectRatio === f.value ? 'border-blue bg-blue-light text-blue font-bold' : 'border-border text-text-dim hover:border-text-subtle'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
             </div>
           </Card>
 
-          <Button onClick={handleGenerate} disabled={generating} className="w-full py-3.5 text-sm justify-center">
-            {generating ? <><LoadingSpinner size={16} /> Generating Video...</> : `Generate ${style.charAt(0).toUpperCase() + style.slice(1)} Video`}
-          </Button>
+          {generating ? (
+            <div className="flex gap-2">
+              <div className="flex-1 py-3.5 bg-elevated border border-border rounded-lg flex items-center justify-center gap-2 text-sm text-text-muted">
+                <LoadingSpinner size={16} />
+                <span>{pollStatus || 'Generating...'}</span>
+                <span className="text-text-dim text-xs ml-1">
+                  {elapsedTime > 0 && `${Math.floor(elapsedTime / 60)}:${String(elapsedTime % 60).padStart(2, '0')}`}
+                </span>
+              </div>
+              <Button onClick={handleCancel} variant="secondary" className="px-5 py-3.5 text-sm justify-center border-red/30 text-red hover:bg-red/10">
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => handleGenerate()} className="w-full py-3.5 text-sm justify-center">
+              Generate {style.charAt(0).toUpperCase() + style.slice(1)} Video
+            </Button>
+          )}
         </div>
 
-        {/* Right - Preview */}
+        {/* Right - Preview + Feedback */}
         <div className="space-y-4">
           <Card title="Video Preview">
             <div className={`aspect-[${aspectRatio.replace(':', '/')}] rounded-lg overflow-hidden bg-elevated`}>
               {generating ? (
                 <div className="w-full h-full flex flex-col items-center justify-center min-h-[400px]">
                   <LoadingSpinner size={32} />
-                  <div className="text-sm text-text-muted mt-4">Generating video...</div>
-                  <div className="text-2xs text-text-dim mt-1">This takes 1-3 minutes</div>
-                  <div className="text-2xs text-text-dim mt-1">{model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'} - {style}</div>
+                  <div className="text-sm text-text-muted mt-4">{pollStatus || 'Generating video...'}</div>
+                  <div className="text-2xs text-text-dim mt-1">
+                    {elapsedTime > 0 && `${Math.floor(elapsedTime / 60)}:${String(elapsedTime % 60).padStart(2, '0')} elapsed`}
+                  </div>
+                  <div className="text-2xs text-text-dim mt-1">{model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'} - {style} - {duration}s</div>
+                  <button
+                    onClick={handleCancel}
+                    className="mt-4 px-4 py-2 text-xs text-red border border-red/30 rounded-lg hover:bg-red/10 transition-colors"
+                  >
+                    Cancel Generation
+                  </button>
                 </div>
               ) : videoUrl ? (
                 <div className="w-full min-h-[400px]">
@@ -374,9 +692,42 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                 >
                   Copy URL
                 </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="justify-center"
+                  onClick={() => setAspectRatio('4:5')}
+                >
+                  Resize 4:5
+                </Button>
               </div>
             )}
           </Card>
+
+          {/* Feedback Chat - appears after generation */}
+          {videoUrl && !generating && (
+            <Card title="Feedback" subtitle="Tell the AI what to change">
+              <textarea
+                value={feedback}
+                onChange={e => setFeedback(e.target.value)}
+                placeholder="e.g. Make the camera movement slower, zoom in more on the product, warmer lighting, more dramatic reveal..."
+                className="w-full px-3 py-2.5 text-sm text-text-primary bg-page border border-border rounded focus:border-blue focus:outline-none transition-colors resize-y min-h-[60px] mb-3"
+                rows={2}
+              />
+              <Button
+                onClick={() => handleGenerate(feedback)}
+                disabled={!feedback.trim() || generating}
+                className="w-full justify-center"
+              >
+                Regenerate with Feedback
+              </Button>
+              {generationCount > 1 && (
+                <div className="text-2xs text-text-dim mt-2 text-center">
+                  Iteration {generationCount} - previous prompt refined with your feedback
+                </div>
+              )}
+            </Card>
+          )}
 
           {/* Tips */}
           <Card title="Prompt Tips" subtitle="For best results">
@@ -386,6 +737,8 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
               <li>Mention lighting (natural, studio, golden hour)</li>
               <li>Specify the subject clearly</li>
               <li>Keep prompts under 200 words</li>
+              <li>Upload product photos for accurate product depiction</li>
+              <li>Upload a reference video to match production style</li>
               <li>Seedance is better for people/UGC</li>
               <li>Kling is better for products/objects</li>
             </ul>

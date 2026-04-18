@@ -40,8 +40,11 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
   const refInputRef = useRef<HTMLInputElement>(null)
   const productInputRef = useRef<HTMLInputElement>(null)
   const refLibInputRef = useRef<HTMLInputElement>(null)
+  const refVideoInputRef = useRef<HTMLInputElement>(null)
   const [refLibImages, setRefLibImages] = useState<{ name: string; url: string }[]>([])
   const [refLibLoading, setRefLibLoading] = useState(false)
+  const [refVideoPreview, setRefVideoPreview] = useState<string | null>(null)
+  const [refVideoUrl, setRefVideoUrl] = useState<string | null>(null)
 
   // Handle files dropped from global drag-and-drop
   useEffect(() => {
@@ -136,6 +139,27 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
     onToast('Reference image uploaded - it will guide the generation style', 'success')
   }
 
+  const handleRefVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setRefVideoPreview(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    // Upload to Supabase for a public URL
+    const formData = new FormData()
+    formData.append('brandId', brandId || 'shared')
+    formData.append('files', file)
+    fetch('/api/reference-images', { method: 'POST', body: formData })
+      .then(r => r.json())
+      .then(data => {
+        if (data.uploaded?.[0]?.url) {
+          setRefVideoUrl(data.uploaded[0].url)
+          onToast('Reference video uploaded - style will be matched', 'success')
+        }
+      })
+      .catch(() => onToast('Video upload failed', 'error'))
+  }
+
   const handleGenerate = async (withFeedback?: string) => {
     if (!prompt.trim()) { onToast('Enter a base prompt first', 'error'); return }
     const selected = personas.filter((_, i) => activePersonas.has(i))
@@ -168,10 +192,14 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
         compressedProducts = await Promise.all(productImagePreviews.map(img => compressImage(img)))
       }
 
-      // Build the concept with feedback appended
-      const fullConcept = feedbackText
+      // Build the concept with feedback and reference video context
+      let fullConcept = feedbackText
         ? `${prompt}\n\nFEEDBACK ON PREVIOUS VERSION - APPLY THESE CHANGES:\n${feedbackText}`
         : prompt
+
+      if (refVideoUrl) {
+        fullConcept += `\n\nReference video provided - match the production quality, lighting, composition, and aesthetic of the reference video.`
+      }
 
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -245,6 +273,30 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
               <div className="text-xl mb-1">📷</div>
               <div className="text-xs font-semibold text-text-muted">Click to upload reference image</div>
               <div className="text-2xs text-text-dim mt-0.5">Gemini will match its style and composition</div>
+            </button>
+          )}
+        </Card>
+
+        {/* Reference Video */}
+        <Card title="Reference Video" subtitle="Upload an MP4 or MOV to match its production style (optional)">
+          <input ref={refVideoInputRef} type="file" accept="video/mp4,video/quicktime,video/mov,.mp4,.mov" className="hidden" onChange={handleRefVideoUpload} />
+          {refVideoPreview ? (
+            <div className="flex items-center gap-3">
+              <video src={refVideoPreview} className="w-24 h-16 object-cover rounded-lg border border-border" muted />
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-green">Reference video uploaded</div>
+                <div className="text-2xs text-text-dim">Gemini will match this style</div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => { setRefVideoPreview(null); setRefVideoUrl(null) }}>Remove</Button>
+            </div>
+          ) : (
+            <button
+              onClick={() => refVideoInputRef.current?.click()}
+              className="w-full p-4 border-2 border-dashed border-border rounded-lg text-center hover:border-fulton/40 transition-colors"
+            >
+              <div className="text-xl mb-1">🎬</div>
+              <div className="text-xs font-semibold text-text-muted">Click to upload reference video</div>
+              <div className="text-2xs text-text-dim mt-0.5">MP4 or MOV - Gemini will extract the style and composition</div>
             </button>
           )}
         </Card>
