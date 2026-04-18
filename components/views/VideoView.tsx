@@ -178,7 +178,8 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
         body: JSON.stringify({
           videoUrl: refVideoUrl,
           style,
-          brandContext: brand?.name || '',
+          brandName: brand?.name || '',
+          brandResearch: brand?.research || null,
         }),
       })
       const data = await res.json()
