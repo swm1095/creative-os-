@@ -14,11 +14,9 @@ interface GenerateViewProps {
   brand?: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
   onGenerated?: (results: GenerateResult[]) => void
-  droppedFiles?: File[]
-  onDroppedFilesConsumed?: () => void
 }
 
-export default function GenerateView({ brandId, brand, onToast, onGenerated, droppedFiles, onDroppedFilesConsumed }: GenerateViewProps) {
+export default function GenerateView({ brandId, brand, onToast, onGenerated }: GenerateViewProps) {
   const [prompt, setPrompt] = useState('Premium product lifestyle photo, warm home environment, natural lighting, clean minimal composition, photorealistic, aspirational wellness aesthetic')
 
   // Use personas from brand research if available, otherwise default
@@ -45,21 +43,6 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated, dro
   const [refLibLoading, setRefLibLoading] = useState(false)
   const [refVideoPreview, setRefVideoPreview] = useState<string | null>(null)
   const [refVideoUrl, setRefVideoUrl] = useState<string | null>(null)
-
-  // Handle files dropped from global drag-and-drop
-  useEffect(() => {
-    if (droppedFiles?.length) {
-      const imageFile = droppedFiles.find(f => f.type.startsWith('image/'))
-      if (imageFile) {
-        setReferenceImage(imageFile)
-        const reader = new FileReader()
-        reader.onload = ev => setReferencePreview(ev.target?.result as string)
-        reader.readAsDataURL(imageFile)
-        onToast('Dropped image set as reference', 'success')
-      }
-      onDroppedFilesConsumed?.()
-    }
-  }, [droppedFiles])
 
   // Load reference library from Supabase
   useEffect(() => {
