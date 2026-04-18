@@ -43,6 +43,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const creatorImageRef = useRef<HTMLInputElement>(null)
   const [pollStatus, setPollStatus] = useState<string>('')
   const [elapsedTime, setElapsedTime] = useState(0)
+  const [estimatedTotal, setEstimatedTotal] = useState(0)
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cancelledRef = useRef(false)
@@ -186,6 +187,10 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     setError('')
     setElapsedTime(0)
     setPollStatus('Submitting job...')
+
+    // Estimate total time: ~60s base + ~15s per second of video duration
+    const estTotal = 60 + duration * 15
+    setEstimatedTotal(estTotal)
 
     const startTime = Date.now()
     timerIntervalRef.current = setInterval(() => setElapsedTime(Math.floor((Date.now() - startTime) / 1000)), 1000)
@@ -606,7 +611,13 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                 <LoadingSpinner size={16} />
                 <span>{pollStatus || 'Generating...'}</span>
                 <span className="text-text-dim text-xs ml-1">
-                  {elapsedTime > 0 && `${Math.floor(elapsedTime / 60)}:${String(elapsedTime % 60).padStart(2, '0')}`}
+                  {elapsedTime > 0 && (() => {
+                    const remaining = Math.max(0, estimatedTotal - elapsedTime)
+                    if (remaining === 0) return 'Almost done...'
+                    const m = Math.floor(remaining / 60)
+                    const s = remaining % 60
+                    return `~${m}:${String(s).padStart(2, '0')} remaining`
+                  })()}
                 </span>
               </div>
               <Button onClick={handleCancel} variant="secondary" className="px-5 py-3.5 text-sm justify-center border-red/30 text-red hover:bg-red/10">
@@ -629,7 +640,13 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                   <LoadingSpinner size={32} />
                   <div className="text-sm text-text-muted mt-4">{pollStatus || 'Generating video...'}</div>
                   <div className="text-2xs text-text-dim mt-1">
-                    {elapsedTime > 0 && `${Math.floor(elapsedTime / 60)}:${String(elapsedTime % 60).padStart(2, '0')} elapsed`}
+                    {elapsedTime > 0 && (() => {
+                      const remaining = Math.max(0, estimatedTotal - elapsedTime)
+                      if (remaining === 0) return 'Almost done...'
+                      const m = Math.floor(remaining / 60)
+                      const s = remaining % 60
+                      return `~${m}:${String(s).padStart(2, '0')} remaining`
+                    })()}
                   </div>
                   <div className="text-2xs text-text-dim mt-1">{model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'} - {style} - {duration}s</div>
                   <button
