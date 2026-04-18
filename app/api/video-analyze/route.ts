@@ -46,7 +46,11 @@ Be very specific about what you actually see. Do not make things up.` },
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: analysisParts }],
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
+          generationConfig: {
+            maxOutputTokens: 4096,
+            temperature: 0.3,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       }
     )
@@ -96,7 +100,11 @@ Be very specific about what you actually see. Do not make things up.` },
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ parts: productParts }],
-              generationConfig: { maxOutputTokens: 200, temperature: 0.2 },
+              generationConfig: {
+                maxOutputTokens: 500,
+                temperature: 0.2,
+                thinkingConfig: { thinkingBudget: 0 },
+              },
             }),
           }
         )
@@ -112,26 +120,29 @@ Be very specific about what you actually see. Do not make things up.` },
       ? '2-4 sentences (40-80 words). Lead with subject details. Use simple camera terms (close-up, wide shot, bird\'s eye view). Add "cinematic, high quality, detailed" as quality boosters.'
       : '1-3 sentences (30-75 words). Lead with subject/action. Camera movement goes at the end (dolly in, tracking shot, pan left). Add "cinematic, shallow depth of field, 4K" as quality boosters.'
 
-    const rewritePrompt = `Here is a detailed breakdown of a reference video:
+    const rewritePrompt = `I analyzed a reference video and here is exactly what I observed:
 
 ${videoDescription}
 
-Now rewrite this as a ${modelLabel} video generation prompt for this client:
+Now I need you to write a video generation prompt for ${modelLabel} that recreates this EXACT same style but for a different product.
+
+NEW PRODUCT: ${productDesc}
+${productVisualNote ? `PRODUCT LOOKS LIKE: ${productVisualNote}` : ''}
 CLIENT: ${brandInfo}
-PRODUCT: ${productDesc}
-${productVisualNote ? `PRODUCT APPEARANCE: ${productVisualNote}` : ''}
 ${style ? `STYLE: ${style}` : ''}
 
-RULES:
-- Keep the same camera movements, lighting, color grade, and pacing from the reference
-- Replace the original product/subject with "${productDesc}"
-${productVisualNote ? `- Describe the product as: ${productVisualNote}` : ''}
-- ${modelRules}
-- Write as a single paragraph, no labels or explanations
-- Do not use emdashes, use commas or hyphens
-- Every sentence must be complete
+FORMAT RULES: ${modelRules}
 
-Write ONLY the prompt:`
+IMPORTANT:
+- Only include visual details that were ACTUALLY observed in the reference breakdown above
+- Do NOT invent new visual elements, effects, or concepts that weren't in the reference
+- Replace the original product with "${productDesc}" but keep everything else the same
+- Describe real camera moves, real lighting, real environments from the reference
+- Write as a single complete paragraph, no labels
+- Do not use emdashes, use commas or hyphens
+- Every sentence must end completely, do not trail off
+
+Write ONLY the prompt, nothing else:`
 
     const rewriteRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -140,7 +151,11 @@ Write ONLY the prompt:`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: rewritePrompt }] }],
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.5 },
+          generationConfig: {
+            maxOutputTokens: 4096,
+            temperature: 0.4,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
         }),
       }
     )
