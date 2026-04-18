@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
           similarity_boost: similarityBoost ?? 0.75,
           style: style ?? 0.5,
           use_speaker_boost: speakerBoost !== false,
-          speed: speed ?? 1.0,
         },
       }),
     })

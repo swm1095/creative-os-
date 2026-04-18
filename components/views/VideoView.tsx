@@ -354,12 +354,14 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       if (data.error) throw new Error(data.error)
       if (data.audioUrl) {
         setVoicePreviewUrl(data.audioUrl)
-        // Auto-play
-        if (voiceAudioRef.current) {
-          voiceAudioRef.current.src = data.audioUrl
-          voiceAudioRef.current.play()
-        }
         onToast('Preview ready - adjust script and try again if needed', 'success')
+        // Auto-play after state update
+        setTimeout(() => {
+          if (voiceAudioRef.current) {
+            voiceAudioRef.current.load()
+            voiceAudioRef.current.play().catch(() => {})
+          }
+        }, 100)
       }
     } catch (err: unknown) {
       onToast(`Preview failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
