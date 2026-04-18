@@ -327,10 +327,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Filter out irrelevant and NSFW signals before analysis
+    const relevantSubreddits = new Set((research.subreddits || []).map(s => s.toLowerCase()))
+    const brandKeywords = (research.searchKeywords || []).map(k => k.toLowerCase())
+    const brandIndustry = (research.industry || '').toLowerCase()
+
+    const filteredSignals = allSignals.filter(s => {
+      const title = (s.title || '').toLowerCase()
+      const content = (s.content || '').toLowerCase()
+      const source = (s.source || '').toLowerCase()
+
+      // Always keep signals from research-specified subreddits
+      if (source.startsWith('r/')) {
+        const sub = source.replace('r/', '').replace(' (comment)', '').toLowerCase()
+        if (relevantSubreddits.has(sub)) return true
+      }
+
+      // Always keep HackerNews, YouTube, TikTok, Amazon (already targeted by keywords)
+      if (!source.startsWith('r/')) return true
+
+      // For Reddit general search results, check relevance
+      const isRelevant = brandKeywords.some(k => title.includes(k) || content.includes(k)) ||
+        title.includes(brandIndustry) || content.includes(brandIndustry)
+
+      return isRelevant
+    })
+
     // Dedupe and sort
-    const uniqueSignals = Array.from(new Map(allSignals.map(s => [s.id, s])).values())
+    const uniqueSignals = Array.from(new Map(filteredSignals.map(s => [s.id, s])).values())
       .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 100) // Keep top 100
+      .slice(0, 100)
 
     console.log(`Total signals: ${uniqueSignals.length}`)
 
@@ -341,51 +367,67 @@ export async function POST(req: NextRequest) {
     console.log('Google Trends...')
     const trends = await getGoogleTrendsDeep(research.searchKeywords || [brand.name])
 
-    // ── Multi-pass Claude analysis ──
+    // ── Claude analysis (single reliable pass) ──
     let insights: ListeningInsight[] = []
     try {
-      console.log('Pass 1/3: Extracting themes...')
-      const themes = await extractThemes(client, uniqueSignals, research)
-      console.log('Pass 1 result length:', themes.length)
+      console.log('Analyzing signals with Claude...')
+      const signalText = uniqueSignals.slice(0, 25).map(s =>
+        `[${s.source}] (${s.score || 0} pts): ${s.title}\n${(s.content || '').slice(0, 250)}`
+      ).join('\n\n')
 
-      console.log('Pass 2/3: Identifying patterns...')
-      const patterns = await identifyPatterns(client, themes, trends, research)
-      console.log('Pass 2 result length:', patterns.length)
+      const trendText = trends.map(t =>
+        `"${t.keyword}" - ${t.trending ? 'TRENDING' : 'normal'}`
+      ).join('\n')
 
-      // Include competitor intel if available
       let competitorContext = ''
       if (brand.competitor_research && Array.isArray(brand.competitor_research)) {
-        competitorContext = '\n\nCOMPETITOR INTELLIGENCE:\n' +
-          (brand.competitor_research as Array<{ name: string; weaknesses?: string[]; adAngles?: string[] }>)
-            .map(c => `${c.name}: weaknesses: ${(c.weaknesses || []).slice(0, 3).join('; ')} | ad angles: ${(c.adAngles || []).slice(0, 3).join('; ')}`)
-            .join('\n')
+        competitorContext = '\nCOMPETITOR INTEL: ' +
+          (brand.competitor_research as Array<{ name: string; weaknesses?: string[] }>)
+            .map(c => `${c.name} weaknesses: ${(c.weaknesses || []).slice(0, 2).join('; ')}`)
+            .join(' | ')
       }
 
-      console.log('Pass 3/3: Building creative insights...')
-      insights = await buildCreativeInsights(client, patterns + competitorContext, research, brand.name)
-      console.log('Pass 3 insights count:', insights.length)
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        system: `You are the Head of Creative at Hype10 agency analyzing social signals for ${brand.name}.
 
-      // If 3-pass failed to produce insights, try single-pass with raw signals
-      if (insights.length === 0 && uniqueSignals.length > 0) {
-        console.log('3-pass produced 0 insights, trying single-pass fallback...')
-        const rawSignalText = uniqueSignals.slice(0, 25).map(s =>
-          `[${s.source}] (${s.score || 0} pts): ${s.title}\n${(s.content || '').slice(0, 300)}`
-        ).join('\n\n')
-        insights = await buildCreativeInsights(client, rawSignalText, research, brand.name)
-        console.log('Fallback insights count:', insights.length)
+Brand: ${research.industry} | ${research.productCategory}
+Personas: ${(research.personas || []).map(p => p.name).join(', ')}
+${competitorContext}
+${CONTENT_FILTER}
+${RELEVANCE_FILTER}
+
+Analyze the signals and trends below. Return 8-12 actionable insights.
+NEVER use emdashes. Use hyphens or commas.
+
+Return ONLY valid JSON in this EXACT format (no markdown, no text before or after):
+{"insights":[{"type":"trend","title":"Short title","detail":"2-3 sentences","signals":["source1"],"actionable":"Specific action","priority":"high","copy_examples":["quote1"]}]}
+
+Types: trend, pain_point, competitor, opportunity, language
+Priorities: high, medium, low`,
+        messages: [{
+          role: 'user',
+          content: `SIGNALS:\n${signalText}\n\nTRENDS:\n${trendText}`,
+        }],
+      })
+
+      const text = response.content[0].type === 'text' ? response.content[0].text : ''
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0].replace(/,\s*]/g, ']').replace(/,\s*}/g, '}'))
+          insights = (parsed.insights || []).map((i: ListeningInsight, idx: number) => ({
+            ...i,
+            id: `insight-${Date.now()}-${idx}`,
+          }))
+        } catch (e) {
+          console.error('JSON parse failed:', e)
+        }
       }
+      console.log('Insights generated:', insights.length)
     } catch (analysisErr) {
       console.error('Claude analysis failed:', analysisErr)
-      // Emergency fallback with raw signals
-      if (uniqueSignals.length > 0) {
-        try {
-          console.log('Analysis crashed, trying emergency fallback...')
-          const rawSignalText = uniqueSignals.slice(0, 15).map(s =>
-            `[${s.source}]: ${s.title}\n${(s.content || '').slice(0, 200)}`
-          ).join('\n\n')
-          insights = await buildCreativeInsights(client, rawSignalText, research, brand.name)
-        } catch { /* give up on insights */ }
-      }
     }
 
     // Source breakdown for UI
