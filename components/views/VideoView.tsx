@@ -78,6 +78,10 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null)
   const [voicePreviewing, setVoicePreviewing] = useState(false)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
+  const [voiceStability, setVoiceStability] = useState(0.5)
+  const [voiceSimilarity, setVoiceSimilarity] = useState(0.75)
+  const [voiceStyle, setVoiceStyle] = useState(0.5)
+  const [voiceSpeed, setVoiceSpeed] = useState(1.0)
 
   // Pre-fill from HyperListening if navigated with a video prompt
   useEffect(() => {
@@ -337,7 +341,14 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       const res = await fetch('/api/voice', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: scriptText, voiceId: selectedVoice }),
+        body: JSON.stringify({
+          text: scriptText,
+          voiceId: selectedVoice,
+          stability: voiceStability,
+          similarityBoost: voiceSimilarity,
+          style: voiceStyle,
+          speed: voiceSpeed,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -370,6 +381,10 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             : voiceScript,
           voiceId: selectedVoice,
           videoUrl: vidUrl,
+          stability: voiceStability,
+          similarityBoost: voiceSimilarity,
+          style: voiceStyle,
+          speed: voiceSpeed,
         }),
       })
       const data = await res.json()
@@ -642,6 +657,44 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                       <option key={v.voice_id} value={v.voice_id}>{v.name} ({v.category})</option>
                     ))}
                   </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex justify-between text-2xs font-bold tracking-wider uppercase text-text-muted mb-1">
+                      <span>Stability</span>
+                      <span className="text-text-dim font-normal">{Math.round(voiceStability * 100)}%</span>
+                    </label>
+                    <input type="range" min="0" max="1" step="0.05" value={voiceStability} onChange={e => setVoiceStability(Number(e.target.value))}
+                      className="w-full h-1.5 accent-blue" />
+                    <div className="flex justify-between text-2xs text-text-dim mt-0.5"><span>Expressive</span><span>Stable</span></div>
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-2xs font-bold tracking-wider uppercase text-text-muted mb-1">
+                      <span>Clarity</span>
+                      <span className="text-text-dim font-normal">{Math.round(voiceSimilarity * 100)}%</span>
+                    </label>
+                    <input type="range" min="0" max="1" step="0.05" value={voiceSimilarity} onChange={e => setVoiceSimilarity(Number(e.target.value))}
+                      className="w-full h-1.5 accent-blue" />
+                    <div className="flex justify-between text-2xs text-text-dim mt-0.5"><span>Natural</span><span>Clear</span></div>
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-2xs font-bold tracking-wider uppercase text-text-muted mb-1">
+                      <span>Style</span>
+                      <span className="text-text-dim font-normal">{Math.round(voiceStyle * 100)}%</span>
+                    </label>
+                    <input type="range" min="0" max="1" step="0.05" value={voiceStyle} onChange={e => setVoiceStyle(Number(e.target.value))}
+                      className="w-full h-1.5 accent-blue" />
+                    <div className="flex justify-between text-2xs text-text-dim mt-0.5"><span>Neutral</span><span>Exaggerated</span></div>
+                  </div>
+                  <div>
+                    <label className="flex justify-between text-2xs font-bold tracking-wider uppercase text-text-muted mb-1">
+                      <span>Speed</span>
+                      <span className="text-text-dim font-normal">{voiceSpeed.toFixed(1)}x</span>
+                    </label>
+                    <input type="range" min="0.5" max="2.0" step="0.1" value={voiceSpeed} onChange={e => setVoiceSpeed(Number(e.target.value))}
+                      className="w-full h-1.5 accent-blue" />
+                    <div className="flex justify-between text-2xs text-text-dim mt-0.5"><span>Slow</span><span>Fast</span></div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Script</label>

@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     if (!apiKey) return NextResponse.json({ error: 'ELEVENLABS_API_KEY not configured. Add it in Vercel.' }, { status: 500 })
 
     const body = await req.json()
-    const { text, voiceId } = body
+    const { text, voiceId, stability, similarityBoost, style, speed, speakerBoost } = body
 
     if (!text) return NextResponse.json({ error: 'text required' }, { status: 400 })
     if (!voiceId) return NextResponse.json({ error: 'voiceId required' }, { status: 400 })
@@ -60,10 +60,11 @@ export async function POST(req: NextRequest) {
         text,
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-          style: 0.5,
-          use_speaker_boost: true,
+          stability: stability ?? 0.5,
+          similarity_boost: similarityBoost ?? 0.75,
+          style: style ?? 0.5,
+          use_speaker_boost: speakerBoost !== false,
+          speed: speed ?? 1.0,
         },
       }),
     })
