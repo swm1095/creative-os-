@@ -84,12 +84,52 @@ export async function GET(req: NextRequest) {
   const allHealthy = results.every(r => r.status === 'healthy')
   const downServices = results.filter(r => r.status === 'down')
 
-  // If any service is down, send email notification
-  if (downServices.length > 0) {
-    console.error('=== HEALTH CHECK FAILURES ===')
-    downServices.forEach(s => console.error(`${s.service}: ${s.error}`))
-    // TODO: Send email to sam@hype10agency.com via a mail service
-    // For now, log to Vercel and the status is available via API
+  // Send email notification if any service is down or if this is the 6 AM check
+  const resendKey = process.env.RESEND_API_KEY
+  if (resendKey && (downServices.length > 0 || req.nextUrl.searchParams.get('morning') === 'true')) {
+    try {
+      // Get admin emails
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY || '')
+      const { data: admins } = await supabase.from('admin_emails').select('email').eq('receives_alerts', true)
+      const recipients = (admins || []).map(a => a.email).filter(Boolean)
+
+      if (recipients.length > 0) {
+        const statusEmoji = allHealthy ? '✅' : '🚨'
+        const subject = allHealthy
+          ? `${statusEmoji} HyperCreate Morning Check - All Systems Healthy`
+          : `${statusEmoji} HyperCreate Alert - ${downServices.length} Service${downServices.length > 1 ? 's' : ''} Down`
+
+        const html = `
+          <div style="font-family: Inter, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
+            <div style="background: #080e1a; color: #fff; padding: 24px; border-radius: 12px;">
+              <h2 style="margin: 0 0 16px; font-size: 18px;">${statusEmoji} HyperCreate Health Check</h2>
+              <p style="color: #8890b0; font-size: 13px; margin: 0 0 20px;">${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET</p>
+              ${results.map(r => `
+                <div style="display: flex; align-items: center; padding: 10px 0; border-top: 1px solid #1e2d44;">
+                  <span style="font-size: 16px; margin-right: 10px;">${r.status === 'healthy' ? '✅' : r.status === 'degraded' ? '⚠️' : '❌'}</span>
+                  <span style="flex: 1; font-size: 14px; font-weight: 600;">${r.service}</span>
+                  <span style="font-size: 12px; color: ${r.status === 'healthy' ? '#34d399' : '#f87171'};">${r.status}${r.responseTime ? ` (${r.responseTime}ms)` : ''}</span>
+                </div>
+              `).join('')}
+              ${downServices.length > 0 ? `<p style="color: #f87171; font-size: 13px; margin-top: 16px;">Action required: ${downServices.map(s => s.service).join(', ')} need attention.</p>` : ''}
+            </div>
+            <p style="text-align: center; color: #6c7086; font-size: 11px; margin-top: 16px;">HyperCreate by Hype10</p>
+          </div>
+        `
+
+        for (const to of recipients) {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: 'HyperCreate <onboarding@resend.dev>', to, subject, html }),
+          })
+        }
+        console.log(`Health check email sent to ${recipients.length} admins`)
+      }
+    } catch (emailErr) {
+      console.error('Failed to send health check email:', emailErr)
+    }
   }
 
   return NextResponse.json({

@@ -17,6 +17,7 @@ export type ViewId =
   | 'video'
   | 'brand-research'
   | 'saved-insights'
+  | 'admin'
   | 'coming-soon'
 
 // ── Brand ────────────────────────────────────────────────────

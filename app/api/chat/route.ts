@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { CONTENT_FILTER } from '@/lib/content-filter'
+import { trackUsage } from '@/lib/usage-tracker'
 import { BrandResearch, ResearchPersona } from '@/lib/types'
 
 export const maxDuration = 60
@@ -89,6 +90,15 @@ export async function POST(req: NextRequest) {
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
+
+    // Track usage
+    trackUsage({
+      service: 'anthropic', action: 'chat',
+      tokensIn: response.usage?.input_tokens || 0,
+      tokensOut: response.usage?.output_tokens || 0,
+      estimatedCost: ((response.usage?.input_tokens || 0) * 0.00000025 + (response.usage?.output_tokens || 0) * 0.00000125),
+    })
+
     return NextResponse.json({ message: text })
   } catch (e: unknown) {
     console.error('Chat error:', e)

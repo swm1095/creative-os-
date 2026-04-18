@@ -83,6 +83,9 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
                 <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
                 <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
                 <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
+                {(userRole === 'admin' || userEmail === 'sam@hype10agency.com') && (
+                  <NavItem label="Admin" emoji="⚙️" active={activeView === 'admin'} onClick={() => onNavigate(null, 'admin' as ViewId)} />
+                )}
 
                 <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
                 {TOOLS.filter(t => t.implemented).map(tool => (
