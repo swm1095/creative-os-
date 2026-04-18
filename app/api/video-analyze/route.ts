@@ -36,9 +36,9 @@ Write a single, detailed prompt paragraph that captures:
 ${style ? `Target style: ${style}` : ''}
 ${brandContext ? `Brand context: ${brandContext}` : ''}
 
-Keep it under 150 words. Write it like a director's shot description.
+Write 100-200 words. Be specific and complete - do not trail off or leave sentences unfinished. Write it like a director's shot description that fully covers every visual element.
 Do NOT use emdashes. Use commas or hyphens instead.
-Write ONLY the prompt, nothing else. No labels, no explanations, no intro - just the prompt text.`
+Write ONLY the prompt, nothing else. No labels, no explanations, no intro - just the prompt text. Make sure every sentence is complete.`
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -60,7 +60,7 @@ Write ONLY the prompt, nothing else. No labels, no explanations, no intro - just
             },
           ],
           generationConfig: {
-            maxOutputTokens: 500,
+            maxOutputTokens: 2048,
             temperature: 0.7,
           },
         }),
