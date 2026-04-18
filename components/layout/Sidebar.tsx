@@ -14,10 +14,13 @@ interface SidebarProps {
   onShowBrandModal: () => void
   userName?: string
   userEmail?: string
+  userRole?: 'admin' | 'team' | 'client'
   onLogout?: () => void
 }
 
-export default function Sidebar({ currentTool, activeView, activeBrand, brands, onNavigate, onBrandSelect, onShowBrandModal, userName, userEmail, onLogout }: SidebarProps) {
+export default function Sidebar({ currentTool, activeView, activeBrand, brands, onNavigate, onBrandSelect, onShowBrandModal, userName, userEmail, userRole, onLogout }: SidebarProps) {
+  const isClient = userRole === 'client'
+  const isTeam = userRole === 'admin' || userRole === 'team'
   const activeTool = TOOLS.find(t => t.id === currentTool)
 
   return (
@@ -35,11 +38,11 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
         </button>
       </div>
 
-      {/* Brand selector */}
+      {/* Brand selector - hidden for clients */}
       <div className="px-3.5 py-3">
-        <div className="text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5 px-1">Active Client</div>
+        <div className="text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5 px-1">{isClient ? 'Your Brand' : 'Active Client'}</div>
         <button
-          onClick={onShowBrandModal}
+          onClick={isClient ? undefined : onShowBrandModal}
           className="w-full px-2.5 py-2 bg-page border border-border rounded-lg flex items-center gap-2 hover:border-fulton transition-colors text-left"
         >
           {activeBrand?.logo_url ? (
@@ -64,34 +67,47 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
         {currentTool === null ? (
           // Hub navigation
           <>
-            <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
-            <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
-            <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
-            <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
-            <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
+            {isClient ? (
+              <>
+                <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Your Dashboard</div>
+                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
+                <NavItem label="HyperChat" emoji="💬" active={activeView === 'chat'} onClick={() => onNavigate('hyperchat', 'chat')} />
+                <NavItem label="HyperCopy" emoji="✍️" active={activeView === 'copy'} onClick={() => onNavigate('hypercopy', 'copy')} />
+                <NavItem label="HyperListening" emoji="👂" active={activeView === 'listening'} onClick={() => onNavigate('hyperlistening', 'listening')} />
+                <NavItem label="HyperResearch" emoji="🔬" active={activeView === 'brand-research'} onClick={() => onNavigate('hyperresearch', 'brand-research')} />
+              </>
+            ) : (
+              <>
+                <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
+                <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
+                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
+                <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
+                <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
 
-            <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
-            {TOOLS.filter(t => t.implemented).map(tool => (
-              <NavItem
-                key={tool.id}
-                label={tool.name}
-                emoji={tool.emoji}
-                onClick={() => onNavigate(tool.id, tool.defaultView)}
-              />
-            ))}
-            {TOOLS.filter(t => !t.implemented).length > 0 && (
-              <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Coming Soon</div>
+                <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
+                {TOOLS.filter(t => t.implemented).map(tool => (
+                  <NavItem
+                    key={tool.id}
+                    label={tool.name}
+                    emoji={tool.emoji}
+                    onClick={() => onNavigate(tool.id, tool.defaultView)}
+                  />
+                ))}
+                {TOOLS.filter(t => !t.implemented).length > 0 && (
+                  <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Coming Soon</div>
+                )}
+                {TOOLS.filter(t => !t.implemented).map(tool => (
+                  <NavItem
+                    key={tool.id}
+                    label={tool.name}
+                    emoji={tool.emoji}
+                    badge="Soon"
+                    badgeVariant="gold"
+                    onClick={() => {}}
+                  />
+                ))}
+              </>
             )}
-            {TOOLS.filter(t => !t.implemented).map(tool => (
-              <NavItem
-                key={tool.id}
-                label={tool.name}
-                emoji={tool.emoji}
-                badge="Soon"
-                badgeVariant="gold"
-                onClick={() => {}}
-              />
-            ))}
           </>
         ) : (
           // Tool navigation

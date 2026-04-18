@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { ToolId, ViewId, Creative } from '@/lib/types'
 import { TOOLS } from '@/lib/constants'
 import { useBrands } from '@/lib/hooks/use-brands'
@@ -40,8 +40,17 @@ export default function DashboardPage() {
   const { toasts, addToast, dismissToast } = useToast()
   const { tasks, addTask, dismissTask } = useBackgroundTasks()
 
-  const [currentTool, setCurrentTool] = useState<ToolId>(null)
-  const [activeView, setActiveView] = useState<ViewId>('hub')
+  const isClient = user?.role === 'client'
+  const [currentTool, setCurrentTool] = useState<ToolId>(isClient ? 'hypeimage' : null)
+  const [activeView, setActiveView] = useState<ViewId>(isClient ? 'brand' : 'hub')
+
+  // Auto-select the client's brand when they log in
+  useEffect(() => {
+    if (isClient && user?.brand_id && brands.length && !activeBrand) {
+      const clientBrand = brands.find(b => b.id === user.brand_id)
+      if (clientBrand) setActiveBrand(clientBrand)
+    }
+  }, [isClient, user?.brand_id, brands, activeBrand, setActiveBrand])
   const [showBrandModal, setShowBrandModal] = useState(false)
   const [showAddBrandForm, setShowAddBrandForm] = useState(false)
   const [newBrandName, setNewBrandName] = useState('')
@@ -245,6 +254,7 @@ export default function DashboardPage() {
         onShowBrandModal={() => setShowBrandModal(true)}
         userName={user?.name}
         userEmail={user?.email}
+        userRole={user?.role}
         onLogout={logout}
       />
 
