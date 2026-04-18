@@ -155,7 +155,8 @@ export async function POST(req: NextRequest) {
     }
 
     const styleKey = style as VideoStyle
-    const enhancedPrompt = `${prompt}. ${stylePrompts[styleKey] || ''}. ${CONTENT_FILTER.replace(/\n/g, ' ').slice(0, 200)}`
+    // Only append style keywords - no content filter (video models don't understand text instructions)
+    const enhancedPrompt = `${prompt}. ${stylePrompts[styleKey] || ''}`.trim()
 
     // If scenes provided, generate each scene separately
     if (scenes && scenes.length > 0) {

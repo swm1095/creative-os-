@@ -47,6 +47,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const cancelledRef = useRef(false)
+  const [genWarning, setGenWarning] = useState<{ message: string; level: 'info' | 'warn' | 'error' } | null>(null)
 
   // Product images
   const [productImagePreviews, setProductImagePreviews] = useState<string[]>([])
@@ -220,6 +221,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     setGenerating(false)
     setPollStatus('')
     setElapsedTime(0)
+    setGenWarning(null)
     onToast('Video generation cancelled', 'info')
   }, [stopPolling, onToast])
 
@@ -305,6 +307,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     setError('')
     setElapsedTime(0)
     setPollStatus('Submitting job...')
+    setGenWarning(null)
 
     // Estimate: video time + voice (~5s) + lip sync (~60s) if voice enabled
     const estTotal = (60 + duration * 15) + (useVoice ? 70 : 0)
@@ -315,13 +318,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
 
     const isImageMode = mode === 'image-to-video' && creatorImageUrl
 
-    let fullPrompt = effectivePrompt
-    if (productImageUrls.length > 0) {
-      fullPrompt += `\n\nProduct reference images provided - ensure the product shown matches these references exactly.`
-    }
-    if (refVideoUrl) {
-      fullPrompt += `\n\nReference video style provided - match the production quality, camera work, and aesthetic of the reference.`
-    }
+    const fullPrompt = effectivePrompt
 
     onToast(useVoice
       ? `Generating video + voiceover + lip sync pipeline...`
@@ -380,14 +377,13 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
           if (cancelledRef.current) return
           consecutiveErrors = 0 // reset on successful poll
 
-          // Notify at time thresholds
-          if (pollCount === 24) { // ~2 minutes
-            onToast('Still processing - longer videos can take a few minutes', 'info')
-          } else if (pollCount === 48) { // ~4 minutes
-            onToast('This is taking longer than usual. You can keep waiting or cancel and try again.', 'info')
-          } else if (pollCount === 72) { // ~6 minutes
-            onToast('Generation may have stalled. Consider cancelling and restarting.', 'error')
-            setPollStatus('May have stalled - consider cancelling...')
+          // Persistent status notifications at time thresholds
+          if (pollCount >= 72) { // ~6 minutes
+            setGenWarning({ message: 'Generation may have stalled. Cancel and try again with a shorter prompt.', level: 'error' })
+          } else if (pollCount >= 48) { // ~4 minutes
+            setGenWarning({ message: 'Taking longer than usual. You can keep waiting or cancel and retry.', level: 'warn' })
+          } else if (pollCount >= 24) { // ~2 minutes
+            setGenWarning({ message: 'Still processing - longer videos can take a few minutes.', level: 'info' })
           }
 
           if (pollData.status === 'complete' && pollData.videoUrl) {
@@ -951,6 +947,15 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                     })()}
                   </div>
                   <div className="text-2xs text-text-dim mt-1">{model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'} - {style} - {duration}s</div>
+                  {genWarning && (
+                    <div className={`mt-3 mx-4 px-3 py-2 rounded-lg text-xs text-left ${
+                      genWarning.level === 'error' ? 'bg-red/10 border border-red/30 text-red' :
+                      genWarning.level === 'warn' ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400' :
+                      'bg-blue/10 border border-blue/30 text-blue'
+                    }`}>
+                      {genWarning.message}
+                    </div>
+                  )}
                   <button
                     onClick={handleCancel}
                     className="mt-4 px-4 py-2 text-xs text-red border border-red/30 rounded-lg hover:bg-red/10 transition-colors"
