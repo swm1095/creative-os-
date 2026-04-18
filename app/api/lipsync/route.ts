@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
 
 export const maxDuration = 300
+export const dynamic = 'force-dynamic'
 
 const FAL_BASE = 'https://queue.fal.run'
 
@@ -10,71 +11,45 @@ async function submitLipSync(videoUrl: string, audioUrl: string): Promise<{ requ
   const falKey = process.env.FAL_KEY
   if (!falKey) throw new Error('FAL_KEY not configured')
 
-  // Try the lipsync endpoint first
-  const res = await fetch(`${FAL_BASE}/fal-ai/lipsync`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Key ${falKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      video_url: videoUrl,
-      audio_url: audioUrl,
-    }),
-  })
+  // Try multiple possible lip sync model endpoints
+  const models = [
+    { id: 'fal-ai/sync-lipsync', body: { video_url: videoUrl, audio_url: audioUrl } },
+    { id: 'fal-ai/lipsync', body: { video_url: videoUrl, audio_url: audioUrl } },
+    { id: 'fal-ai/wav2lip', body: { video_url: videoUrl, audio_url: audioUrl } },
+  ]
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`fal.ai lipsync failed: ${res.status} ${err.slice(0, 200)}`)
-  }
+  for (const model of models) {
+    try {
+      const res = await fetch(`${FAL_BASE}/${model.id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${falKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(model.body),
+      })
 
-  const data = await res.json()
-  return {
-    requestId: data.request_id,
-    statusUrl: data.status_url,
-    responseUrl: data.response_url,
-  }
-}
+      if (res.ok) {
+        const data = await res.json()
+        console.log(`Lip sync submitted via ${model.id}: ${data.request_id}`)
+        return {
+          requestId: data.request_id,
+          statusUrl: data.status_url,
+          responseUrl: data.response_url,
+        }
+      }
 
-// Poll for lip sync completion
-async function pollForResult(responseUrl: string, maxWaitMs: number = 240000): Promise<{ videoUrl: string }> {
-  const falKey = process.env.FAL_KEY
-  if (!falKey) throw new Error('FAL_KEY not configured')
-
-  const startTime = Date.now()
-
-  while (Date.now() - startTime < maxWaitMs) {
-    await new Promise(r => setTimeout(r, 5000))
-
-    const res = await fetch(responseUrl, {
-      headers: { 'Authorization': `Key ${falKey}` },
-    })
-
-    if (res.status === 200) {
-      const data = await res.json()
-      const videoUrl = data.video?.url || data.output?.url || data.url
-      if (videoUrl) return { videoUrl }
-
-      // Try to find any URL in the response
-      const jsonStr = JSON.stringify(data)
-      const urlMatch = jsonStr.match(/https?:\/\/[^"]+\.(mp4|webm|mov)[^"]*/i)
-      if (urlMatch) return { videoUrl: urlMatch[0] }
-
-      throw new Error('Lip sync completed but could not find video URL in response')
-    }
-
-    if (res.status === 202) continue
-
-    const errData = await res.json().catch(() => ({}))
-    if (errData.status === 'FAILED') {
-      throw new Error(`Lip sync failed: ${errData.error || 'Unknown error'}`)
+      const err = await res.text()
+      console.log(`${model.id} failed (${res.status}): ${err.slice(0, 100)}`)
+    } catch (e) {
+      console.log(`${model.id} error:`, e instanceof Error ? e.message : String(e))
     }
   }
 
-  throw new Error('Lip sync timed out after 4 minutes')
+  throw new Error('No lip sync model available on fal.ai. Check your fal.ai account for available models.')
 }
 
-// POST - submit lip sync job (can run synchronously or async)
+// POST - submit lip sync job
 export async function POST(req: NextRequest) {
   try {
     const falKey = process.env.FAL_KEY
@@ -86,10 +61,11 @@ export async function POST(req: NextRequest) {
     if (!audioUrl) return NextResponse.json({ error: 'audioUrl required' }, { status: 400 })
 
     console.log('Submitting lip sync job...')
-    const job = await submitLipSync(videoUrl, audioUrl)
-    console.log(`Lip sync job submitted: ${job.requestId}`)
+    console.log('Video URL:', videoUrl.slice(0, 100))
+    console.log('Audio URL:', audioUrl.slice(0, 100))
 
-    // Async mode: return job info for client-side polling
+    const job = await submitLipSync(videoUrl, audioUrl)
+
     if (asyncMode) {
       return NextResponse.json({
         responseUrl: job.responseUrl,
@@ -98,25 +74,48 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Sync mode: poll and wait
-    const result = await pollForResult(job.responseUrl)
-    console.log('Lip sync complete:', result.videoUrl)
+    // Sync mode - poll for result
+    const maxWaitMs = 240000
+    const startTime = Date.now()
 
-    // Save to Supabase if brandId provided
-    if (brandId) {
-      try {
-        const supabase = createClient()
-        await supabase.from('creatives').insert({
-          brand_id: brandId,
-          title: `UGC Video (lip synced)`,
-          image_url: result.videoUrl,
-          format: '9x16',
-          generator: 'lipsync',
-        })
-      } catch { /* silent */ }
+    while (Date.now() - startTime < maxWaitMs) {
+      await new Promise(r => setTimeout(r, 5000))
+
+      const fetchUrl = `${job.responseUrl}${job.responseUrl.includes('?') ? '&' : '?'}_t=${Date.now()}`
+      const res = await fetch(fetchUrl, {
+        headers: { 'Authorization': `Key ${falKey}` },
+        cache: 'no-store',
+      })
+
+      if (res.status === 200) {
+        const data = await res.json()
+        const videoResult = data.video?.url || data.output?.url || data.url
+        if (videoResult) {
+          if (brandId) {
+            try {
+              const supabase = createClient()
+              await supabase.from('creatives').insert({
+                brand_id: brandId,
+                title: `UGC Video (lip synced)`,
+                image_url: videoResult,
+                format: '9x16',
+                generator: 'lipsync',
+              })
+            } catch { /* silent */ }
+          }
+          return NextResponse.json({ videoUrl: videoResult })
+        }
+      }
+
+      if (res.status !== 202) {
+        const errData = await res.json().catch(() => ({}))
+        if (errData.status === 'FAILED') {
+          throw new Error(`Lip sync failed: ${errData.error || 'Unknown error'}`)
+        }
+      }
     }
 
-    return NextResponse.json({ videoUrl: result.videoUrl })
+    throw new Error('Lip sync timed out after 4 minutes')
   } catch (e: unknown) {
     console.error('Lip sync error:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
@@ -132,8 +131,13 @@ export async function GET(req: NextRequest) {
     const responseUrl = req.nextUrl.searchParams.get('responseUrl')
     if (!responseUrl) return NextResponse.json({ error: 'responseUrl required' }, { status: 400 })
 
-    const res = await fetch(responseUrl, {
+    const fetchUrl = responseUrl.includes('?')
+      ? `${responseUrl}&_t=${Date.now()}`
+      : `${responseUrl}?_t=${Date.now()}`
+
+    const res = await fetch(fetchUrl, {
       headers: { 'Authorization': `Key ${falKey}` },
+      cache: 'no-store',
     })
 
     if (res.status === 200) {
@@ -144,15 +148,24 @@ export async function GET(req: NextRequest) {
         const urlMatch = jsonStr.match(/https?:\/\/[^"]+\.(mp4|webm|mov)[^"]*/i)
         if (urlMatch) videoUrl = urlMatch[0]
       }
-      return NextResponse.json({ status: 'complete', videoUrl })
+      if (!videoUrl) {
+        console.log('Lip sync 200 but no URL:', JSON.stringify(data).slice(0, 500))
+      }
+      return NextResponse.json(
+        { status: 'complete', videoUrl },
+        { headers: { 'Cache-Control': 'no-store' } }
+      )
     }
 
     if (res.status === 202) {
       const data = await res.json().catch(() => ({}))
-      return NextResponse.json({ status: 'processing', queuePosition: data.queue_position })
+      return NextResponse.json(
+        { status: 'processing', queuePosition: data.queue_position },
+        { headers: { 'Cache-Control': 'no-store' } }
+      )
     }
 
-    return NextResponse.json({ status: 'unknown' })
+    return NextResponse.json({ status: 'processing' }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }

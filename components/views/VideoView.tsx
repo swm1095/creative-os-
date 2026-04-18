@@ -271,13 +271,30 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     const lsResponseUrl = data.responseUrl
     if (!lsResponseUrl) throw new Error('No lip sync response URL')
 
-    // Poll for lip sync completion
+    // Poll for lip sync completion with 3-minute timeout
     return new Promise((resolve, reject) => {
+      let lsPollCount = 0
       const lsPoll = setInterval(async () => {
         if (cancelledRef.current) { clearInterval(lsPoll); reject(new Error('Cancelled')); return }
+        lsPollCount++
+
+        // Timeout after 3 minutes
+        if (lsPollCount > 60) {
+          clearInterval(lsPoll)
+          reject(new Error('Lip sync timed out'))
+          return
+        }
+
         try {
-          const pollRes = await fetch(`/api/lipsync?responseUrl=${encodeURIComponent(lsResponseUrl)}`)
+          const pollRes = await fetch(`/api/lipsync?responseUrl=${encodeURIComponent(lsResponseUrl)}&_t=${Date.now()}`)
           const pollData = await pollRes.json()
+
+          if (pollData.error) {
+            clearInterval(lsPoll)
+            reject(new Error(pollData.error))
+            return
+          }
+
           if (pollData.status === 'complete' && pollData.videoUrl) {
             clearInterval(lsPoll)
             resolve(pollData.videoUrl)
@@ -285,7 +302,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             setPollStatus(pollData.queuePosition ? `Lip sync (queue ${pollData.queuePosition})...` : 'Syncing lips to audio...')
           }
         } catch { /* retry */ }
-      }, 5000)
+      }, 3000)
     })
   }
 
