@@ -262,11 +262,20 @@ export async function GET(req: NextRequest) {
     if (res.status === 200) {
       const data = await res.json()
       let videoUrl = data.video?.url || data.output?.url || data.url
+
+      // Try regex match for any video URL in response
       if (!videoUrl) {
         const jsonStr = JSON.stringify(data)
         const urlMatch = jsonStr.match(/https?:\/\/[^"]+\.(mp4|webm|mov)[^"]*/i)
         if (urlMatch) videoUrl = urlMatch[0]
       }
+
+      // Log the full response for debugging if no URL found
+      if (!videoUrl) {
+        console.log('Video response 200 but no URL found. Keys:', Object.keys(data), 'Full:', JSON.stringify(data).slice(0, 500))
+        return NextResponse.json({ status: 'complete', videoUrl: null, debug: Object.keys(data) })
+      }
+
       return NextResponse.json({ status: 'complete', videoUrl })
     }
 
@@ -275,7 +284,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ status: 'processing', queuePosition: data.queue_position })
     }
 
-    return NextResponse.json({ status: 'unknown' })
+    // Any other status - try to get error info
+    const errBody = await res.text().catch(() => '')
+    console.log(`Video poll unexpected status ${res.status}:`, errBody.slice(0, 200))
+    return NextResponse.json({ status: 'processing' })
   } catch (e: unknown) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
