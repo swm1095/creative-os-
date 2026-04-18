@@ -365,25 +365,27 @@ export async function POST(req: NextRequest) {
       insights = await buildCreativeInsights(client, patterns + competitorContext, research, brand.name)
       console.log('Pass 3 insights count:', insights.length)
 
-      // If 3-pass failed to produce insights, try a simpler single-pass fallback
+      // If 3-pass failed to produce insights, try single-pass with raw signals
       if (insights.length === 0 && uniqueSignals.length > 0) {
         console.log('3-pass produced 0 insights, trying single-pass fallback...')
-        insights = await buildCreativeInsights(client,
-          uniqueSignals.slice(0, 20).map(s => `[${s.source}] ${s.title}: ${(s.content || '').slice(0, 200)}`).join('\n'),
-          research, brand.name
-        )
+        const rawSignalText = uniqueSignals.slice(0, 25).map(s =>
+          `[${s.source}] (${s.score || 0} pts): ${s.title}\n${(s.content || '').slice(0, 300)}`
+        ).join('\n\n')
+        insights = await buildCreativeInsights(client, rawSignalText, research, brand.name)
         console.log('Fallback insights count:', insights.length)
       }
     } catch (analysisErr) {
       console.error('Claude analysis failed:', analysisErr)
-      // Last resort: try simple single-pass
-      try {
-        console.log('Analysis crashed, trying emergency single-pass...')
-        insights = await buildCreativeInsights(client,
-          uniqueSignals.slice(0, 15).map(s => `[${s.source}] ${s.title}`).join('\n'),
-          research, brand.name
-        )
-      } catch { /* give up on insights */ }
+      // Emergency fallback with raw signals
+      if (uniqueSignals.length > 0) {
+        try {
+          console.log('Analysis crashed, trying emergency fallback...')
+          const rawSignalText = uniqueSignals.slice(0, 15).map(s =>
+            `[${s.source}]: ${s.title}\n${(s.content || '').slice(0, 200)}`
+          ).join('\n\n')
+          insights = await buildCreativeInsights(client, rawSignalText, research, brand.name)
+        } catch { /* give up on insights */ }
+      }
     }
 
     // Source breakdown for UI

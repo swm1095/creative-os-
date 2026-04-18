@@ -371,10 +371,12 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                           </div>
                         )}
 
-                        <div className="bg-fulton-light border border-fulton/20 rounded px-3 py-2 mb-2">
-                          <span className="text-2xs font-bold text-fulton uppercase tracking-wider">Action: </span>
-                          <span className="text-xs text-text-secondary">{insight.actionable}</span>
-                        </div>
+                        {insight.actionable && (
+                          <div className="bg-fulton-light border border-fulton/20 rounded px-3 py-2 mb-2">
+                            <span className="text-2xs font-bold text-fulton uppercase tracking-wider">Action: </span>
+                            <span className="text-xs text-text-secondary">{insight.actionable}</span>
+                          </div>
+                        )}
 
                         {/* Action buttons */}
                         <div className="flex gap-2 flex-wrap">
