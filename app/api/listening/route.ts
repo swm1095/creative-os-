@@ -341,19 +341,21 @@ export async function POST(req: NextRequest) {
     console.log('Google Trends...')
     const trends = await getGoogleTrendsDeep(research.searchKeywords || [brand.name])
 
-    // ── Multi-pass Claude analysis (wrapped in try/catch so partial failures don't kill the scan) ──
+    // ── Multi-pass Claude analysis ──
     let insights: ListeningInsight[] = []
     try {
       console.log('Pass 1/3: Extracting themes...')
       const themes = await extractThemes(client, uniqueSignals, research)
+      console.log('Pass 1 result length:', themes.length)
 
       console.log('Pass 2/3: Identifying patterns...')
       const patterns = await identifyPatterns(client, themes, trends, research)
+      console.log('Pass 2 result length:', patterns.length)
 
       // Include competitor intel if available
       let competitorContext = ''
       if (brand.competitor_research && Array.isArray(brand.competitor_research)) {
-        competitorContext = '\n\nCOMPETITOR INTELLIGENCE (from prior deep analysis):\n' +
+        competitorContext = '\n\nCOMPETITOR INTELLIGENCE:\n' +
           (brand.competitor_research as Array<{ name: string; weaknesses?: string[]; adAngles?: string[] }>)
             .map(c => `${c.name}: weaknesses: ${(c.weaknesses || []).slice(0, 3).join('; ')} | ad angles: ${(c.adAngles || []).slice(0, 3).join('; ')}`)
             .join('\n')
@@ -361,9 +363,27 @@ export async function POST(req: NextRequest) {
 
       console.log('Pass 3/3: Building creative insights...')
       insights = await buildCreativeInsights(client, patterns + competitorContext, research, brand.name)
+      console.log('Pass 3 insights count:', insights.length)
+
+      // If 3-pass failed to produce insights, try a simpler single-pass fallback
+      if (insights.length === 0 && uniqueSignals.length > 0) {
+        console.log('3-pass produced 0 insights, trying single-pass fallback...')
+        insights = await buildCreativeInsights(client,
+          uniqueSignals.slice(0, 20).map(s => `[${s.source}] ${s.title}: ${(s.content || '').slice(0, 200)}`).join('\n'),
+          research, brand.name
+        )
+        console.log('Fallback insights count:', insights.length)
+      }
     } catch (analysisErr) {
       console.error('Claude analysis failed:', analysisErr)
-      // Return signals without insights rather than failing entirely
+      // Last resort: try simple single-pass
+      try {
+        console.log('Analysis crashed, trying emergency single-pass...')
+        insights = await buildCreativeInsights(client,
+          uniqueSignals.slice(0, 15).map(s => `[${s.source}] ${s.title}`).join('\n'),
+          research, brand.name
+        )
+      } catch { /* give up on insights */ }
     }
 
     // Source breakdown for UI
