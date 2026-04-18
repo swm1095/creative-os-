@@ -31,6 +31,7 @@ import DataConnectionsView from '@/components/views/DataConnectionsView'
 import ListeningView from '@/components/views/ListeningView'
 import UGCTeamView from '@/components/views/UGCTeamView'
 import VideoView from '@/components/views/VideoView'
+import AdminDashboardView from '@/components/views/AdminDashboardView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
 
@@ -220,6 +221,10 @@ export default function DashboardPage() {
             <SavedInsightsView brand={activeBrand} onToast={addToast} onNavigate={navigate} />
           </div>
         )
+      case 'admin':
+        if (isAdmin) return <AdminDashboardView onToast={addToast} />
+        navigate(null, 'hub')
+        return <HubView onNavigate={navigate} />
       case 'video':
         return <VideoView brand={activeBrand} brandId={activeBrand?.id} onToast={addToast} />
       case 'tracker':

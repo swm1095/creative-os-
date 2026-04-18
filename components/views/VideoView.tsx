@@ -129,19 +129,54 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             </div>
           </Card>
 
+          {/* Suggested Prompts */}
+          {!prompt.trim() && (
+            <Card title="Quick Start" subtitle="Click any prompt to use it">
+              <div className="space-y-2">
+                {(style === 'ugc' ? [
+                  'Person unboxing the product at their kitchen table, morning light through window, genuine excited reaction, handheld camera',
+                  'Someone walking through their home wearing the product, casual POV shot, cozy interior, natural movement',
+                  'Close-up of hands holding the product, turning it to show details, soft background blur, authentic home setting',
+                  'Person sitting on couch talking directly to camera about a product they love, warm living room, iPhone selfie angle',
+                ] : style === 'cinematic' ? [
+                  'Slow dolly shot of the product on a wooden surface, golden hour light streaming through window, shallow depth of field, dust particles in air',
+                  'Aerial tracking shot over a product display, moody lighting, slow motion fabric drape reveal, cinematic color grade',
+                  'Macro close-up of product texture, smooth rack focus to full product, dramatic side lighting, dark background',
+                  'Product on a pedestal with rotating camera orbit, studio lighting with rim light, clean seamless background',
+                ] : style === 'animated' ? [
+                  'Product logo morphs into a 3D render, smooth particle effects, gradient background shifts colors, modern motion design',
+                  'Text animates in letter by letter with bounce effect, product slides in from right, clean flat design aesthetic',
+                  'Isometric view of product with animated infographic callouts, clean lines, subtle glow effects, white background',
+                  'Product features highlighted one by one with animated arrows and icons, smooth transitions between each feature',
+                ] : [
+                  'Product centered on white seamless background, slow 360 rotation, studio three-point lighting, ultra clean',
+                  'Product placed on natural stone surface, water droplets nearby, macro lens, soft diffused lighting from above',
+                  'Side-by-side product comparison, camera slowly pans across both, even lighting, minimal styling',
+                  'Product in lifestyle context, shallow depth of field, warm tones, subtle camera push in',
+                ]).map((suggestion, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPrompt(suggestion)}
+                    className="w-full text-left px-3 py-2.5 bg-page border border-border rounded-lg text-xs text-text-muted hover:text-text-primary hover:border-blue/40 transition-all"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {/* Prompt */}
           <Card title="Video Prompt" subtitle="Describe the scene, action, and mood">
             <FormTextarea
               value={prompt}
               onChange={e => setPrompt(e.target.value)}
               rows={4}
-              placeholder={
-                style === 'ugc' ? 'Person unboxing the product at their kitchen table, natural lighting, genuine reaction...' :
-                style === 'cinematic' ? 'Slow dolly shot of the product on a wooden surface, golden hour lighting, shallow depth of field...' :
-                style === 'animated' ? 'Product icon transforms into a 3D render, smooth rotation, particles float around...' :
-                'Close-up of the product on white surface, slow 360 rotation, studio lighting reveals texture...'
-              }
+              placeholder="Type your own or click a suggestion above..."
             />
+            {prompt.trim() && (
+              <button onClick={() => setPrompt('')} className="text-2xs text-text-dim hover:text-text-primary mt-2">Clear prompt</button>
+            )}
           </Card>
 
           {/* Settings */}
