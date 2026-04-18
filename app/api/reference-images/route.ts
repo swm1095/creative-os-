@@ -1,12 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient as createClient } from '@/lib/supabase-server'
 
-export const maxDuration = 30
+export const maxDuration = 120
 
-// GET - list reference images (shared across team)
+// GET - list reference images OR get a signed upload URL for large files
 export async function GET(req: NextRequest) {
   try {
     const supabase = createClient()
+    const action = req.nextUrl.searchParams.get('action')
+
+    // Signed URL for direct-to-Supabase uploads (videos, large files)
+    if (action === 'signedUrl') {
+      const brandId = req.nextUrl.searchParams.get('brandId') || 'shared'
+      const fileName = req.nextUrl.searchParams.get('fileName') || 'file'
+      const contentType = req.nextUrl.searchParams.get('contentType') || 'video/mp4'
+
+      const ext = fileName.split('.').pop() || 'mp4'
+      const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`
+      const path = `reference-images/${brandId}/${safeName}`
+
+      const { data, error } = await supabase.storage
+        .from('brand-assets')
+        .createSignedUploadUrl(path)
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      const { data: urlData } = supabase.storage.from('brand-assets').getPublicUrl(path)
+
+      return NextResponse.json({
+        signedUrl: data.signedUrl,
+        token: data.token,
+        path,
+        publicUrl: urlData.publicUrl,
+        contentType,
+      })
+    }
+
+    // Default: list files
     const brandId = req.nextUrl.searchParams.get('brandId')
 
     const { data: files, error } = await supabase.storage
@@ -34,7 +64,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST - upload reference images
+// POST - upload reference images (small files only, <4.5MB)
+// For larger files (videos), use GET ?action=signedUrl then upload directly to Supabase
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
@@ -58,6 +89,8 @@ export async function POST(req: NextRequest) {
       if (!error) {
         const { data: urlData } = supabase.storage.from('brand-assets').getPublicUrl(path)
         uploaded.push({ name: file.name, storedName: safeName, url: urlData.publicUrl })
+      } else {
+        console.error(`Upload failed for ${file.name}:`, error.message)
       }
     }
 

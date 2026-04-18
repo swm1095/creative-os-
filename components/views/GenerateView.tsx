@@ -122,25 +122,32 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated }: G
     onToast('Reference image uploaded - it will guide the generation style', 'success')
   }
 
-  const handleRefVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRefVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => setRefVideoPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
-    // Upload to Supabase for a public URL
-    const formData = new FormData()
-    formData.append('brandId', brandId || 'shared')
-    formData.append('files', file)
-    fetch('/api/reference-images', { method: 'POST', body: formData })
-      .then(r => r.json())
-      .then(data => {
-        if (data.uploaded?.[0]?.url) {
-          setRefVideoUrl(data.uploaded[0].url)
-          onToast('Reference video uploaded - style will be matched', 'success')
-        }
+    setRefVideoPreview(URL.createObjectURL(file))
+    onToast('Uploading reference video...', 'info')
+
+    try {
+      // Get signed URL for direct upload (bypasses Vercel 4.5MB limit)
+      const signedRes = await fetch(`/api/reference-images?action=signedUrl&brandId=${brandId || 'shared'}&fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`)
+      const signedData = await signedRes.json()
+      if (signedData.error) throw new Error(signedData.error)
+
+      // Upload directly to Supabase storage
+      const uploadRes = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
       })
-      .catch(() => onToast('Video upload failed', 'error'))
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`)
+
+      setRefVideoUrl(signedData.publicUrl)
+      onToast('Reference video uploaded - style will be matched', 'success')
+    } catch (err) {
+      onToast(`Video upload failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      setRefVideoPreview(null)
+    }
   }
 
   const handleGenerate = async (withFeedback?: string) => {
