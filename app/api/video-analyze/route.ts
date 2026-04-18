@@ -1,32 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export const maxDuration = 60
-
-const MODEL_GUIDES: Record<string, string> = {
-  seedance: `PROMPT FORMAT RULES FOR SEEDANCE 2.0:
-- Lead with subject/action, then environment, then style/mood, then camera movement LAST
-- Keep it 1-3 sentences (30-75 words). Shorter is better. Too long dilutes focus.
-- Use commas to separate descriptive elements. Write as one flowing description, NOT a list.
-- Explicitly describe motion ("walking," "turning," "pouring," "wind blowing through hair")
-- Use cinematic keywords: "cinematic," "film grain," "shallow depth of field," "4K," "photorealistic"
-- Use lighting terms: "golden hour," "volumetric lighting," "backlit," "natural lighting"
-- Camera directions go at the END: "dolly in," "pan left," "tracking shot," "crane shot," "static wide shot"
-- AVOID: abstract concepts without visual anchors, multiple scene changes, conflicting styles, negative prompts
-- EXAMPLE FORMAT: "A woman unboxing a vitamin bottle at her kitchen counter, morning light through window, warm tones, shallow depth of field, handheld camera slowly pushing in"`,
-
-  kling: `PROMPT FORMAT RULES FOR KLING V3:
-- Lead with detailed subject description, then environment, then mood, then camera
-- Keep it 2-4 sentences (40-80 words). Kling handles slightly longer prompts well.
-- Use commas between elements, periods between distinct conceptual groups
-- Front-load the most important visual element
-- Describe subject details: color, texture, size, material
-- Environmental context is important: "rainy city street," "misty forest," "clean white studio"
-- Quality boosters: "cinematic," "high quality," "detailed," "professional lighting"
-- Specific physical actions work best: "pouring water," "smoke rising," "fabric draping"
-- Camera: simple terms are more reliable - "close-up," "bird's eye view," "first-person POV," "wide shot"
-- AVOID: rapid multi-subject interactions, text/typography requests, overly technical cinematography jargon
-- EXAMPLE FORMAT: "Close-up of hands opening a sleek supplement bottle on a marble countertop, soft morning light from the left. The camera slowly pulls back to reveal a minimal kitchen with plants, warm color grade, high production quality."`,
-}
+export const maxDuration = 90
 
 // POST - analyze a reference video with Gemini and generate a brand-specific recreation prompt
 export async function POST(req: NextRequest) {
@@ -34,7 +8,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
 
-    const { videoUrl, style, brandName, brandResearch, model, productName, productPhonetic, productImageUrls } = await req.json()
+    const { videoUrl, style, brandName, brandResearch, model, productName, productImageUrls } = await req.json()
     if (!videoUrl) return NextResponse.json({ error: 'videoUrl required' }, { status: 400 })
 
     // Download the video and convert to base64 for Gemini
@@ -44,120 +18,144 @@ export async function POST(req: NextRequest) {
     const videoBuffer = await videoRes.arrayBuffer()
     const base64Video = Buffer.from(videoBuffer).toString('base64')
 
-    // Determine MIME type from URL
     const ext = videoUrl.split('.').pop()?.split('?')[0]?.toLowerCase() || 'mp4'
     const mimeType = ext === 'mov' ? 'video/quicktime' : 'video/mp4'
 
-    // Get model-specific prompting guide
-    const modelKey = model === 'kling' ? 'kling' : 'seedance'
-    const modelGuide = MODEL_GUIDES[modelKey]
+    const modelLabel = model === 'kling' ? 'Kling v3' : 'Seedance 2.0'
 
-    // Build brand context from research
-    let brandBlock = ''
-    if (brandResearch) {
-      const r = brandResearch
-      const personas = (r.personas || []).map((p: { name: string; description?: string; hook?: string }) =>
-        `${p.name}: ${p.description || ''} - hook: "${p.hook || ''}"`
-      ).join('\n  ')
-
-      brandBlock = `
-CURRENT CLIENT: ${brandName || 'Unknown'}
-Industry: ${r.industry || 'N/A'}
-Product Category: ${r.productCategory || 'N/A'}
-Price Range: ${r.priceRange || 'N/A'}
-Brand Voice: ${r.brandVoice || 'N/A'}
-Target Personas:
-  ${personas}
-Key Pain Points: ${(r.painPoints || []).slice(0, 5).join('; ')}
-Key Motivators: ${(r.motivators || []).slice(0, 5).join('; ')}
-Key Phrases to Use: ${(r.keyPhrases || []).slice(0, 5).join(', ')}
-Phrases to Avoid: ${(r.avoidPhrases || []).slice(0, 3).join(', ')}
-${productName ? `SPECIFIC PRODUCT: ${productName}${productPhonetic ? ` (pronounced: ${productPhonetic})` : ''}` : ''}
-${productImageUrls?.length ? `Product reference images are provided - the product in the video must match these images exactly.` : ''}`
-    } else if (brandName) {
-      brandBlock = `CURRENT CLIENT: ${brandName}${productName ? `\nSPECIFIC PRODUCT: ${productName}` : ''}`
-    }
-
-    const promptText = `You are a creative director at a performance marketing agency who specializes in AI video generation. You are analyzing a reference video to recreate a similar ad for a specific client using ${modelKey === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}.
-
-YOUR JOB: Watch this reference video, extract the production techniques (camera, lighting, pacing, style), then write a video generation prompt that recreates the same look and feel BUT for the client's brand and products.
-
-${modelGuide}
-
-Do NOT describe the reference video's product or brand. Instead, adapt the production style for this client:
-
-${brandBlock}
-
-Extract and adapt these elements from the reference:
-- Camera work (movement, angle, speed) - keep the same techniques but use the model's preferred camera terms
-- Lighting and color grade - match the mood using the model's preferred lighting keywords
-- Subject and action - replace with this client's product and target audience
-- Environment - adapt to fit this brand's aesthetic
-- Always specify the dominant motion in the scene, these models default to minimal movement otherwise
-
-${style ? `Target style: ${style}` : ''}
-
-CRITICAL:
-- You are writing a prompt FOR ${modelKey === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}, follow its format rules exactly
-- Replace the reference video's product/brand with the client's product
-- Use the client's target audience to inform who appears in the video
-- Be specific and complete, every sentence must be finished
-- Do NOT use emdashes, use commas or hyphens instead
-- Write ONLY the prompt, no labels, no explanations, no intro
-- Follow the word count guidelines for this model
-${productName ? `- The product in the video is "${productName}" - name it specifically in the prompt` : ''}
-${productImageUrls?.length ? `- Product reference images are included below - describe the product's actual appearance (shape, color, packaging) in the prompt so the video model renders it accurately` : ''}`
-
-    // Build content parts: video + product images + prompt text
-    const parts: { inlineData?: { mimeType: string; data: string }; text?: string }[] = [
+    // Step 1: Have Gemini analyze the video first
+    const analysisParts: { inlineData?: { mimeType: string; data: string }; text?: string }[] = [
       { inlineData: { mimeType, data: base64Video } },
+      { text: `Watch this video carefully and describe exactly what you see in detail:
+1. What is the subject/product shown?
+2. What actions or movements happen?
+3. What are the camera movements? (pan, dolly, zoom, static, tracking, handheld, etc.)
+4. What is the lighting? (natural, studio, golden hour, backlit, etc.)
+5. What is the color grade/mood? (warm, cool, cinematic, bright, moody, etc.)
+6. What is the environment/background?
+7. What is the pacing? (slow, fast, dramatic reveals, etc.)
+8. What is the overall production quality level?
+
+Be very specific about what you actually see. Do not make things up.` },
     ]
 
-    // Add product images so Gemini can see the actual product
+    const analysisRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: analysisParts }],
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.3 },
+        }),
+      }
+    )
+
+    if (!analysisRes.ok) {
+      const err = await analysisRes.text()
+      throw new Error(`Gemini analysis error: ${analysisRes.status} ${err.slice(0, 300)}`)
+    }
+
+    const analysisData = await analysisRes.json()
+    const videoDescription = analysisData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+    if (!videoDescription) throw new Error('Could not analyze the video')
+
+    // Step 2: Build the rewrite prompt with brand context
+    let brandInfo = brandName || 'the client'
+    if (brandResearch) {
+      const r = brandResearch
+      brandInfo = `${brandName || 'the client'} (${r.industry || ''}, ${r.productCategory || ''}, ${r.priceRange || ''}). Brand voice: ${r.brandVoice || 'professional'}. Target audience: ${(r.personas || []).map((p: { name: string }) => p.name).join(', ') || 'general consumers'}.`
+    }
+
+    const productDesc = productName || brandName || 'the product'
+
+    // Add product image descriptions
+    let productVisualNote = ''
     if (productImageUrls?.length) {
-      for (const imgUrl of productImageUrls.slice(0, 3)) {
+      // Fetch and include product images in a second call
+      const productParts: { inlineData?: { mimeType: string; data: string }; text?: string }[] = []
+      for (const imgUrl of productImageUrls.slice(0, 2)) {
         try {
           const imgRes = await fetch(imgUrl)
           if (imgRes.ok) {
             const imgBuf = await imgRes.arrayBuffer()
             const imgBase64 = Buffer.from(imgBuf).toString('base64')
             const imgType = imgUrl.match(/\.png/i) ? 'image/png' : 'image/jpeg'
-            parts.push({ inlineData: { mimeType: imgType, data: imgBase64 } })
+            productParts.push({ inlineData: { mimeType: imgType, data: imgBase64 } })
           }
-        } catch { /* skip failed image fetches */ }
+        } catch { /* skip */ }
+      }
+
+      if (productParts.length > 0) {
+        productParts.push({ text: 'Describe this product in one sentence: its shape, color, packaging, and size.' })
+
+        const prodRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: productParts }],
+              generationConfig: { maxOutputTokens: 200, temperature: 0.2 },
+            }),
+          }
+        )
+
+        if (prodRes.ok) {
+          const prodData = await prodRes.json()
+          productVisualNote = prodData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+        }
       }
     }
 
-    parts.push({ text: promptText })
+    const modelRules = model === 'kling'
+      ? '2-4 sentences (40-80 words). Lead with subject details. Use simple camera terms (close-up, wide shot, bird\'s eye view). Add "cinematic, high quality, detailed" as quality boosters.'
+      : '1-3 sentences (30-75 words). Lead with subject/action. Camera movement goes at the end (dolly in, tracking shot, pan left). Add "cinematic, shallow depth of field, 4K" as quality boosters.'
 
-    const res = await fetch(
+    const rewritePrompt = `Here is a detailed breakdown of a reference video:
+
+${videoDescription}
+
+Now rewrite this as a ${modelLabel} video generation prompt for this client:
+CLIENT: ${brandInfo}
+PRODUCT: ${productDesc}
+${productVisualNote ? `PRODUCT APPEARANCE: ${productVisualNote}` : ''}
+${style ? `STYLE: ${style}` : ''}
+
+RULES:
+- Keep the same camera movements, lighting, color grade, and pacing from the reference
+- Replace the original product/subject with "${productDesc}"
+${productVisualNote ? `- Describe the product as: ${productVisualNote}` : ''}
+- ${modelRules}
+- Write as a single paragraph, no labels or explanations
+- Do not use emdashes, use commas or hyphens
+- Every sentence must be complete
+
+Write ONLY the prompt:`
+
+    const rewriteRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [
-            { parts },
-          ],
-          generationConfig: {
-            maxOutputTokens: 2048,
-            temperature: 0.7,
-          },
+          contents: [{ parts: [{ text: rewritePrompt }] }],
+          generationConfig: { maxOutputTokens: 1024, temperature: 0.5 },
         }),
       }
     )
 
-    if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Gemini API error: ${res.status} ${err.slice(0, 300)}`)
+    if (!rewriteRes.ok) {
+      const err = await rewriteRes.text()
+      throw new Error(`Gemini rewrite error: ${rewriteRes.status} ${err.slice(0, 300)}`)
     }
 
-    const data = await res.json()
-    const prompt = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+    const rewriteData = await rewriteRes.json()
+    const prompt = rewriteData.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
 
-    if (!prompt) throw new Error('No prompt generated from video analysis')
+    if (!prompt) throw new Error('No prompt generated')
 
-    return NextResponse.json({ prompt })
+    return NextResponse.json({ prompt, analysis: videoDescription })
   } catch (e: unknown) {
     console.error('Video analysis error:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })

@@ -75,6 +75,9 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [selectedVoice, setSelectedVoice] = useState('')
   const [voices, setVoices] = useState<{ voice_id: string; name: string; category: string }[]>([])
   const [voiceLoading, setVoiceLoading] = useState(false)
+  const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null)
+  const [voicePreviewing, setVoicePreviewing] = useState(false)
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
 
   // Pre-fill from HyperListening if navigated with a video prompt
   useEffect(() => {
@@ -322,6 +325,35 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
       setPollStatus('')
       onToast(`Video failed: ${msg}`, 'error')
     }
+  }
+
+  const handleVoicePreview = async () => {
+    if (!voiceScript.trim() || !selectedVoice) { onToast('Write a script and select a voice first', 'error'); return }
+    setVoicePreviewing(true)
+    try {
+      const scriptText = productPhonetic && productName
+        ? voiceScript.replace(new RegExp(productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), productPhonetic)
+        : voiceScript
+      const res = await fetch('/api/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: scriptText, voiceId: selectedVoice }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      if (data.audioUrl) {
+        setVoicePreviewUrl(data.audioUrl)
+        // Auto-play
+        if (voiceAudioRef.current) {
+          voiceAudioRef.current.src = data.audioUrl
+          voiceAudioRef.current.play()
+        }
+        onToast('Preview ready - adjust script and try again if needed', 'success')
+      }
+    } catch (err: unknown) {
+      onToast(`Preview failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setVoicePreviewing(false)
   }
 
   const generateVoiceover = async (vidUrl: string) => {
@@ -627,6 +659,21 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                     rows={3}
                   />
                 </div>
+                <Button
+                  onClick={handleVoicePreview}
+                  disabled={voicePreviewing || !voiceScript.trim() || !selectedVoice}
+                  variant="secondary"
+                  size="sm"
+                  className="w-full justify-center"
+                >
+                  {voicePreviewing ? <><LoadingSpinner size={14} /> Generating Preview...</> : 'Preview Voice'}
+                </Button>
+                {voicePreviewUrl && (
+                  <div className="space-y-2">
+                    <audio ref={voiceAudioRef} src={voicePreviewUrl} controls className="w-full h-8" />
+                    <div className="text-2xs text-text-dim">Adjust your script and preview again until it sounds right</div>
+                  </div>
+                )}
                 {voiceLoading && (
                   <div className="flex items-center gap-2 text-xs text-text-dim">
                     <LoadingSpinner size={12} /> Generating voiceover...
