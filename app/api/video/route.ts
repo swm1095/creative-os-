@@ -255,12 +255,9 @@ export async function GET(req: NextRequest) {
     const responseUrl = req.nextUrl.searchParams.get('responseUrl')
     if (!responseUrl) return NextResponse.json({ error: 'responseUrl required' }, { status: 400 })
 
-    // Do NOT add query params to fal.ai URLs - it breaks them
+    // Only send auth header to fal.ai - no extra headers that might confuse it
     const res = await fetch(responseUrl, {
-      headers: {
-        'Authorization': `Key ${falKey}`,
-        'Cache-Control': 'no-cache',
-      },
+      headers: { 'Authorization': `Key ${falKey}` },
       cache: 'no-store',
     })
 
@@ -295,9 +292,19 @@ export async function GET(req: NextRequest) {
     }
 
     const errBody = await res.text().catch(() => '')
-    console.log(`Poll unexpected ${res.status}:`, errBody.slice(0, 300))
+    console.log(`Poll unexpected ${res.status}:`, errBody.slice(0, 500))
+    console.log('Response URL was:', responseUrl)
+
+    // 400 likely means the response URL is malformed or expired
+    if (res.status === 400 || res.status === 404) {
+      return NextResponse.json(
+        { status: 'error', error: `Video job not found or expired (${res.status}). Try generating again.` },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+      )
+    }
+
     return NextResponse.json(
-      { status: 'error', error: `fal.ai returned status ${res.status}` },
+      { status: 'error', error: `fal.ai returned status ${res.status}: ${errBody.slice(0, 100)}` },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     )
   } catch (e: unknown) {
