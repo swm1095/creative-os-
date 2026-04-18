@@ -78,9 +78,9 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [voicePreviewUrl, setVoicePreviewUrl] = useState<string | null>(null)
   const [voicePreviewing, setVoicePreviewing] = useState(false)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
-  const [voiceStability, setVoiceStability] = useState(0.5)
+  const [voiceStability, setVoiceStability] = useState(0.05)
   const [voiceSimilarity, setVoiceSimilarity] = useState(0.75)
-  const [voiceStyle, setVoiceStyle] = useState(0.5)
+  const [voiceStyle, setVoiceStyle] = useState(0.75)
   const [voiceSpeed, setVoiceSpeed] = useState(1.0)
 
   // Pre-fill from HyperListening if navigated with a video prompt
@@ -900,7 +900,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             </div>
           ) : (
             <Button onClick={() => handleGenerate()} className="w-full py-3.5 text-sm justify-center">
-              Generate {style.charAt(0).toUpperCase() + style.slice(1)} Video
+              Generate Video
             </Button>
           )}
         </div>
