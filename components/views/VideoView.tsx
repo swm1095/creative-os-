@@ -62,6 +62,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   // Feedback chat
   const [feedback, setFeedback] = useState('')
   const [generationCount, setGenerationCount] = useState(0)
+  const [lastUsedPrompt, setLastUsedPrompt] = useState('')
 
   // Video analysis
   const [analyzing, setAnalyzing] = useState(false)
@@ -338,6 +339,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
     const isImageMode = mode === 'image-to-video' && creatorImageUrl
 
     const fullPrompt = effectivePrompt
+    setLastUsedPrompt(fullPrompt)
 
     onToast(useVoice
       ? `Generating video + voiceover + lip sync pipeline...`
@@ -1050,9 +1052,15 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                   size="sm"
                   variant="secondary"
                   className="justify-center"
-                  onClick={() => setAspectRatio('4:5')}
+                  disabled={generating}
+                  onClick={() => {
+                    setAspectRatio('4:5')
+                    onToast('Regenerating at 4:5 with the same prompt...', 'info')
+                    // Delay to let aspectRatio state update
+                    setTimeout(() => handleGenerate(), 150)
+                  }}
                 >
-                  Resize 4:5
+                  {generating ? 'Generating...' : 'Reframe 4:5'}
                 </Button>
               </div>
             )}
