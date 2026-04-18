@@ -193,13 +193,34 @@ Return 10-15 insights in JSON format:
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
   const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) return []
+  if (!jsonMatch) {
+    console.error('Pass 3: No JSON found in response')
+    return []
+  }
 
-  const parsed = JSON.parse(jsonMatch[0])
-  return (parsed.insights || []).map((i: ListeningInsight, idx: number) => ({
-    ...i,
-    id: `insight-${Date.now()}-${idx}`,
-  }))
+  try {
+    const parsed = JSON.parse(jsonMatch[0])
+    return (parsed.insights || []).map((i: ListeningInsight, idx: number) => ({
+      ...i,
+      id: `insight-${Date.now()}-${idx}`,
+    }))
+  } catch (e) {
+    console.error('Pass 3: JSON parse failed, attempting repair')
+    // Try to fix common JSON issues (trailing commas, unescaped quotes)
+    try {
+      const cleaned = jsonMatch[0]
+        .replace(/,\s*]/g, ']')  // trailing commas in arrays
+        .replace(/,\s*}/g, '}')  // trailing commas in objects
+      const parsed = JSON.parse(cleaned)
+      return (parsed.insights || []).map((i: ListeningInsight, idx: number) => ({
+        ...i,
+        id: `insight-${Date.now()}-${idx}`,
+      }))
+    } catch {
+      console.error('Pass 3: JSON repair also failed:', e)
+      return []
+    }
+  }
 }
 
 // ── POST handler ─────────────────────────────────────────────────────────
@@ -313,24 +334,30 @@ export async function POST(req: NextRequest) {
     console.log('Google Trends...')
     const trends = await getGoogleTrendsDeep(research.searchKeywords || [brand.name])
 
-    // ── Multi-pass Claude analysis ──
-    console.log('Pass 1/3: Extracting themes...')
-    const themes = await extractThemes(client, uniqueSignals, research)
+    // ── Multi-pass Claude analysis (wrapped in try/catch so partial failures don't kill the scan) ──
+    let insights: ListeningInsight[] = []
+    try {
+      console.log('Pass 1/3: Extracting themes...')
+      const themes = await extractThemes(client, uniqueSignals, research)
 
-    console.log('Pass 2/3: Identifying patterns...')
-    const patterns = await identifyPatterns(client, themes, trends, research)
+      console.log('Pass 2/3: Identifying patterns...')
+      const patterns = await identifyPatterns(client, themes, trends, research)
 
-    // Include competitor intel if available
-    let competitorContext = ''
-    if (brand.competitor_research && Array.isArray(brand.competitor_research)) {
-      competitorContext = '\n\nCOMPETITOR INTELLIGENCE (from prior deep analysis):\n' +
-        (brand.competitor_research as Array<{ name: string; weaknesses?: string[]; adAngles?: string[] }>)
-          .map(c => `${c.name}: weaknesses: ${(c.weaknesses || []).slice(0, 3).join('; ')} | ad angles: ${(c.adAngles || []).slice(0, 3).join('; ')}`)
-          .join('\n')
+      // Include competitor intel if available
+      let competitorContext = ''
+      if (brand.competitor_research && Array.isArray(brand.competitor_research)) {
+        competitorContext = '\n\nCOMPETITOR INTELLIGENCE (from prior deep analysis):\n' +
+          (brand.competitor_research as Array<{ name: string; weaknesses?: string[]; adAngles?: string[] }>)
+            .map(c => `${c.name}: weaknesses: ${(c.weaknesses || []).slice(0, 3).join('; ')} | ad angles: ${(c.adAngles || []).slice(0, 3).join('; ')}`)
+            .join('\n')
+      }
+
+      console.log('Pass 3/3: Building creative insights...')
+      insights = await buildCreativeInsights(client, patterns + competitorContext, research, brand.name)
+    } catch (analysisErr) {
+      console.error('Claude analysis failed:', analysisErr)
+      // Return signals without insights rather than failing entirely
     }
-
-    console.log('Pass 3/3: Building creative insights...')
-    const insights = await buildCreativeInsights(client, patterns + competitorContext, research, brand.name)
 
     // Source breakdown for UI
     const sourceBreakdown = {
