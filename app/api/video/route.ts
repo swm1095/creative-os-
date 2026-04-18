@@ -292,12 +292,20 @@ export async function GET(req: NextRequest) {
       )
     }
 
+    // fal.ai returns 400 with "Request is still in progress" when not ready
     const errBody = await res.text().catch(() => '')
-    console.log(`Poll unexpected ${res.status}:`, errBody.slice(0, 500))
-    console.log('Response URL was:', responseUrl)
+    console.log(`Poll ${res.status}:`, errBody.slice(0, 300))
 
+    if (errBody.includes('still in progress')) {
+      return NextResponse.json(
+        { status: 'processing' },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+      )
+    }
+
+    // Actual error
     return NextResponse.json(
-      { status: 'error', error: `fal.ai poll error (${res.status}): ${errBody.slice(0, 200)}` },
+      { status: 'error', error: `fal.ai error (${res.status}): ${errBody.slice(0, 200)}` },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     )
   } catch (e: unknown) {
