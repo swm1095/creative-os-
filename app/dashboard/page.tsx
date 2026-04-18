@@ -108,7 +108,7 @@ export default function DashboardPage() {
 
   // Get topbar title based on current view
   const getTopbar = () => {
-    if (activeView === 'hub') return { title: 'HyperCreate', subtitle: `Welcome back, Sam · ${brands.length} brands active` }
+    if (activeView === 'hub') return { title: 'HyperCreate', subtitle: `Welcome back, ${user?.name || 'there'} · ${brands.length} brands active` }
     const tool = TOOLS.find(t => t.id === currentTool)
     const viewDef = tool?.views.find(v => v.id === activeView)
     const brandPrefix = activeBrand ? `${activeBrand.name} ` : ''
@@ -174,25 +174,26 @@ export default function DashboardPage() {
       case 'integrations':
         return <DataConnectionsView onToast={addToast} />
       case 'brand':
-        return <BrandView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
+        return <BrandView brand={activeBrand} onToast={addToast} onBrandUpdate={isClient ? () => {} : updateBrand} isClient={isClient} />
       case 'chat':
         return <ChatView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} />
       case 'copy':
         return <CopyView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'listening':
-        return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={updateBrand} addBackgroundTask={addTask} />
+        return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={isClient ? undefined : updateBrand} addBackgroundTask={isClient ? undefined : addTask} isClient={isClient} />
       case 'brand-research':
         return (
           <BrandResearchView
             brand={activeBrand}
             onToast={addToast}
-            onBrandUpdate={updateBrand}
+            onBrandUpdate={isClient ? () => {} : updateBrand}
             onCreateBrand={createBrand}
             onRefreshBrands={refreshBrands}
             onSetActiveBrand={setActiveBrand}
             activeTab="research"
             onChangeTab={(tab) => navigate(null, tab === 'research' ? 'brand-research' : 'saved-insights')}
-            addBackgroundTask={addTask}
+            addBackgroundTask={isClient ? undefined : addTask}
+            isClient={isClient}
           />
         )
       case 'saved-insights':

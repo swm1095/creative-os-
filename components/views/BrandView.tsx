@@ -13,6 +13,7 @@ interface BrandViewProps {
   brand: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
   onBrandUpdate: (brandId: string, updates: Partial<Brand>) => void
+  isClient?: boolean
 }
 
 interface BrandAsset {
@@ -22,7 +23,7 @@ interface BrandAsset {
   created?: string
 }
 
-export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewProps) {
+export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: BrandViewProps) {
   const [analyzing, setAnalyzing] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -294,11 +295,11 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
           <SectionHeader
             title="Target Personas"
             subtitle={`${brand?.research?.personas?.length || 0} defined`}
-            action={
+            action={!isClient ? (
               <Button variant="ghost" size="sm" onClick={() => setShowAddPersona(!showAddPersona)}>
                 {showAddPersona ? 'Cancel' : '+ Add Persona'}
               </Button>
-            }
+            ) : undefined}
           />
           {showAddPersona && (
             <div className="bg-surface border border-border rounded-lg p-4 mb-3 space-y-2">
@@ -476,14 +477,16 @@ export default function BrandView({ brand, onToast, onBrandUpdate }: BrandViewPr
             </button>
           </div>
 
-          <Button onClick={handleAnalyze} disabled={analyzing} variant="secondary" className="w-full justify-center">
-            {analyzing ? <><LoadingSpinner size={14} /> Analyzing...</> : 'Re-analyze with Gemini'}
-          </Button>
+          {!isClient && (
+            <Button onClick={handleAnalyze} disabled={analyzing} variant="secondary" className="w-full justify-center">
+              {analyzing ? <><LoadingSpinner size={14} /> Analyzing...</> : 'Re-analyze with Gemini'}
+            </Button>
+          )}
         </Card>
       </div>
 
-      {/* Client Sign-In Section */}
-      {brand && (
+      {/* Client Sign-In Section - team only */}
+      {brand && !isClient && (
         <div className="col-span-full mt-6">
           <Card title="Client Access" subtitle="Create a login for this client to view their dashboard">
             {clientLoginCreated ? (

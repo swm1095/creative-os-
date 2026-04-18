@@ -17,6 +17,7 @@ interface ListeningViewProps {
   onNavigate?: (tool: ToolId, view: ViewId, context?: Record<string, unknown>) => void
   onBrandUpdate?: (brandId: string, updates: Partial<Brand>) => void
   addBackgroundTask?: (type: 'research' | 'competitor-analysis' | 'scan' | 'generate' | 'ugc-scripts', brandId: string, brandName: string, message: string, fn: (signal: AbortSignal) => Promise<unknown>) => string
+  isClient?: boolean
 }
 
 const priorityColor: Record<string, 'green' | 'amber' | 'red'> = {
@@ -60,7 +61,7 @@ interface UGCScriptFramework {
   scene_notes?: string
 }
 
-export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdate, addBackgroundTask }: ListeningViewProps) {
+export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdate, addBackgroundTask, isClient }: ListeningViewProps) {
   const [signals, setSignals] = useState<TrackedSignal[]>([])
   const [insights, setInsights] = useState<EnrichedInsight[]>([])
   const [trends, setTrends] = useState<{ keyword: string; trending: boolean; suggestions?: string[] }[]>([])
@@ -252,7 +253,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       <PageHeader
         title="Social Listening"
         subtitle={`${hoursAgo !== null ? `Last scanned ${hoursAgo}h ago` : 'Never scanned'} · ${brand?.research?.searchKeywords?.length || 0} keywords tracked`}
-        action={
+        action={!isClient ? (
           <>
             <select
               value={scanCadence}
@@ -267,7 +268,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
               {loading ? <><LoadingSpinner size={14} /> Scanning...</> : hasRun ? 'Rescan' : 'Scan Now'}
             </Button>
           </>
-        }
+        ) : undefined}
       />
 
       {loading ? (
@@ -309,8 +310,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
         </div>
       ) : (
         <>
-          {/* Amazon product URL bar - always visible */}
-          <div className="flex gap-2 mb-4 items-center">
+          {/* Amazon product URL bar - team only */}
+          {!isClient && <div className="flex gap-2 mb-4 items-center">
             <span className="text-2xs font-bold text-text-muted uppercase tracking-wider shrink-0">Amazon ({brand?.competitor_urls?.length || 0})</span>
             <input
               type="url"
@@ -335,7 +336,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
             >
               Add + Save
             </Button>
-          </div>
+          </div>}
 
           {/* Source breakdown */}
           <div className="flex gap-2 mb-4 text-2xs">

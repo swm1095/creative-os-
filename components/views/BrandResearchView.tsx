@@ -30,9 +30,10 @@ interface BrandResearchViewProps {
   activeTab?: 'research' | 'saved-insights'
   onChangeTab?: (tab: 'research' | 'saved-insights') => void
   addBackgroundTask?: (type: 'research' | 'competitor-analysis' | 'scan' | 'generate' | 'ugc-scripts', brandId: string, brandName: string, message: string, fn: (signal: AbortSignal) => Promise<unknown>) => string
+  isClient?: boolean
 }
 
-export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab, addBackgroundTask }: BrandResearchViewProps) {
+export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab, addBackgroundTask, isClient }: BrandResearchViewProps) {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
@@ -141,8 +142,8 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
         </div>
       )}
 
-      {/* Add new brand */}
-      <Card title="Add New Brand" subtitle="Enter a brand name and website - Claude will do deep research automatically" className="mb-6">
+      {/* Add new brand - team only */}
+      {!isClient && <Card title="Add New Brand" subtitle="Enter a brand name and website - Claude will do deep research automatically" className="mb-6">
         <div className="flex gap-3 items-end">
           <FormInput label="Brand Name" placeholder="e.g. Fulton" value={newBrandName} onChange={e => setNewBrandName(e.target.value)} className="flex-1" />
           <FormInput label="Website URL" placeholder="https://walkfulton.com" value={newBrandUrl} onChange={e => setNewBrandUrl(e.target.value)} className="flex-1" />
@@ -150,10 +151,10 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             {researching ? <><LoadingSpinner size={14} /> Researching...</> : 'Add + Research'}
           </Button>
         </div>
-      </Card>
+      </Card>}
 
-      {/* AMAZON PRODUCT URL - ALWAYS VISIBLE AT TOP */}
-      {brand && (
+      {/* AMAZON PRODUCT URL - team only */}
+      {brand && !isClient && (
         <Card className="mb-6">
           <div className="text-sm font-bold mb-1">Track Competitor Products on Amazon</div>
           <div className="text-2xs text-text-dim mb-3">Paste Amazon product URLs to mine customer reviews. HyperListening uses these on every scan.</div>
@@ -195,7 +196,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
         <PageHeader
           title={`${brand.name}`}
           subtitle={`Researched ${research.researchDate ? new Date(research.researchDate).toLocaleDateString() : 'recently'}`}
-          action={
+          action={!isClient ? (
             <div className="flex gap-2">
               <Button variant="secondary" size="sm" onClick={runCompetitorAnalysis} disabled={researchingCompetitors}>
                 {researchingCompetitors ? <><LoadingSpinner size={12} /> Analyzing...</> : 'Analyze Competitors'}
@@ -204,7 +205,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
                 {researching ? <><LoadingSpinner size={12} /> Running...</> : 'Re-run Research'}
               </Button>
             </div>
-          }
+          ) : undefined}
         />
       )}
 
