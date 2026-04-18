@@ -76,6 +76,9 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [ugcScripts, setUgcScripts] = useState<UGCScriptFramework | null>(null)
   const [ugcInsightTitle, setUgcInsightTitle] = useState('')
   const [showUgcModal, setShowUgcModal] = useState(false)
+  const [generatingVideoPrompt, setGeneratingVideoPrompt] = useState<string | null>(null)
+  const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
+  const [showVideoModal, setShowVideoModal] = useState(false)
 
   const hasResearch = brand?.research_completed || !!brand?.research
 
@@ -201,6 +204,27 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       onToast(`UGC generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setGeneratingUGC(null)
+  }
+
+  const generateVideoPrompt = async (insight: EnrichedInsight) => {
+    if (!brand?.id) { onToast('No brand selected', 'error'); return }
+    setGeneratingVideoPrompt(insight.id)
+    onToast(`Generating video concept from "${insight.title}"...`, 'info')
+    try {
+      const res = await fetch('/api/video-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: brand.id, insight, style: 'ugc' }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setVideoPromptData(data)
+      setShowVideoModal(true)
+      onToast(`Video concept ready - ${data.scenes?.length || 0} scenes`, 'success')
+    } catch (err: unknown) {
+      onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setGeneratingVideoPrompt(null)
   }
 
   const generateFromInsight = (insight: EnrichedInsight, type: 'copy' | 'image') => {
@@ -381,16 +405,19 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                         {/* Action buttons */}
                         <div className="flex gap-2 flex-wrap">
                           <Button size="sm" onClick={() => generateUGCScripts(insight)} disabled={generatingUGC === insight.id}>
-                            {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '🎬 Generate UGC Scripts'}
+                            {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '🎬 UGC Scripts'}
+                          </Button>
+                          <Button size="sm" onClick={() => generateVideoPrompt(insight)} disabled={generatingVideoPrompt === insight.id}>
+                            {generatingVideoPrompt === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '📹 Generate Video'}
                           </Button>
                           <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'copy')}>
-                            ✍ Generate Copy
+                            ✍ Copy
                           </Button>
                           <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'image')}>
-                            🖼 Generate Ad
+                            🖼 Ad
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => saveInsight(insight)} disabled={savingInsight === insight.id}>
-                            {savingInsight === insight.id ? 'Saving...' : '📁 Save to Folder'}
+                            {savingInsight === insight.id ? 'Saving...' : '📁 Save'}
                           </Button>
                         </div>
 
@@ -546,6 +573,83 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           </div>
         ) : (
           <div className="text-center py-8 text-text-dim">No scripts generated</div>
+        )}
+      </Modal>
+
+      {/* Video Prompt Modal */}
+      <Modal
+        open={showVideoModal}
+        onClose={() => setShowVideoModal(false)}
+        title="Video Concept"
+        subtitle={videoPromptData?.title || 'AI-generated video scenes'}
+        maxWidth="max-w-3xl"
+      >
+        {videoPromptData ? (
+          <div className="space-y-4">
+            {/* Recommendation */}
+            <div className="flex gap-2 mb-2">
+              <span className="text-2xs bg-blue-light text-blue px-2 py-0.5 rounded font-bold">
+                Model: {videoPromptData.recommended_model === 'seedance' ? 'Seedance 2.0' : 'Kling v3'}
+              </span>
+              <span className="text-2xs bg-blue-light text-blue px-2 py-0.5 rounded font-bold">
+                Style: {videoPromptData.recommended_style}
+              </span>
+            </div>
+
+            {/* Scenes */}
+            {videoPromptData.scenes?.map((scene, i) => (
+              <div key={i} className="bg-page border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xs font-bold text-blue bg-blue-light px-2 py-0.5 rounded">
+                    Scene {scene.sceneNumber}
+                  </span>
+                  <span className="text-2xs text-text-dim">{scene.duration}s</span>
+                  <span className="text-2xs text-text-dim">{scene.camera}</span>
+                </div>
+                <p className="text-sm text-text-secondary mb-2">{scene.description}</p>
+                <div className="bg-elevated border border-border rounded px-3 py-2">
+                  <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1">Video Prompt</div>
+                  <p className="text-xs text-text-dim leading-relaxed">{scene.prompt}</p>
+                </div>
+              </div>
+            ))}
+
+            {/* Full prompt for single-video generation */}
+            {videoPromptData.full_prompt && (
+              <div className="bg-page border border-border rounded-lg p-4">
+                <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-2">Full Combined Prompt</div>
+                <p className="text-sm text-text-secondary leading-relaxed mb-3">{videoPromptData.full_prompt}</p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      // Store prompt and navigate to HyperVideo
+                      localStorage.setItem('hc-video-prompt', videoPromptData.full_prompt)
+                      localStorage.setItem('hc-video-model', videoPromptData.recommended_model || 'seedance')
+                      localStorage.setItem('hc-video-style', videoPromptData.recommended_style || 'ugc')
+                      setShowVideoModal(false)
+                      if (onNavigate) onNavigate('hypervideo', 'video')
+                      onToast('Prompt loaded into HyperVideo', 'info')
+                    }}
+                  >
+                    Open in HyperVideo
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(videoPromptData.full_prompt)
+                      onToast('Full prompt copied', 'success')
+                    }}
+                  >
+                    Copy Prompt
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-text-dim">No video concept generated</div>
         )}
       </Modal>
     </div>

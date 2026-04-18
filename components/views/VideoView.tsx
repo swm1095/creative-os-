@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Brand } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -38,6 +38,16 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
   const [generating, setGenerating] = useState(false)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [error, setError] = useState('')
+
+  // Pre-fill from HyperListening if navigated with a video prompt
+  useEffect(() => {
+    const savedPrompt = localStorage.getItem('hc-video-prompt')
+    const savedModel = localStorage.getItem('hc-video-model')
+    const savedStyle = localStorage.getItem('hc-video-style')
+    if (savedPrompt) { setPrompt(savedPrompt); localStorage.removeItem('hc-video-prompt') }
+    if (savedModel && (savedModel === 'seedance' || savedModel === 'kling')) { setModel(savedModel); localStorage.removeItem('hc-video-model') }
+    if (savedStyle && ['ugc', 'cinematic', 'animated', 'product'].includes(savedStyle)) { setStyle(savedStyle as VideoStyle); localStorage.removeItem('hc-video-style') }
+  }, [])
 
   const handleGenerate = async () => {
     if (!prompt.trim()) { onToast('Enter a video prompt', 'error'); return }
