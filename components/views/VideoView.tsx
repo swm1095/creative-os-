@@ -890,9 +890,11 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                   className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none"
                 >
                   <option value="9:16">9:16 (Stories/Reels)</option>
-                  <option value="4:5">4:5 (Feed)</option>
+                  <option value="3:4">3:4 (Feed)</option>
                   <option value="1:1">1:1 (Square)</option>
+                  <option value="4:3">4:3 (Landscape Short)</option>
                   <option value="16:9">16:9 (Landscape)</option>
+                  <option value="21:9">21:9 (Cinematic)</option>
                 </select>
               </div>
               <div>
@@ -918,7 +920,7 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
             <div className="flex gap-2 mt-3">
               {[
                 { label: '9:16', value: '9:16' },
-                { label: '4:5', value: '4:5' },
+                { label: '3:4', value: '3:4' },
                 { label: '1:1', value: '1:1' },
                 { label: '16:9', value: '16:9' },
               ].map(f => (
@@ -1054,13 +1056,12 @@ export default function VideoView({ brand, brandId, onToast }: VideoViewProps) {
                   className="justify-center"
                   disabled={generating}
                   onClick={() => {
-                    setAspectRatio('4:5')
-                    onToast('Regenerating at 4:5 with the same prompt...', 'info')
-                    // Delay to let aspectRatio state update
+                    setAspectRatio('3:4')
+                    onToast('Regenerating at 3:4 (feed) with the same prompt...', 'info')
                     setTimeout(() => handleGenerate(), 150)
                   }}
                 >
-                  {generating ? 'Generating...' : 'Reframe 4:5'}
+                  {generating ? 'Generating...' : 'Reframe 3:4'}
                 </Button>
               </div>
             )}
