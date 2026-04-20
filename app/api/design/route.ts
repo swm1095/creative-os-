@@ -172,6 +172,7 @@ Rules:
 async function generateCreative(anthropicKey: string, body: {
   referenceImage?: string
   productImage?: string
+  sourceImage?: string
   brandName: string
   brandColors: string[]
   hook: string
@@ -184,7 +185,7 @@ async function generateCreative(anthropicKey: string, body: {
   style: Record<string, unknown>
 }) {
   const {
-    referenceImage, productImage, brandName, brandColors,
+    referenceImage, productImage, sourceImage, brandName, brandColors,
     hook, subheadline, benefits, cta, price, salePrice,
     aspectRatio, style,
   } = body
@@ -197,8 +198,9 @@ async function generateCreative(anthropicKey: string, body: {
 
   const promptText = `Create a paid social ad creative image for ${brandName}.
 
-${referenceImage ? 'REFERENCE: The first image is a reference ad. Match its layout, typography style, and composition exactly. Do NOT copy its text or product - only the visual design structure.' : ''}
-${productImage ? 'PRODUCT: The second image is the product. Feature it prominently in the ad.' : ''}
+${sourceImage ? 'DESIGN REFERENCE: One of the images below is a previously generated 1:1 version of this ad. Recreate the EXACT same design, colors, layout, and text but reformat it for the new aspect ratio. Keep everything identical - same fonts, same colors, same copy placement - just reflow for the new dimensions.' : ''}
+${referenceImage && !sourceImage ? 'LAYOUT REFERENCE: One of the images is a reference ad from a different brand. Use ONLY its layout structure and composition as inspiration (where the headline goes, where the product sits, how benefits are listed). Do NOT copy any photos, icons, logos, text, colors, or visual elements from it. Create completely fresh visuals using only the brand colors and product image provided.' : ''}
+${productImage ? 'PRODUCT: One of the images is the actual product photo. Feature it prominently in the ad.' : ''}
 
 DESIGN SPECS:
 - Dimensions: ${dimensions[aspectRatio] || '1080x1080'}
@@ -229,7 +231,11 @@ CRITICAL REQUIREMENTS:
     console.log('Trying Claude image generation...')
     const claudeContent: Array<Record<string, unknown>> = []
 
-    if (referenceImage && !referenceImage.startsWith('http')) {
+    if (sourceImage && !sourceImage.startsWith('http')) {
+      const match = sourceImage.match(/^data:(image\/\w+);base64,(.+)$/)
+      if (match) claudeContent.push({ type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } })
+    }
+    if (referenceImage && !sourceImage && !referenceImage.startsWith('http')) {
       const match = referenceImage.match(/^data:(image\/\w+);base64,(.+)$/)
       if (match) claudeContent.push({ type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } })
     }
@@ -280,7 +286,11 @@ CRITICAL REQUIREMENTS:
   interface Part { text?: string; inlineData?: { mimeType: string; data: string } }
   const parts: Part[] = []
 
-  if (referenceImage && !referenceImage.startsWith('http')) {
+  if (sourceImage && !sourceImage.startsWith('http')) {
+    const match = sourceImage.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
+  }
+  if (referenceImage && !sourceImage && !referenceImage.startsWith('http')) {
     const match = referenceImage.match(/^data:(image\/\w+);base64,(.+)$/)
     if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
   }

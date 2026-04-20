@@ -5,6 +5,7 @@ import { Brand } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ImagePreview from '@/components/ui/ImagePreview'
 
 interface DesignViewProps {
   brand?: Brand | null
@@ -74,6 +75,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({})
   const [generating, setGenerating] = useState(false)
   const [activeAspect, setActiveAspect] = useState<'all' | '1:1' | '4:5' | '9:16'>('all')
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   // Load brand colors and fonts from brand data
   useEffect(() => {
@@ -85,7 +87,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
     if (brand?.brand_fonts?.length) {
       setBrandFont(brand.brand_fonts[0])
     }
-  }, [brand?.id, brand?.color, brand?.brand_colors, brand?.brand_fonts])
+  }, [brand?.id, brand?.color, brand?.brand_colors, brand?.brand_fonts, brand?.research])
 
   const handleRefUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -179,43 +181,76 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
     setCopyLoading(false)
   }
 
+  const generateOneAspect = async (ar: string, sourceImage?: string) => {
+    const res = await fetch('/api/design', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'generate-creative',
+        referenceImage: refImage || undefined,
+        productImage: productImage || undefined,
+        sourceImage, // previously generated 1:1 to keep design consistent
+        brandName: brand?.name || 'Brand',
+        brandColors,
+        hook: hookText,
+        subheadline: subText,
+        benefits: benefitsText,
+        cta: ctaText,
+        price: priceText || undefined,
+        salePrice: salePriceText || undefined,
+        aspectRatio: ar,
+        style: refAnalysis || {},
+      }),
+    })
+    const data = await res.json()
+    if (data.imageUrl) return data.imageUrl
+    if (data.error) throw new Error(data.error)
+    throw new Error('No image returned')
+  }
+
   const handleGenerate = async (aspect?: string) => {
     if (!hookText.trim()) { onToast('Add a headline first', 'error'); return }
     setGenerating(true)
 
-    const aspects = aspect ? [aspect] : ['1:1', '4:5', '9:16']
-    onToast(`Generating ${aspects.length} creative${aspects.length > 1 ? 's' : ''}...`, 'info')
-
-    for (const ar of aspects) {
+    if (aspect) {
+      // Single format regeneration - use existing 1:1 as reference if available
+      onToast(`Regenerating ${aspect}...`, 'info')
       try {
-        const res = await fetch('/api/design', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'generate-creative',
-            referenceImage: refImage || undefined,
-            productImage: productImage || undefined,
-            brandName: brand?.name || 'Brand',
-            brandColors,
-            hook: hookText,
-            subheadline: subText,
-            benefits: benefitsText,
-            cta: ctaText,
-            price: priceText || undefined,
-            salePrice: salePriceText || undefined,
-            aspectRatio: ar,
-            style: refAnalysis || {},
-          }),
-        })
-        const data = await res.json()
-        if (data.imageUrl) {
-          setGeneratedImages(prev => ({ ...prev, [ar]: data.imageUrl }))
-          onToast(`${ar} creative generated`, 'success')
-        } else if (data.error) {
-          onToast(`${ar} failed: ${data.error}`, 'error')
-        }
+        const url = await generateOneAspect(aspect, generatedImages['1:1'] || undefined)
+        setGeneratedImages(prev => ({ ...prev, [aspect]: url }))
+        onToast(`${aspect} regenerated`, 'success')
       } catch (err: unknown) {
-        onToast(`${ar} failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+        onToast(`${aspect} failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      }
+    } else {
+      // Full generation: 1:1 first, then use it as reference for 4:5 and 9:16
+      onToast('Generating 1:1 creative first...', 'info')
+      try {
+        const squareUrl = await generateOneAspect('1:1')
+        setGeneratedImages(prev => ({ ...prev, '1:1': squareUrl }))
+        onToast('1:1 done. Generating 4:5 and 9:16 to match...', 'info')
+
+        // Generate 4:5 and 9:16 in parallel, using 1:1 as the design reference
+        const [fourFive, nineStx] = await Promise.allSettled([
+          generateOneAspect('4:5', squareUrl),
+          generateOneAspect('9:16', squareUrl),
+        ])
+
+        if (fourFive.status === 'fulfilled') {
+          setGeneratedImages(prev => ({ ...prev, '4:5': fourFive.value }))
+        } else {
+          onToast(`4:5 failed: ${fourFive.reason?.message || 'Unknown error'}`, 'error')
+        }
+
+        if (nineStx.status === 'fulfilled') {
+          setGeneratedImages(prev => ({ ...prev, '9:16': nineStx.value }))
+        } else {
+          onToast(`9:16 failed: ${nineStx.reason?.message || 'Unknown error'}`, 'error')
+        }
+
+        onToast('All creatives generated', 'success')
+      } catch (err: unknown) {
+        onToast(`Generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
       }
     }
     setGenerating(false)
@@ -384,7 +419,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
                         </span>
                       </div>
                       {generatedImages[a] ? (
-                        <div className="relative group">
+                        <div className="relative group cursor-pointer" onClick={() => setPreviewImage(generatedImages[a])}>
                           <img src={generatedImages[a]} alt={`${a} creative`}
                             className={`rounded-lg border border-border shadow-lg ${
                               a === '1:1' ? 'w-64 h-64' : a === '4:5' ? 'w-56 h-70' : 'w-44 h-78'
@@ -560,6 +595,8 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
           )}
         </div>
       </div>
+
+      <ImagePreview src={previewImage || ''} open={!!previewImage} onClose={() => setPreviewImage(null)} />
     </div>
   )
 }
