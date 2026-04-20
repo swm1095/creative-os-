@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Brand } from '@/lib/types'
 import Button from '@/components/ui/Button'
-import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ImagePreview from '@/components/ui/ImagePreview'
 
@@ -11,6 +10,55 @@ interface DesignViewProps {
   brand?: Brand | null
   brandId?: string
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
+}
+
+// ── Layout system: normalized 0-1 coords per element per aspect ──
+const DEFAULT_LAYOUT: Record<string, Record<string, { x: number; y: number; w: number; h: number }>> = {
+  '1x1': {
+    headline: { x: 0.075, y: 0.08, w: 0.6, h: 0.42 },
+    subhead:  { x: 0.075, y: 0.56, w: 0.6, h: 0.07 },
+    bullets:  { x: 0.075, y: 0.65, w: 0.72, h: 0.28 },
+    cta:      { x: 0.075, y: 0.88, w: 0.36, h: 0.08 },
+    price:    { x: 0.70,  y: 0.10, w: 0.22, h: 0.22 },
+    product:  { x: 0.34,  y: 0.34, w: 0.80, h: 0.62 },
+    logo:     { x: 0.72,  y: 0.91, w: 0.22, h: 0.06 },
+  },
+  '4x5': {
+    headline: { x: 0.07, y: 0.06, w: 0.7, h: 0.40 },
+    subhead:  { x: 0.07, y: 0.49, w: 0.7, h: 0.06 },
+    bullets:  { x: 0.07, y: 0.58, w: 0.8, h: 0.28 },
+    cta:      { x: 0.07, y: 0.88, w: 0.4, h: 0.07 },
+    price:    { x: 0.70, y: 0.08, w: 0.25, h: 0.18 },
+    product:  { x: 0.28, y: 0.38, w: 0.88, h: 0.48 },
+    logo:     { x: 0.70, y: 0.04, w: 0.25, h: 0.05 },
+  },
+  '9x16': {
+    headline: { x: 0.07, y: 0.06, w: 0.85, h: 0.32 },
+    subhead:  { x: 0.07, y: 0.40, w: 0.85, h: 0.05 },
+    bullets:  { x: 0.07, y: 0.66, w: 0.86, h: 0.22 },
+    cta:      { x: 0.07, y: 0.91, w: 0.55, h: 0.06 },
+    price:    { x: 0.68, y: 0.18, w: 0.28, h: 0.17 },
+    product:  { x: 0.00, y: 0.46, w: 1.02, h: 0.24 },
+    logo:     { x: 0.70, y: 0.04, w: 0.26, h: 0.04 },
+  },
+}
+
+function aspectSpec(a: string) {
+  if (a === '1x1') return { w: 540, h: 540, label: '1:1', use: 'Feed' }
+  if (a === '4x5') return { w: 432, h: 540, label: '4:5', use: 'Feed - Portrait' }
+  if (a === '9x16') return { w: 304, h: 540, label: '9:16', use: 'Story - Reels' }
+  return { w: 540, h: 540, label: '1:1', use: 'Feed' }
+}
+
+interface LayoutBox { x: number; y: number; w: number; h: number }
+interface Creative {
+  headline: string
+  subhead: string
+  bullets: string[]
+  cta: string
+  priceOld: string
+  priceNew: string
+  layouts: Record<string, Record<string, LayoutBox>>
 }
 
 interface ReferenceAnalysis {
@@ -24,7 +72,6 @@ interface ReferenceAnalysis {
   benefits: string[]
   priceOriginal: string
   priceSale: string
-  logoPosition: string
 }
 
 interface CopyVariants {
@@ -34,7 +81,252 @@ interface CopyVariants {
   ctas: string[]
 }
 
+// ── Frame: draggable/resizable wrapper ──
+function Frame({ id, layout, selected, editingText, onSelect, onChange, onStartEdit, lockAspect, children, extraStyle }: {
+  id: string; layout: LayoutBox; selected: boolean; editingText?: boolean
+  onSelect: (id: string | null) => void; onChange: (id: string, box: LayoutBox) => void
+  onStartEdit?: (id: string) => void; lockAspect?: boolean
+  children: React.ReactNode; extraStyle?: React.CSSProperties
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  const startDrag = (e: React.MouseEvent) => {
+    if (editingText) return
+    e.stopPropagation()
+    onSelect(id)
+    const startX = e.clientX, startY = e.clientY
+    const board = ref.current?.closest('.ad-canvas') as HTMLElement
+    if (!board) return
+    const rect = board.getBoundingClientRect()
+    const init = { ...layout }
+    const move = (ev: MouseEvent) => {
+      const dx = (ev.clientX - startX) / rect.width
+      const dy = (ev.clientY - startY) / rect.height
+      onChange(id, { x: Math.max(-0.2, Math.min(1.1, init.x + dx)), y: Math.max(-0.2, Math.min(1.1, init.y + dy)), w: init.w, h: init.h })
+    }
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+
+  const startResize = (corner: string) => (e: React.MouseEvent) => {
+    e.stopPropagation(); e.preventDefault()
+    const startX = e.clientX, startY = e.clientY
+    const board = ref.current?.closest('.ad-canvas') as HTMLElement
+    if (!board) return
+    const rect = board.getBoundingClientRect()
+    const init = { ...layout }
+    const move = (ev: MouseEvent) => {
+      const dx = (ev.clientX - startX) / rect.width
+      const dy = (ev.clientY - startY) / rect.height
+      let { x, y, w, h } = init
+      if (corner.includes('e')) w = Math.max(0.05, init.w + dx)
+      if (corner.includes('s')) h = Math.max(0.04, init.h + dy)
+      if (corner.includes('w')) { x = init.x + dx; w = Math.max(0.05, init.w - dx) }
+      if (corner.includes('n')) { y = init.y + dy; h = Math.max(0.04, init.h - dy) }
+      if (lockAspect && init.w && init.h) { h = w * (init.h / init.w) }
+      onChange(id, { x, y, w, h })
+    }
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+
+  const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+  const cursorMap: Record<string, string> = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' }
+  const handlePos: Record<string, React.CSSProperties> = {
+    nw: { top: -4, left: -4 }, n: { top: -4, left: '50%', transform: 'translateX(-50%)' },
+    ne: { top: -4, right: -4 }, e: { top: '50%', right: -4, transform: 'translateY(-50%)' },
+    se: { bottom: -4, right: -4 }, s: { bottom: -4, left: '50%', transform: 'translateX(-50%)' },
+    sw: { bottom: -4, left: -4 }, w: { top: '50%', left: -4, transform: 'translateY(-50%)' },
+  }
+
+  return (
+    <div ref={ref} onMouseDown={startDrag}
+      onDoubleClick={e => { e.stopPropagation(); onStartEdit?.(id) }}
+      style={{
+        position: 'absolute', left: `${layout.x * 100}%`, top: `${layout.y * 100}%`,
+        width: `${layout.w * 100}%`, height: `${layout.h * 100}%`,
+        cursor: editingText ? 'text' : 'move', userSelect: editingText ? 'text' : 'none',
+        zIndex: selected ? 10 : 1, ...extraStyle,
+      }}>
+      {children}
+      {selected && !editingText && (
+        <>
+          <div style={{ position: 'absolute', inset: -1, border: '2px solid #2138ff', borderRadius: 2, pointerEvents: 'none' }} />
+          {handles.map(c => (
+            <div key={c} onMouseDown={startResize(c)} style={{
+              position: 'absolute', width: 8, height: 8, background: '#2138ff', borderRadius: 2,
+              cursor: cursorMap[c], ...handlePos[c],
+            }} />
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── EditText: inline content-editable ──
+function EditText({ value, editing, onCommit, style, multiline }: {
+  value: string; editing: boolean; onCommit: (v: string) => void
+  style: React.CSSProperties; multiline?: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (editing && ref.current) { ref.current.focus(); document.execCommand?.('selectAll', false, undefined) } }, [editing])
+  if (!editing) return <div style={{ ...style, whiteSpace: multiline ? 'pre-line' : 'normal' }}>{value}</div>
+  return (
+    <div ref={ref} contentEditable suppressContentEditableWarning
+      onBlur={e => onCommit(multiline ? e.currentTarget.innerText : e.currentTarget.innerText.replace(/\n/g, ' '))}
+      onKeyDown={e => { if (e.key === 'Escape') (e.target as HTMLElement).blur(); if (e.key === 'Enter' && !multiline) { e.preventDefault(); (e.target as HTMLElement).blur() } }}
+      style={{ ...style, whiteSpace: multiline ? 'pre-line' : 'normal', outline: '2px solid #2138ff', outlineOffset: 2, cursor: 'text' }}>
+      {value}
+    </div>
+  )
+}
+
+// ── Ad: renders a single creative at a given aspect ──
+function AdCanvas({ aspect, creative, brandColors, brandName, productImage, selected, editing, onSelect, onLayoutChange, onTextChange, onStartEdit }: {
+  aspect: string; creative: Creative; brandColors: string[]; brandName: string; productImage: string | null
+  selected: string | null; editing: string | null
+  onSelect: (id: string | null) => void
+  onLayoutChange: (aspect: string, id: string, box: LayoutBox) => void
+  onTextChange: (field: string, value: string | string[]) => void
+  onStartEdit: (id: string | null) => void
+}) {
+  const s = aspectSpec(aspect)
+  const u = s.w / 540
+  const baseLayout = DEFAULT_LAYOUT[aspect] || DEFAULT_LAYOUT['1x1']
+  const overrides = creative.layouts[aspect] || {}
+  const layout: Record<string, LayoutBox> = {}
+  for (const k of Object.keys(baseLayout)) layout[k] = { ...baseLayout[k], ...(overrides[k] || {}) }
+
+  const bg = brandColors[0] || '#f5f0eb'
+  const ink = brandColors[1] || '#1a1a1a'
+  const accent = brandColors[2] || '#2138ff'
+
+  const getFontSize = (id: string) => {
+    const box = layout[id]
+    if (!box) return 14 * u
+    const base = box.h * s.h
+    const coef: Record<string, Record<string, number>> = {
+      headline: { '1x1': 0.40, '4x5': 0.38, '9x16': 0.34 },
+      subhead: { '1x1': 0.70, '4x5': 0.70, '9x16': 0.80 },
+      cta: { '1x1': 0.45, '4x5': 0.45, '9x16': 0.45 },
+      price: { '1x1': 0.28, '4x5': 0.30, '9x16': 0.26 },
+      bullets: { '1x1': 0.20, '4x5': 0.19, '9x16': 0.20 },
+      logo: { '1x1': 0.60, '4x5': 0.60, '9x16': 0.70 },
+    }
+    return base * ((coef[id] || {})[aspect] ?? 0.5)
+  }
+
+  return (
+    <div className="ad-canvas" style={{
+      background: bg, overflow: 'hidden', position: 'absolute', inset: 0, fontFamily: 'Impact, sans-serif',
+    }} onMouseDown={e => { if ((e.target as HTMLElement).classList.contains('ad-canvas')) onSelect(null) }}>
+
+      {/* Product */}
+      <Frame id="product" layout={layout.product} selected={selected === 'product'}
+        onSelect={onSelect} onChange={(id, box) => onLayoutChange(aspect, id, box)} lockAspect>
+        {productImage ? (
+          <img src={productImage} alt="" draggable={false} style={{
+            width: '100%', height: '100%', objectFit: 'contain',
+            filter: 'drop-shadow(0 18px 30px rgba(0,0,0,0.22))',
+            mixBlendMode: 'multiply', pointerEvents: 'none',
+          }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', borderRadius: 20, background: accent, display: 'grid', placeItems: 'center', color: 'white', fontSize: 32, fontWeight: 900 }}>
+            {brandName.charAt(0)}
+          </div>
+        )}
+      </Frame>
+
+      {/* Price badge */}
+      <Frame id="price" layout={layout.price} selected={selected === 'price'}
+        onSelect={onSelect} onChange={(id, box) => onLayoutChange(aspect, id, box)} lockAspect
+        extraStyle={{ transform: 'rotate(-12deg)' }}>
+        <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: accent, color: 'white', display: 'grid', placeItems: 'center', boxShadow: '0 6px 18px rgba(0,0,0,0.12)', textAlign: 'center' }}>
+          <div style={{ lineHeight: 1 }}>
+            <EditText value={creative.priceOld} editing={editing === 'priceOld'}
+              onCommit={v => onTextChange('priceOld', v)}
+              style={{ fontSize: getFontSize('price') * 0.5, textDecoration: 'line-through', opacity: 0.85, fontWeight: 600 }} />
+            <EditText value={creative.priceNew} editing={editing === 'priceNew'}
+              onCommit={v => onTextChange('priceNew', v)}
+              style={{ fontSize: getFontSize('price'), fontWeight: 800, marginTop: 2 }} />
+          </div>
+        </div>
+      </Frame>
+
+      {/* Headline */}
+      <Frame id="headline" layout={layout.headline} selected={selected === 'headline'}
+        editingText={editing === 'headline'} onSelect={onSelect}
+        onChange={(id, box) => onLayoutChange(aspect, id, box)}
+        onStartEdit={() => onStartEdit('headline')}>
+        <EditText value={creative.headline} editing={editing === 'headline'}
+          onCommit={v => { onTextChange('headline', v); onStartEdit(null) }} multiline
+          style={{ fontWeight: 900, fontSize: getFontSize('headline'), lineHeight: 0.92, letterSpacing: '-0.03em', textTransform: 'uppercase', color: ink }} />
+      </Frame>
+
+      {/* Subhead */}
+      <Frame id="subhead" layout={layout.subhead} selected={selected === 'subhead'}
+        editingText={editing === 'subhead'} onSelect={onSelect}
+        onChange={(id, box) => onLayoutChange(aspect, id, box)}
+        onStartEdit={() => onStartEdit('subhead')}>
+        <EditText value={creative.subhead} editing={editing === 'subhead'}
+          onCommit={v => { onTextChange('subhead', v); onStartEdit(null) }}
+          style={{ fontWeight: 700, fontSize: getFontSize('subhead'), textTransform: 'uppercase', letterSpacing: '0.01em', color: ink }} />
+      </Frame>
+
+      {/* Bullets */}
+      <Frame id="bullets" layout={layout.bullets} selected={selected === 'bullets'}
+        editingText={editing?.startsWith('bullet-')} onSelect={onSelect}
+        onChange={(id, box) => onLayoutChange(aspect, id, box)}
+        onStartEdit={() => onStartEdit('bullet-0')}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 * u, height: '100%', justifyContent: 'space-evenly' }}>
+          {creative.bullets.map((b, i) => (
+            <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'white', borderRadius: 999, padding: `${6 * u}px ${14 * u}px`, fontWeight: 600, color: ink, fontSize: getFontSize('bullets') }}
+              onDoubleClick={e => { e.stopPropagation(); onStartEdit('bullet-' + i) }}>
+              <span style={{ width: 18 * u, height: 18 * u, borderRadius: '50%', background: accent, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <svg width={10 * u} height={10 * u} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+              </span>
+              <EditText value={b} editing={editing === 'bullet-' + i}
+                onCommit={v => { const next = [...creative.bullets]; next[i] = v; onTextChange('bullets', next); onStartEdit(null) }}
+                style={{}} />
+            </div>
+          ))}
+        </div>
+      </Frame>
+
+      {/* CTA */}
+      <Frame id="cta" layout={layout.cta} selected={selected === 'cta'}
+        editingText={editing === 'cta'} onSelect={onSelect}
+        onChange={(id, box) => onLayoutChange(aspect, id, box)}
+        onStartEdit={() => onStartEdit('cta')}>
+        <div style={{ width: '100%', height: '100%', background: ink, color: bg, borderRadius: 999, display: 'grid', placeItems: 'center', padding: `0 ${18 * u}px`, fontSize: getFontSize('cta'), fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+          <EditText value={creative.cta} editing={editing === 'cta'}
+            onCommit={v => { onTextChange('cta', v); onStartEdit(null) }} style={{}} />
+        </div>
+      </Frame>
+
+      {/* Logo */}
+      <Frame id="logo" layout={layout.logo} selected={selected === 'logo'}
+        onSelect={onSelect} onChange={(id, box) => onLayoutChange(aspect, id, box)}>
+        <div style={{ width: '100%', height: '100%', fontWeight: 800, fontSize: getFontSize('logo'), letterSpacing: '0.02em', color: ink, display: 'flex', alignItems: 'center', gap: 6, opacity: 0.9, justifyContent: 'flex-end' }}>
+          <span style={{ width: getFontSize('logo'), height: getFontSize('logo'), background: accent, borderRadius: 4 }} />
+          {brandName}
+        </div>
+      </Frame>
+    </div>
+  )
+}
+
+// ── Main Component ──
 export default function DesignView({ brand, brandId, onToast }: DesignViewProps) {
+  // Tabs
+  const [leftTab, setLeftTab] = useState<'inputs' | 'layers' | 'history'>('inputs')
+  const [rightTab, setRightTab] = useState<'copy' | 'style' | 'export'>('copy')
+  const [activeAspect, setActiveAspect] = useState<'all' | '1x1' | '4x5' | '9x16'>('all')
+  const [zoom, setZoom] = useState(70)
+
   // Reference
   const [refImage, setRefImage] = useState<string | null>(null)
   const [refAnalysis, setRefAnalysis] = useState<ReferenceAnalysis | null>(null)
@@ -43,10 +335,9 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
 
   // Product
   const [productImage, setProductImage] = useState<string | null>(null)
-  const [productImageUrl, setProductImageUrl] = useState<string | null>(null)
   const productInputRef = useRef<HTMLInputElement>(null)
 
-  // Brand kit - load from brand data
+  // Brand
   const [brandColors, setBrandColors] = useState<string[]>([])
   const [brandFont, setBrandFont] = useState('')
 
@@ -54,50 +345,53 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   const personas = brand?.research?.personas || []
   const [selectedPersona, setSelectedPersona] = useState(0)
   const [angle, setAngle] = useState('Problem/Solution')
+  const [brief, setBrief] = useState('')
 
-  // Copy
+  // Creative state
+  const [creative, setCreative] = useState<Creative>({
+    headline: 'YOUR\nHEADLINE\nHERE',
+    subhead: 'UNLESS YOU WANT',
+    bullets: ['Real arch support', 'All-day comfort', 'Natural cork base', 'Fits any shoe'],
+    cta: 'SHOP NOW',
+    priceOld: '$65',
+    priceNew: '$48',
+    layouts: {},
+  })
+
+  // Canvas state
+  const [selected, setSelected] = useState<string | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
+
+  // Copy variants
   const [copyVariants, setCopyVariants] = useState<CopyVariants | null>(null)
   const [copyLoading, setCopyLoading] = useState(false)
-  const [activeHook, setActiveHook] = useState(0)
-  const [activeSub, setActiveSub] = useState(0)
-  const [activeBenefits, setActiveBenefits] = useState(0)
-  const [activeCta, setActiveCta] = useState(0)
 
-  // Editable copy fields
-  const [hookText, setHookText] = useState('')
-  const [subText, setSubText] = useState('')
-  const [benefitsText, setBenefitsText] = useState<string[]>([])
-  const [ctaText, setCtaText] = useState('')
-  const [priceText, setPriceText] = useState('')
-  const [salePriceText, setSalePriceText] = useState('')
-
-  // Generated creatives
-  const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({})
+  // Generation
   const [generating, setGenerating] = useState(false)
-  const [activeAspect, setActiveAspect] = useState<'all' | '1:1' | '4:5' | '9:16'>('all')
+  const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({})
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-  // Load brand colors and fonts from brand data
+  // Load brand colors
   useEffect(() => {
-    if (brand?.brand_colors?.length) {
-      setBrandColors(brand.brand_colors)
-    } else if (brand?.color) {
-      setBrandColors([brand.color, '#ffffff', '#1a1a1a'])
+    if (brand?.brand_colors?.length) setBrandColors(brand.brand_colors)
+    else if (brand?.color) setBrandColors([brand.color, '#1a1a1a', '#2138ff'])
+    if (brand?.brand_fonts?.length) setBrandFont(brand.brand_fonts[0])
+  }, [brand?.id, brand?.color, brand?.brand_colors, brand?.brand_fonts])
+
+  // Escape to deselect
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSelected(null); setEditing(null) }
     }
-    if (brand?.brand_fonts?.length) {
-      setBrandFont(brand.brand_fonts[0])
-    }
-  }, [brand?.id, brand?.color, brand?.brand_colors, brand?.brand_fonts, brand?.research])
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const handleRefUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string
-      setRefImage(dataUrl)
-      analyzeRef(dataUrl)
-    }
+    reader.onload = ev => { setRefImage(ev.target?.result as string); analyzeRef(ev.target?.result as string) }
     reader.readAsDataURL(file)
   }
 
@@ -105,28 +399,19 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
     setAnalyzing(true)
     onToast('Analyzing reference ad...', 'info')
     try {
-      const res = await fetch('/api/design', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'analyze', referenceImage: imageData }),
-      })
+      const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'analyze', referenceImage: imageData }) })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setRefAnalysis(data.analysis)
-
-      // Pre-fill copy from reference
-      if (data.analysis.headline) setHookText(data.analysis.headline)
-      if (data.analysis.subheadline) setSubText(data.analysis.subheadline)
-      if (data.analysis.benefits?.length) setBenefitsText(data.analysis.benefits)
-      if (data.analysis.cta) setCtaText(data.analysis.cta)
-      if (data.analysis.priceOriginal) setPriceText(data.analysis.priceOriginal)
-      if (data.analysis.priceSale) setSalePriceText(data.analysis.priceSale)
-      // Don't override brand colors from reference - keep the brand's actual colors
-
-      onToast('Reference analyzed - style extracted', 'success')
-    } catch (err: unknown) {
-      onToast(`Analysis failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
+      if (data.analysis.headline) setCreative(prev => ({ ...prev, headline: data.analysis.headline }))
+      if (data.analysis.subheadline) setCreative(prev => ({ ...prev, subhead: data.analysis.subheadline }))
+      if (data.analysis.benefits?.length) setCreative(prev => ({ ...prev, bullets: data.analysis.benefits }))
+      if (data.analysis.cta) setCreative(prev => ({ ...prev, cta: data.analysis.cta }))
+      if (data.analysis.priceOriginal) setCreative(prev => ({ ...prev, priceOld: data.analysis.priceOriginal }))
+      if (data.analysis.priceSale) setCreative(prev => ({ ...prev, priceNew: data.analysis.priceSale }))
+      onToast('Reference analyzed', 'success')
+    } catch (err: unknown) { onToast(`Analysis failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     setAnalyzing(false)
   }
 
@@ -134,469 +419,414 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = (ev) => setProductImage(ev.target?.result as string)
+    reader.onload = ev => setProductImage(ev.target?.result as string)
     reader.readAsDataURL(file)
-    // Upload for URL
-    const formData = new FormData()
-    formData.append('brandId', brandId || 'shared')
-    formData.append('files', file)
-    fetch('/api/reference-images', { method: 'POST', body: formData })
-      .then(r => r.json())
-      .then(data => {
-        if (data.uploaded?.[0]?.url) setProductImageUrl(data.uploaded[0].url)
-      })
-      .catch(() => {})
   }
+
+  const handleLayoutChange = useCallback((aspect: string, id: string, box: LayoutBox) => {
+    setCreative(prev => ({
+      ...prev,
+      layouts: { ...prev.layouts, [aspect]: { ...(prev.layouts[aspect] || {}), [id]: box } },
+    }))
+  }, [])
+
+  const handleTextChange = useCallback((field: string, value: string | string[]) => {
+    setCreative(prev => ({ ...prev, [field]: value }))
+  }, [])
 
   const handleGenerateCopy = async () => {
     setCopyLoading(true)
     onToast('Generating copy variants...', 'info')
     try {
-      const res = await fetch('/api/design', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate-copy',
-          brandName: brand?.name || 'Brand',
-          brandResearch: brand?.research || null,
-          persona: personas[selectedPersona]?.name || 'General consumer',
-          angle,
-          referenceAnalysis: refAnalysis,
-        }),
-      })
+      const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate-copy', brandName: brand?.name || 'Brand', brandResearch: brand?.research || null,
+          persona: personas[selectedPersona]?.name || 'General', angle, referenceAnalysis: refAnalysis }) })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
       setCopyVariants(data.copy)
-
-      // Set first variants as active
-      if (data.copy.hooks?.[0]) setHookText(data.copy.hooks[0])
-      if (data.copy.subheadlines?.[0]) setSubText(data.copy.subheadlines[0])
-      if (data.copy.benefits?.[0]) setBenefitsText(data.copy.benefits[0])
-      if (data.copy.ctas?.[0]) setCtaText(data.copy.ctas[0])
-
+      if (data.copy.hooks?.[0]) setCreative(prev => ({ ...prev, headline: data.copy.hooks[0] }))
+      if (data.copy.subheadlines?.[0]) setCreative(prev => ({ ...prev, subhead: data.copy.subheadlines[0] }))
+      if (data.copy.benefits?.[0]) setCreative(prev => ({ ...prev, bullets: data.copy.benefits[0] }))
+      if (data.copy.ctas?.[0]) setCreative(prev => ({ ...prev, cta: data.copy.ctas[0] }))
       onToast('Copy variants generated', 'success')
-    } catch (err: unknown) {
-      onToast(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-    }
+    } catch (err: unknown) { onToast(`Copy failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     setCopyLoading(false)
   }
 
-  const generateOneAspect = async (ar: string, sourceImage?: string) => {
-    const res = await fetch('/api/design', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'generate-creative',
-        referenceImage: refImage || undefined,
-        productImage: productImage || undefined,
-        sourceImage, // previously generated 1:1 to keep design consistent
-        brandName: brand?.name || 'Brand',
-        brandColors,
-        hook: hookText,
-        subheadline: subText,
-        benefits: benefitsText,
-        cta: ctaText,
-        price: priceText || undefined,
-        salePrice: salePriceText || undefined,
-        aspectRatio: ar,
-        style: refAnalysis || {},
-      }),
-    })
-    const data = await res.json()
-    if (data.imageUrl) return data.imageUrl
-    if (data.error) throw new Error(data.error)
-    throw new Error('No image returned')
-  }
-
-  const handleGenerate = async (aspect?: string) => {
-    if (!hookText.trim()) { onToast('Add a headline first', 'error'); return }
+  const handleGenerate = async () => {
+    if (!creative.headline.trim()) { onToast('Add a headline first', 'error'); return }
     setGenerating(true)
-
-    if (aspect) {
-      // Single format regeneration - use existing 1:1 as reference if available
-      onToast(`Regenerating ${aspect}...`, 'info')
+    onToast('Generating creatives in all formats...', 'info')
+    for (const ar of ['1:1', '4:5', '9:16']) {
       try {
-        const url = await generateOneAspect(aspect, generatedImages['1:1'] || undefined)
-        setGeneratedImages(prev => ({ ...prev, [aspect]: url }))
-        onToast(`${aspect} regenerated`, 'success')
-      } catch (err: unknown) {
-        onToast(`${aspect} failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-      }
-    } else {
-      // Full generation: 1:1 first, then use it as reference for 4:5 and 9:16
-      onToast('Generating 1:1 creative first...', 'info')
-      try {
-        const squareUrl = await generateOneAspect('1:1')
-        setGeneratedImages(prev => ({ ...prev, '1:1': squareUrl }))
-        onToast('1:1 done. Generating 4:5 and 9:16 to match...', 'info')
-
-        // Generate 4:5 and 9:16 in parallel, using 1:1 as the design reference
-        const [fourFive, nineStx] = await Promise.allSettled([
-          generateOneAspect('4:5', squareUrl),
-          generateOneAspect('9:16', squareUrl),
-        ])
-
-        if (fourFive.status === 'fulfilled') {
-          setGeneratedImages(prev => ({ ...prev, '4:5': fourFive.value }))
-        } else {
-          onToast(`4:5 failed: ${fourFive.reason?.message || 'Unknown error'}`, 'error')
-        }
-
-        if (nineStx.status === 'fulfilled') {
-          setGeneratedImages(prev => ({ ...prev, '9:16': nineStx.value }))
-        } else {
-          onToast(`9:16 failed: ${nineStx.reason?.message || 'Unknown error'}`, 'error')
-        }
-
-        onToast('All creatives generated', 'success')
-      } catch (err: unknown) {
-        onToast(`Generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
-      }
+        const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'generate-creative', referenceImage: refImage || undefined, productImage: productImage || undefined,
+            brandName: brand?.name || 'Brand', brandColors, hook: creative.headline, subheadline: creative.subhead,
+            benefits: creative.bullets, cta: creative.cta, price: creative.priceOld, salePrice: creative.priceNew, aspectRatio: ar, style: refAnalysis || {} }) })
+        const data = await res.json()
+        if (data.imageUrl) { setGeneratedImages(prev => ({ ...prev, [ar]: data.imageUrl })); onToast(`${ar} generated`, 'success') }
+        else if (data.error) onToast(`${ar}: ${data.error}`, 'error')
+      } catch (err: unknown) { onToast(`${ar} failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     }
     setGenerating(false)
   }
 
+  // Section title helper
+  const SectionTitle = ({ num, label }: { num: string; label: string }) => (
+    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-dim, #888)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ color: 'var(--text-subtle, #666)', opacity: 0.5 }}>{num}</span> {label}
+    </div>
+  )
+
+  const aspects = activeAspect === 'all' ? ['1x1', '4x5', '9x16'] : [activeAspect.replace(':', 'x')]
+
   return (
-    <div className="animate-fadeIn">
-      <div className="grid grid-cols-[280px_1fr_300px] gap-4 h-[calc(100vh-120px)]">
-        {/* Left - Inputs */}
-        <div className="space-y-3 overflow-y-auto pr-2">
-          {/* 01 Reference Ad */}
-          <Card title="01 Reference Ad">
-            <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefUpload} />
-            {refImage ? (
-              <div className="space-y-2">
-                <div className="relative">
-                  <img src={refImage} alt="Reference" className="w-full rounded-lg border border-border" />
-                  <button onClick={() => { setRefImage(null); setRefAnalysis(null) }}
-                    className="absolute top-1 right-1 w-5 h-5 bg-black/60 text-white text-xs rounded-full flex items-center justify-center">x</button>
-                </div>
-                {analyzing && <div className="flex items-center gap-2 text-xs text-text-dim"><LoadingSpinner size={12} /> Analyzing...</div>}
-                {refAnalysis && (
-                  <div className="text-2xs space-y-1 p-2 bg-page rounded border border-border">
-                    <div className="font-bold text-text-muted uppercase tracking-wider mb-1">Extracted Style</div>
-                    <div><span className="text-text-dim">Layout:</span> <span className="text-text-primary">{refAnalysis.layout}</span></div>
-                    <div><span className="text-text-dim">Type:</span> <span className="text-text-primary">{refAnalysis.typography}</span></div>
-                    <div><span className="text-text-dim">Mood:</span> <span className="text-text-primary">{refAnalysis.mood}</span></div>
-                    <div className="flex gap-1 mt-1">
-                      {refAnalysis.palette?.map((c, i) => (
-                        <div key={i} className="w-5 h-5 rounded border border-border" style={{ backgroundColor: c }} />
-                      ))}
+    <div className="animate-fadeIn" style={{ height: 'calc(100vh - 120px)', display: 'grid', gridTemplateColumns: '268px 1fr 320px', gap: 0, overflow: 'hidden' }}>
+      {/* ── Left Pane ── */}
+      <div style={{ borderRight: '1px solid var(--border, #2a2e3a)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* Tabs */}
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border, #2a2e3a)', padding: '0 14px' }}>
+          {(['inputs', 'layers', 'history'] as const).map(t => (
+            <button key={t} onClick={() => setLeftTab(t)} style={{
+              padding: '10px 12px', fontSize: 12, fontWeight: leftTab === t ? 700 : 500,
+              color: leftTab === t ? 'var(--text-primary, #fff)' : 'var(--text-dim, #888)',
+              borderBottom: leftTab === t ? '2px solid #2138ff' : '2px solid transparent',
+              textTransform: 'capitalize',
+            }}>{t}</button>
+          ))}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {leftTab === 'inputs' && <>
+            {/* 01 Reference */}
+            <div>
+              <SectionTitle num="01" label="Reference Ad" />
+              <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefUpload} />
+              {refImage ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ position: 'relative' }}>
+                    <img src={refImage} alt="" style={{ width: '100%', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }} />
+                    <button onClick={() => { setRefImage(null); setRefAnalysis(null) }}
+                      style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, background: 'rgba(0,0,0,0.6)', color: 'white', borderRadius: 10, fontSize: 11, display: 'grid', placeItems: 'center' }}>x</button>
+                  </div>
+                  {analyzing && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#888' }}><LoadingSpinner size={12} /> Analyzing...</div>}
+                  {refAnalysis && (
+                    <div style={{ fontSize: 11, padding: 10, background: 'var(--elevated, #1a1e2e)', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: 6 }}>Extracted Style</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '50px 1fr', gap: '3px 8px', fontSize: 11 }}>
+                        <span style={{ color: '#666' }}>Layout</span><span>{refAnalysis.layout}</span>
+                        <span style={{ color: '#666' }}>Type</span><span>{refAnalysis.typography}</span>
+                        <span style={{ color: '#666' }}>Mood</span><span>{refAnalysis.mood}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                        {refAnalysis.palette?.map((c, i) => <div key={i} style={{ width: 20, height: 20, borderRadius: 4, background: c, border: '1px solid var(--border, #2a2e3a)' }} />)}
+                      </div>
+                      <button onClick={() => analyzeRef(refImage)} style={{ fontSize: 11, color: '#2138ff', marginTop: 6 }}>Re-analyze</button>
                     </div>
-                    <button onClick={() => analyzeRef(refImage)} className="text-2xs text-blue hover:underline mt-1">Re-analyze</button>
+                  )}
+                </div>
+              ) : (
+                <button onClick={() => refInputRef.current?.click()}
+                  style={{ width: '100%', padding: 20, border: '2px dashed var(--border, #2a2e3a)', borderRadius: 8, textAlign: 'center', fontSize: 12, color: '#888' }}>
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>📷</div>
+                  Upload reference ad
+                </button>
+              )}
+            </div>
+
+            {/* 02 Product */}
+            <div>
+              <SectionTitle num="02" label="Product" />
+              <input ref={productInputRef} type="file" accept="image/*" className="hidden" onChange={handleProductUpload} />
+              {productImage ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={productImage} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600 }}>{brand?.name || 'Product'}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>Product loaded</div>
+                  </div>
+                  <button onClick={() => setProductImage(null)} style={{ fontSize: 11, color: '#888' }}>x</button>
+                </div>
+              ) : (
+                <button onClick={() => productInputRef.current?.click()}
+                  style={{ width: '100%', padding: 14, border: '2px dashed var(--border, #2a2e3a)', borderRadius: 8, textAlign: 'center', fontSize: 12, color: '#888' }}>
+                  + Add product image
+                </button>
+              )}
+            </div>
+
+            {/* 03 Brand Kit */}
+            <div>
+              <SectionTitle num="03" label="Brand Kit" />
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>{brand?.name || 'Select brand'}</div>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Palette</div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                {brandColors.map((c, i) => (
+                  <input key={i} type="color" value={c} onChange={e => { const next = [...brandColors]; next[i] = e.target.value; setBrandColors(next) }}
+                    style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border, #2a2e3a)', cursor: 'pointer', padding: 0 }} />
+                ))}
+                <button onClick={() => setBrandColors(prev => [...prev, '#888888'])}
+                  style={{ width: 28, height: 28, borderRadius: 6, border: '2px dashed var(--border, #2a2e3a)', fontSize: 14, color: '#888', display: 'grid', placeItems: 'center' }}>+</button>
+              </div>
+              <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Display type</div>
+              <input type="text" value={brandFont} onChange={e => setBrandFont(e.target.value)} placeholder="Impact, sans-serif"
+                style={{ width: '100%', padding: '6px 10px', background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 6, fontSize: 12, color: 'inherit' }} />
+            </div>
+
+            {/* 04 Persona */}
+            <div>
+              <SectionTitle num="04" label="Persona" />
+              {personas.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {personas.map((p, i) => (
+                    <button key={i} onClick={() => setSelectedPersona(i)}
+                      style={{ textAlign: 'left', padding: 8, borderRadius: 8, border: selectedPersona === i ? '1px solid #2138ff' : '1px solid var(--border, #2a2e3a)', background: selectedPersona === i ? 'rgba(33,56,255,0.1)' : 'transparent', fontSize: 11 }}>
+                      <div style={{ fontWeight: 600 }}>{p.name}</div>
+                      <div style={{ color: '#888', fontSize: 10 }}>{p.description?.slice(0, 50)}</div>
+                    </button>
+                  ))}
+                </div>
+              ) : <div style={{ fontSize: 11, color: '#888' }}>Run brand research to load personas</div>}
+            </div>
+
+            {/* 05 Strategy */}
+            <div>
+              <SectionTitle num="05" label="Creative Strategy" />
+              <textarea value={brief} onChange={e => setBrief(e.target.value)} placeholder="Brief: what's the campaign about?"
+                style={{ width: '100%', padding: 8, background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 6, fontSize: 12, color: 'inherit', resize: 'vertical', minHeight: 50 }} rows={2} />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                {['Problem/Solution', 'Social Proof', 'UGC', 'Contrarian', 'Bold Claim'].map(a => (
+                  <button key={a} onClick={() => setAngle(a)}
+                    style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, border: angle === a ? '1px solid #2138ff' : '1px solid var(--border, #2a2e3a)', background: angle === a ? 'rgba(33,56,255,0.1)' : 'transparent', color: angle === a ? '#2138ff' : '#888' }}>
+                    {a}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>}
+
+          {leftTab === 'layers' && (
+            <div style={{ fontSize: 12 }}>
+              {['headline', 'subhead', 'bullets', 'cta', 'price', 'product', 'logo'].map(id => (
+                <button key={id} onClick={() => setSelected(id)}
+                  style={{ width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8,
+                    background: selected === id ? 'rgba(33,56,255,0.1)' : 'transparent', color: selected === id ? '#2138ff' : 'inherit', fontSize: 12 }}>
+                  <span style={{ width: 14, height: 14, borderRadius: 3, background: selected === id ? '#2138ff' : 'var(--border, #2a2e3a)', opacity: 0.5 }} />
+                  {id}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {leftTab === 'history' && (
+            <div style={{ fontSize: 11, color: '#888' }}>Version history coming soon</div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Center Canvas ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg, #111)' }}>
+        {/* Toolbar */}
+        <div style={{ height: 42, borderBottom: '1px solid var(--border, #2a2e3a)', display: 'flex', alignItems: 'center', padding: '0 14px', gap: 6 }}>
+          {(['all', '1x1', '4x5', '9x16'] as const).map(a => (
+            <button key={a} onClick={() => setActiveAspect(a)}
+              style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6, border: activeAspect === a ? '1px solid #2138ff' : '1px solid transparent',
+                background: activeAspect === a ? 'rgba(33,56,255,0.08)' : 'transparent', color: activeAspect === a ? '#2138ff' : '#888', fontWeight: activeAspect === a ? 700 : 500 }}>
+              {a === 'all' ? 'All aspects' : a.replace('x', ':')}
+            </button>
+          ))}
+          <div style={{ flex: 1 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#888' }}>
+            <button onClick={() => setZoom(z => Math.max(30, z - 10))} style={{ padding: '2px 6px' }}>-</button>
+            <span>{zoom}%</span>
+            <button onClick={() => setZoom(z => Math.min(150, z + 10))} style={{ padding: '2px 6px' }}>+</button>
+          </div>
+          <Button onClick={handleGenerate} disabled={generating} size="sm" className="px-4 ml-2">
+            {generating ? <><LoadingSpinner size={14} /> Generating...</> : 'Generate'}
+          </Button>
+        </div>
+
+        {/* Canvas */}
+        <div style={{ flex: 1, overflow: 'auto', padding: 24, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', gap: 40,
+          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
+          {aspects.map(a => {
+            const spec = aspectSpec(a)
+            const scale = zoom / 100
+            const hasGenerated = generatedImages[a.replace('x', ':')]
+            return (
+              <div key={a} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontSize: 11, color: '#888', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600 }}>{spec.label}</span>
+                  <span style={{ padding: '2px 6px', background: 'var(--elevated, #1a1e2e)', borderRadius: 4, fontSize: 10 }}>{spec.use}</span>
+                  <span style={{ fontSize: 10 }}>{a === '1x1' ? '1080x1080' : a === '4x5' ? '1080x1350' : '1080x1920'}</span>
+                </div>
+                <div style={{ width: spec.w * scale, height: spec.h * scale, position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', cursor: hasGenerated ? 'pointer' : 'default' }}
+                  onClick={() => hasGenerated && setPreviewImage(hasGenerated)}>
+                  {hasGenerated ? (
+                    <img src={hasGenerated} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: spec.w, height: spec.h }}>
+                      <AdCanvas
+                        aspect={a}
+                        creative={creative}
+                        brandColors={brandColors}
+                        brandName={brand?.name || 'Brand'}
+                        productImage={productImage}
+                        selected={selected}
+                        editing={editing}
+                        onSelect={setSelected}
+                        onLayoutChange={handleLayoutChange}
+                        onTextChange={handleTextChange}
+                        onStartEdit={setEditing}
+                      />
+                    </div>
+                  )}
+                </div>
+                {hasGenerated && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={e => { e.stopPropagation(); setGeneratedImages(prev => { const next = { ...prev }; delete next[a.replace('x', ':')]; return next }) }}
+                      style={{ fontSize: 10, padding: '3px 8px', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, color: '#888' }}>Edit Layout</button>
+                    <button onClick={e => { e.stopPropagation(); const link = document.createElement('a'); link.href = hasGenerated; link.download = `${brand?.name || 'creative'}-${a}-${Date.now()}.png`; link.click() }}
+                      style={{ fontSize: 10, padding: '3px 8px', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, color: '#888' }}>Save</button>
                   </div>
                 )}
               </div>
-            ) : (
-              <button onClick={() => refInputRef.current?.click()}
-                className="w-full p-4 border-2 border-dashed border-border rounded-lg text-center hover:border-blue/40 transition-colors">
-                <div className="text-xl mb-1">📷</div>
-                <div className="text-xs font-semibold text-text-muted">Upload reference ad</div>
-                <div className="text-2xs text-text-dim mt-0.5">We'll extract the style</div>
-              </button>
-            )}
-          </Card>
+            )
+          })}
+        </div>
+      </div>
 
-          {/* 02 Product */}
-          <Card title="02 Product">
-            <input ref={productInputRef} type="file" accept="image/*" className="hidden" onChange={handleProductUpload} />
-            {productImage ? (
-              <div className="flex items-center gap-3">
-                <img src={productImage} alt="Product" className="w-14 h-14 object-cover rounded-lg border border-border" />
-                <div className="flex-1">
-                  <div className="text-xs font-semibold">{brand?.name || 'Product'}</div>
-                  <div className="text-2xs text-text-dim">Product image loaded</div>
-                </div>
-                <button onClick={() => { setProductImage(null); setProductImageUrl(null) }} className="text-2xs text-text-dim hover:text-text-primary">x</button>
-              </div>
-            ) : (
-              <button onClick={() => productInputRef.current?.click()}
-                className="w-full py-3 border-2 border-dashed border-border rounded-lg text-center hover:border-blue/40 transition-colors">
-                <div className="text-xs text-text-muted">+ Add product image</div>
-              </button>
-            )}
-          </Card>
-
-          {/* 03 Brand Kit */}
-          <Card title="03 Brand Kit">
-            <div className="space-y-2">
-              <div>
-                <div className="text-2xs text-text-dim mb-1">Brand</div>
-                <div className="px-3 py-2 bg-page border border-border rounded text-sm">{brand?.name || 'Select a brand'}</div>
-              </div>
-              <div>
-                <div className="text-2xs text-text-dim mb-1">Palette</div>
-                <div className="flex gap-1.5">
-                  {brandColors.map((c, i) => (
-                    <input key={i} type="color" value={c} onChange={e => {
-                      const next = [...brandColors]
-                      next[i] = e.target.value
-                      setBrandColors(next)
-                    }} className="w-8 h-8 rounded border border-border cursor-pointer" />
-                  ))}
-                  <button onClick={() => setBrandColors(prev => [...prev, '#888888'])}
-                    className="w-8 h-8 rounded border-2 border-dashed border-border flex items-center justify-center text-xs text-text-dim">+</button>
-                </div>
-              </div>
-              <div>
-                <div className="text-2xs text-text-dim mb-1">Display type</div>
-                <input type="text" value={brandFont} onChange={e => setBrandFont(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-page border border-border rounded text-xs text-text-primary focus:border-blue focus:outline-none" />
-              </div>
-            </div>
-          </Card>
-
-          {/* 04 Persona */}
-          <Card title="04 Persona">
-            {personas.length > 0 ? (
-              <div className="space-y-2">
-                {personas.map((p, i) => (
-                  <button key={i} onClick={() => setSelectedPersona(i)}
-                    className={`w-full text-left p-2 rounded border text-2xs transition-all ${
-                      selectedPersona === i ? 'border-blue bg-blue-light' : 'border-border hover:border-text-subtle'
-                    }`}>
-                    <div className="font-bold">{p.name}</div>
-                    <div className="text-text-dim">{p.description?.slice(0, 60)}</div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-2xs text-text-dim">Run brand research to load personas</div>
-            )}
-            <div className="mt-2">
-              <div className="text-2xs text-text-dim mb-1">Angle</div>
-              <select value={angle} onChange={e => setAngle(e.target.value)}
-                className="w-full px-2 py-1.5 bg-page border border-border rounded text-xs text-text-primary focus:border-blue focus:outline-none">
-                <option>Problem/Solution</option>
-                <option>Social Proof</option>
-                <option>Before/After</option>
-                <option>Contrarian</option>
-                <option>Urgency/Scarcity</option>
-                <option>Educational</option>
-              </select>
-            </div>
-          </Card>
+      {/* ── Right Pane ── */}
+      <div style={{ borderLeft: '1px solid var(--border, #2a2e3a)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border, #2a2e3a)', padding: '0 14px' }}>
+          {(['copy', 'style', 'export'] as const).map(t => (
+            <button key={t} onClick={() => setRightTab(t)} style={{
+              padding: '10px 12px', fontSize: 12, fontWeight: rightTab === t ? 700 : 500,
+              color: rightTab === t ? 'var(--text-primary, #fff)' : 'var(--text-dim, #888)',
+              borderBottom: rightTab === t ? '2px solid #2138ff' : '2px solid transparent',
+              textTransform: 'capitalize',
+            }}>{t}</button>
+          ))}
         </div>
 
-        {/* Center - Canvas */}
-        <div className="flex flex-col overflow-hidden">
-          {/* Aspect tabs */}
-          <div className="flex items-center gap-2 mb-3 px-1">
-            {(['all', '1:1', '4:5', '9:16'] as const).map(a => (
-              <button key={a} onClick={() => setActiveAspect(a)}
-                className={`px-3 py-1.5 text-xs rounded border transition-all ${
-                  activeAspect === a ? 'border-blue bg-blue-light text-blue font-bold' : 'border-border text-text-dim hover:border-text-subtle'
-                }`}>
-                {a === 'all' ? 'All aspects' : a}
-              </button>
-            ))}
-            <div className="flex-1" />
-            <Button onClick={() => handleGenerate()} disabled={generating} size="sm" className="px-4">
-              {generating ? <><LoadingSpinner size={14} /> Generating...</> : 'Generate'}
+        <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {rightTab === 'copy' && <>
+            <Button onClick={handleGenerateCopy} disabled={copyLoading} className="w-full justify-center" size="sm">
+              {copyLoading ? <><LoadingSpinner size={14} /> Generating...</> : 'Generate Copy'}
             </Button>
-          </div>
 
-          {/* Canvas area */}
-          <div className="flex-1 overflow-auto bg-elevated rounded-lg p-4">
-            {generating ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                  <LoadingSpinner size={32} />
-                  <div className="text-sm text-text-muted mt-3">Generating creatives...</div>
-                  <div className="text-2xs text-text-dim mt-1">This takes 15-30 seconds per format</div>
-                </div>
-              </div>
-            ) : Object.keys(generatedImages).length > 0 ? (
-              <div className={`flex gap-4 justify-center items-start ${activeAspect !== 'all' ? 'justify-center' : ''}`}>
-                {(['1:1', '4:5', '9:16'] as const)
-                  .filter(a => activeAspect === 'all' || activeAspect === a)
-                  .map(a => (
-                    <div key={a} className="flex flex-col items-center gap-2">
-                      <div className="text-2xs text-text-dim font-bold">
-                        {a === '1:1' ? '1080x1080' : a === '4:5' ? '1080x1350' : '1080x1920'}
-                        <span className="ml-2 text-text-dim font-normal">
-                          {a === '1:1' ? 'Feed' : a === '4:5' ? 'Feed Portrait' : 'Story/Reels'}
-                        </span>
-                      </div>
-                      {generatedImages[a] ? (
-                        <div className="relative group cursor-pointer" onClick={() => setPreviewImage(generatedImages[a])}>
-                          <img src={generatedImages[a]} alt={`${a} creative`}
-                            className={`rounded-lg border border-border shadow-lg ${
-                              a === '1:1' ? 'w-64 h-64' : a === '4:5' ? 'w-56 h-70' : 'w-44 h-78'
-                            } object-cover`}
-                            style={a === '4:5' ? { height: '320px' } : a === '9:16' ? { height: '400px' } : {}}
-                          />
-                          <div className="absolute bottom-2 left-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleGenerate(a)}
-                              className="flex-1 px-2 py-1 bg-black/70 text-white text-2xs rounded hover:bg-black/90">Regenerate</button>
-                            <button onClick={() => {
-                              const link = document.createElement('a')
-                              link.href = generatedImages[a]
-                              link.download = `${brand?.name || 'creative'}-${a.replace(':', 'x')}-${Date.now()}.png`
-                              link.click()
-                            }} className="px-2 py-1 bg-black/70 text-white text-2xs rounded hover:bg-black/90">Save</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className={`rounded-lg border-2 border-dashed border-border flex items-center justify-center text-text-dim text-2xs ${
-                          a === '1:1' ? 'w-64 h-64' : a === '4:5' ? 'w-56' : 'w-44'
-                        }`} style={a === '4:5' ? { height: '320px' } : a === '9:16' ? { height: '400px' } : {}}>
-                          Not generated
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-center">
+            {/* Hook */}
+            <CopyCard label="Hook" tag="H1" value={creative.headline} charLimit={40}
+              onChange={v => setCreative(prev => ({ ...prev, headline: v }))}
+              variants={copyVariants?.hooks} onSelectVariant={v => setCreative(prev => ({ ...prev, headline: v }))} />
+
+            {/* Subhead */}
+            <CopyCard label="Subhead" tag="H2" value={creative.subhead} charLimit={30}
+              onChange={v => setCreative(prev => ({ ...prev, subhead: v }))}
+              variants={copyVariants?.subheadlines} onSelectVariant={v => setCreative(prev => ({ ...prev, subhead: v }))} />
+
+            {/* Benefits */}
+            <div style={{ padding: 10, background: 'var(--elevated, #1a1e2e)', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: 6 }}>Benefits</div>
+              {creative.bullets.map((b, i) => (
+                <input key={i} type="text" value={b}
+                  onChange={e => { const next = [...creative.bullets]; next[i] = e.target.value; setCreative(prev => ({ ...prev, bullets: next })) }}
+                  style={{ width: '100%', padding: '5px 8px', background: 'var(--bg, #111)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, fontSize: 12, color: 'inherit', marginBottom: 4 }} />
+              ))}
+              <button onClick={() => setCreative(prev => ({ ...prev, bullets: [...prev.bullets, ''] }))}
+                style={{ fontSize: 11, color: '#2138ff' }}>+ Add benefit</button>
+            </div>
+
+            {/* CTA */}
+            <CopyCard label="CTA" tag="" value={creative.cta} charLimit={18}
+              onChange={v => setCreative(prev => ({ ...prev, cta: v }))}
+              variants={copyVariants?.ctas} onSelectVariant={v => setCreative(prev => ({ ...prev, cta: v }))} />
+
+            {/* Price */}
+            <div style={{ padding: 10, background: 'var(--elevated, #1a1e2e)', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888', marginBottom: 6 }}>Pricing</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 <div>
-                  <div className="text-4xl mb-3">🎨</div>
-                  <div className="text-sm font-bold text-text-muted mb-1">HyperDesign Studio</div>
-                  <div className="text-xs text-text-dim max-w-xs">Upload a reference ad, add your product, set your copy, and generate creatives in all formats</div>
+                  <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>Original</div>
+                  <input type="text" value={creative.priceOld} onChange={e => setCreative(prev => ({ ...prev, priceOld: e.target.value }))}
+                    style={{ width: '100%', padding: '5px 8px', background: 'var(--bg, #111)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, fontSize: 12, color: 'inherit' }} />
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right - Copy */}
-        <div className="space-y-3 overflow-y-auto pl-2">
-          <Button onClick={handleGenerateCopy} disabled={copyLoading} className="w-full justify-center" size="sm">
-            {copyLoading ? <><LoadingSpinner size={14} /> Generating...</> : 'Generate Copy'}
-          </Button>
-
-          {/* Hook */}
-          <Card title="Hook">
-            <input type="text" value={hookText} onChange={e => setHookText(e.target.value)}
-              className="w-full px-3 py-2 bg-page border border-border rounded text-sm font-bold text-text-primary focus:border-blue focus:outline-none mb-1" />
-            <div className="text-2xs text-text-dim">{hookText.length}/40 chars</div>
-            {copyVariants?.hooks && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {copyVariants.hooks.map((h, i) => (
-                  <button key={i} onClick={() => { setHookText(h); setActiveHook(i) }}
-                    className={`px-2 py-1 text-2xs rounded border transition-all ${
-                      activeHook === i ? 'border-blue bg-blue-light' : 'border-border hover:border-text-subtle'
-                    }`}>
-                    {h}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Subheadline */}
-          <Card title="Subhead">
-            <input type="text" value={subText} onChange={e => setSubText(e.target.value)}
-              className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-blue focus:outline-none mb-1" />
-            <div className="text-2xs text-text-dim">{subText.length}/30 chars</div>
-            {copyVariants?.subheadlines && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {copyVariants.subheadlines.map((s, i) => (
-                  <button key={i} onClick={() => { setSubText(s); setActiveSub(i) }}
-                    className={`px-2 py-1 text-2xs rounded border transition-all ${
-                      activeSub === i ? 'border-blue bg-blue-light' : 'border-border hover:border-text-subtle'
-                    }`}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Benefits */}
-          <Card title="Benefits">
-            {benefitsText.map((b, i) => (
-              <input key={i} type="text" value={b}
-                onChange={e => {
-                  const next = [...benefitsText]
-                  next[i] = e.target.value
-                  setBenefitsText(next)
-                }}
-                className="w-full px-3 py-1.5 bg-page border border-border rounded text-xs text-text-primary focus:border-blue focus:outline-none mb-1" />
-            ))}
-            <button onClick={() => setBenefitsText(prev => [...prev, ''])}
-              className="text-2xs text-blue hover:underline">+ Add benefit</button>
-            {copyVariants?.benefits && copyVariants.benefits.length > 1 && (
-              <div className="flex gap-1 mt-2">
-                {copyVariants.benefits.map((_, i) => (
-                  <button key={i} onClick={() => { setBenefitsText(copyVariants.benefits[i]); setActiveBenefits(i) }}
-                    className={`px-2 py-1 text-2xs rounded border ${
-                      activeBenefits === i ? 'border-blue bg-blue-light' : 'border-border'
-                    }`}>
-                    Set {i + 1}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* CTA */}
-          <Card title="CTA">
-            <input type="text" value={ctaText} onChange={e => setCtaText(e.target.value)}
-              className="w-full px-3 py-2 bg-page border border-border rounded text-sm font-bold text-text-primary focus:border-blue focus:outline-none mb-1" />
-            {copyVariants?.ctas && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {copyVariants.ctas.map((c, i) => (
-                  <button key={i} onClick={() => { setCtaText(c); setActiveCta(i) }}
-                    className={`px-2 py-1 text-2xs rounded border ${
-                      activeCta === i ? 'border-blue bg-blue-light' : 'border-border'
-                    }`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          {/* Price */}
-          <Card title="Pricing">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <div className="text-2xs text-text-dim mb-1">Original</div>
-                <input type="text" value={priceText} onChange={e => setPriceText(e.target.value)}
-                  placeholder="$65" className="w-full px-2 py-1.5 bg-page border border-border rounded text-xs focus:border-blue focus:outline-none" />
-              </div>
-              <div>
-                <div className="text-2xs text-text-dim mb-1">Sale</div>
-                <input type="text" value={salePriceText} onChange={e => setSalePriceText(e.target.value)}
-                  placeholder="$48" className="w-full px-2 py-1.5 bg-page border border-border rounded text-xs focus:border-blue focus:outline-none" />
+                <div>
+                  <div style={{ fontSize: 10, color: '#666', marginBottom: 2 }}>Sale</div>
+                  <input type="text" value={creative.priceNew} onChange={e => setCreative(prev => ({ ...prev, priceNew: e.target.value }))}
+                    style={{ width: '100%', padding: '5px 8px', background: 'var(--bg, #111)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, fontSize: 12, color: 'inherit' }} />
+                </div>
               </div>
             </div>
-          </Card>
+          </>}
 
-          {/* Export */}
-          {Object.keys(generatedImages).length > 0 && (
-            <Card title="Export">
-              <div className="space-y-2">
-                {Object.entries(generatedImages).map(([ar, url]) => (
-                  <button key={ar} onClick={() => {
-                    const link = document.createElement('a')
-                    link.href = url
-                    link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`
-                    link.click()
-                    onToast(`${ar} downloaded`, 'success')
-                  }} className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-primary hover:border-blue/40 transition-colors text-left">
-                    Download {ar} ({ar === '1:1' ? '1080x1080' : ar === '4:5' ? '1080x1350' : '1080x1920'})
-                  </button>
-                ))}
-                <button onClick={() => {
+          {rightTab === 'style' && (
+            <div style={{ fontSize: 11, color: '#888' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Reference Locks</div>
+              <div style={{ fontSize: 12, color: '#666' }}>Coming soon - toggle which elements follow the reference vs brand kit</div>
+            </div>
+          )}
+
+          {rightTab === 'export' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {Object.entries(generatedImages).map(([ar, url]) => (
+                <button key={ar} onClick={() => {
+                  const link = document.createElement('a'); link.href = url
+                  link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`; link.click()
+                  onToast(`${ar} downloaded`, 'success')
+                }} style={{ width: '100%', padding: '10px 12px', background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 8, fontSize: 12, color: 'inherit', textAlign: 'left' }}>
+                  Download {ar} ({ar === '1:1' ? '1080x1080' : ar === '4:5' ? '1080x1350' : '1080x1920'})
+                </button>
+              ))}
+              {Object.keys(generatedImages).length > 0 && (
+                <Button onClick={() => {
                   Object.entries(generatedImages).forEach(([ar, url]) => {
-                    const link = document.createElement('a')
-                    link.href = url
-                    link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`
-                    link.click()
+                    const link = document.createElement('a'); link.href = url
+                    link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`; link.click()
                   })
                   onToast('All formats downloaded', 'success')
-                }} className="w-full px-3 py-2 bg-blue text-white rounded text-xs font-bold hover:bg-blue-dark transition-colors">
-                  Download All
-                </button>
-              </div>
-            </Card>
+                }} className="w-full justify-center">Download All</Button>
+              )}
+              {Object.keys(generatedImages).length === 0 && (
+                <div style={{ fontSize: 12, color: '#888', textAlign: 'center', padding: 20 }}>Generate creatives first to export</div>
+              )}
+            </div>
           )}
         </div>
       </div>
 
       <ImagePreview src={previewImage || ''} open={!!previewImage} onClose={() => setPreviewImage(null)} />
+    </div>
+  )
+}
+
+// ── CopyCard component ──
+function CopyCard({ label, tag, value, charLimit, onChange, variants, onSelectVariant }: {
+  label: string; tag: string; value: string; charLimit: number
+  onChange: (v: string) => void; variants?: string[]; onSelectVariant: (v: string) => void
+}) {
+  return (
+    <div style={{ padding: 10, background: 'var(--elevated, #1a1e2e)', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#888' }}>{label}</span>
+        {tag && <span style={{ fontSize: 9, padding: '1px 5px', background: 'rgba(33,56,255,0.15)', color: '#2138ff', borderRadius: 4, fontWeight: 700 }}>{tag}</span>}
+      </div>
+      <input type="text" value={value} onChange={e => onChange(e.target.value)}
+        style={{ width: '100%', padding: '6px 8px', background: 'var(--bg, #111)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, fontSize: 13, fontWeight: 700, color: 'inherit' }} />
+      <div style={{ fontSize: 10, color: value.length > charLimit ? '#e74c3c' : '#666', marginTop: 3 }}>
+        {value.length}/{charLimit} chars
+      </div>
+      {variants && variants.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+          {variants.map((v, i) => (
+            <button key={i} onClick={() => onSelectVariant(v)}
+              style={{ padding: '3px 8px', fontSize: 10, borderRadius: 999, border: value === v ? '1px solid #2138ff' : '1px solid var(--border, #2a2e3a)',
+                background: value === v ? 'rgba(33,56,255,0.1)' : 'transparent', color: value === v ? '#2138ff' : '#888' }}>
+              {v}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
