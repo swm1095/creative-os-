@@ -168,8 +168,8 @@ Rules:
   return NextResponse.json({ copy })
 }
 
-// Generate the actual creative image using Claude
-async function generateCreative(apiKey: string, body: {
+// Generate the actual creative image using Gemini (best text rendering for ads)
+async function generateCreative(_apiKey: string, body: {
   referenceImage?: string
   productImage?: string
   brandName: string
@@ -183,6 +183,9 @@ async function generateCreative(apiKey: string, body: {
   aspectRatio: string
   style: Record<string, unknown>
 }) {
+  const geminiKey = process.env.GEMINI_API_KEY
+  if (!geminiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
+
   const {
     referenceImage, productImage, brandName, brandColors,
     hook, subheadline, benefits, cta, price, salePrice,
@@ -195,93 +198,83 @@ async function generateCreative(apiKey: string, body: {
     '9:16': '1080x1920',
   }
 
-  const content: Array<Record<string, unknown>> = []
+  interface Part { text?: string; inlineData?: { mimeType: string; data: string } }
+  const parts: Part[] = []
 
-  // Add reference image if provided
-  if (referenceImage) {
-    const isUrl = referenceImage.startsWith('http')
-    content.push(isUrl
-      ? { type: 'image', source: { type: 'url', url: referenceImage } }
-      : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: referenceImage.replace(/^data:image\/\w+;base64,/, '') } }
-    )
+  // Add reference image
+  if (referenceImage && !referenceImage.startsWith('http')) {
+    const match = referenceImage.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
   }
 
-  // Add product image if provided
-  if (productImage) {
-    const isUrl = productImage.startsWith('http')
-    content.push(isUrl
-      ? { type: 'image', source: { type: 'url', url: productImage } }
-      : { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: productImage.replace(/^data:image\/\w+;base64,/, '') } }
-    )
+  // Add product image
+  if (productImage && !productImage.startsWith('http')) {
+    const match = productImage.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
   }
 
-  content.push({
-    type: 'text',
-    text: `Create a paid social ad creative for ${brandName}.
+  parts.push({
+    text: `Create a paid social ad creative image for ${brandName}.
 
-${referenceImage ? 'REFERENCE IMAGE: Match the layout, typography style, and composition of the first image above. Do NOT copy the text or product - only the visual style.' : ''}
-${productImage ? 'PRODUCT IMAGE: Use the product shown in the second image above. Feature it prominently.' : ''}
+${referenceImage ? 'REFERENCE: The first image is a reference ad. Match its layout, typography style, and composition exactly. Do NOT copy its text or product - only the visual design structure.' : ''}
+${productImage ? 'PRODUCT: The second image is the product. Feature it prominently in the ad.' : ''}
 
 DESIGN SPECS:
 - Dimensions: ${dimensions[aspectRatio] || '1080x1080'}
 - Aspect ratio: ${aspectRatio}
 - Brand colors: ${brandColors.join(', ')}
-${style ? `- Style: ${JSON.stringify(style)}` : ''}
+- Use these colors for backgrounds, accents, buttons, and text
+${style ? `- Reference style: layout=${(style as Record<string, string>).layout || ''}, typography=${(style as Record<string, string>).typography || ''}, mood=${(style as Record<string, string>).mood || ''}` : ''}
 
-COPY (render this text exactly as written):
-- Headline: ${hook}
-${subheadline ? `- Subheadline: ${subheadline}` : ''}
-- Benefits: ${benefits.join(' - ')}
+COPY - render this text EXACTLY as written, clearly and legibly:
+- Main headline (large, bold, uppercase): ${hook}
+${subheadline ? `- Subheadline (medium): ${subheadline}` : ''}
+- Bullet benefits: ${benefits.join(' | ')}
 - CTA button: ${cta}
-${price ? `- Original price: ${price}` : ''}
-${salePrice ? `- Sale price: ${salePrice}` : ''}
-- Brand name/logo text: ${brandName}
+${price ? `- Price (crossed out): ${price}` : ''}
+${salePrice ? `- Sale price (large, bold): ${salePrice}` : ''}
+- Brand name: ${brandName}
 
-IMPORTANT:
-- Render ALL text clearly and legibly - text quality is the #1 priority
-- Use bold, condensed, uppercase typography for the headline
-- Make the CTA a button shape
-- Show the product prominently
-- Use the brand colors for backgrounds, accents, and buttons
-- This should look like a professional DTC paid social ad, not a template
-
-Generate the image now.`
+CRITICAL REQUIREMENTS:
+- ALL text must be perfectly legible and spelled correctly
+- Bold, condensed, uppercase typography for the headline
+- CTA should look like a clickable button
+- This must look like a professional DTC paid social media advertisement
+- Clean, modern design with clear visual hierarchy
+- Generate the complete ad image`
   })
 
-  const res = await fetch(`${ANTHROPIC_BASE}/messages`, {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'content-type': 'application/json',
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content }],
-    }),
-  })
+  const models = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview']
+  let lastError = ''
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Creative generation failed: ${res.status} ${err.slice(0, 200)}`)
+  for (const model of models) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] },
+          }),
+        }
+      )
+      if (!res.ok) { lastError = `${model}: ${res.status}`; continue }
+
+      const data = await res.json()
+      for (const part of (data.candidates?.[0]?.content?.parts || [])) {
+        if (part.inlineData?.mimeType?.startsWith('image/')) {
+          return NextResponse.json({
+            imageUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+          })
+        }
+      }
+      lastError = `${model}: No image in response`
+    } catch (e: unknown) {
+      lastError = `${model}: ${e instanceof Error ? e.message : String(e)}`
+    }
   }
 
-  const data = await res.json()
-
-  // Find image in response
-  const imageBlock = data.content?.find((b: { type: string }) => b.type === 'image')
-  if (imageBlock) {
-    return NextResponse.json({
-      imageUrl: `data:${imageBlock.source?.media_type || 'image/png'};base64,${imageBlock.source?.data}`,
-    })
-  }
-
-  // If no image block, return text response for debugging
-  const textBlock = data.content?.find((b: { type: string }) => b.type === 'text')
-  return NextResponse.json({
-    error: 'No image generated',
-    debug: textBlock?.text?.slice(0, 500),
-    contentTypes: data.content?.map((b: { type: string }) => b.type),
-  })
+  return NextResponse.json({ error: `Image generation failed: ${lastError}` })
 }

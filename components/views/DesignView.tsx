@@ -45,9 +45,9 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   const [productImageUrl, setProductImageUrl] = useState<string | null>(null)
   const productInputRef = useRef<HTMLInputElement>(null)
 
-  // Brand kit
-  const [brandColors, setBrandColors] = useState<string[]>(['#1a1a1a', '#ffffff', '#2138ff'])
-  const [brandFont, setBrandFont] = useState('Impact, sans-serif')
+  // Brand kit - load from brand data
+  const [brandColors, setBrandColors] = useState<string[]>([])
+  const [brandFont, setBrandFont] = useState('')
 
   // Persona
   const personas = brand?.research?.personas || []
@@ -75,12 +75,17 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   const [generating, setGenerating] = useState(false)
   const [activeAspect, setActiveAspect] = useState<'all' | '1:1' | '4:5' | '9:16'>('all')
 
-  // Load brand colors from research
+  // Load brand colors and fonts from brand data
   useEffect(() => {
-    if (brand?.color) {
-      setBrandColors(prev => [brand.color, ...prev.slice(1)])
+    if (brand?.brand_colors?.length) {
+      setBrandColors(brand.brand_colors)
+    } else if (brand?.color) {
+      setBrandColors([brand.color, '#ffffff', '#1a1a1a'])
     }
-  }, [brand?.color])
+    if (brand?.brand_fonts?.length) {
+      setBrandFont(brand.brand_fonts[0])
+    }
+  }, [brand?.id, brand?.color, brand?.brand_colors, brand?.brand_fonts])
 
   const handleRefUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -114,7 +119,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
       if (data.analysis.cta) setCtaText(data.analysis.cta)
       if (data.analysis.priceOriginal) setPriceText(data.analysis.priceOriginal)
       if (data.analysis.priceSale) setSalePriceText(data.analysis.priceSale)
-      if (data.analysis.palette?.length) setBrandColors(data.analysis.palette.slice(0, 4))
+      // Don't override brand colors from reference - keep the brand's actual colors
 
       onToast('Reference analyzed - style extracted', 'success')
     } catch (err: unknown) {
