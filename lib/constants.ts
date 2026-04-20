@@ -61,6 +61,16 @@ export const TOOLS: ToolDef[] = [
     implemented: false,
   },
   {
+    id: 'hyperdesign',
+    name: 'HyperDesign',
+    shortName: 'Ad Studio',
+    emoji: '🎨',
+    description: 'AI ad creative studio',
+    defaultView: 'design',
+    views: [{ id: 'design' as const, label: 'Studio' }],
+    implemented: true,
+  },
+  {
     id: 'hypervideo',
     name: 'HyperVideo',
     shortName: 'Video Gen',

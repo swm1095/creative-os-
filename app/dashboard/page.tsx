@@ -34,6 +34,7 @@ import VideoView from '@/components/views/VideoView'
 import AdminDashboardView from '@/components/views/AdminDashboardView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
+import DesignView from '@/components/views/DesignView'
 
 export default function DashboardPage() {
   const { user, loading: authLoading, login, loginWithGoogle, logout, isAdmin } = useAuth()
@@ -183,6 +184,8 @@ export default function DashboardPage() {
         return <HubView onNavigate={navigate} />
       case 'video':
         return <VideoView brand={activeBrand} brandId={activeBrand?.id} onToast={addToast} />
+      case 'design':
+        return <DesignView brand={activeBrand} brandId={activeBrand?.id} onToast={addToast} />
       case 'tracker':
         return <UGCTeamView onToast={addToast} />
       case 'performance':
