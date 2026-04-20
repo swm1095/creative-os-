@@ -168,8 +168,8 @@ Rules:
   return NextResponse.json({ copy })
 }
 
-// Generate the actual creative image using Gemini (best text rendering for ads)
-async function generateCreative(_apiKey: string, body: {
+// Generate the actual creative image - try Claude first (best text), fall back to Gemini
+async function generateCreative(anthropicKey: string, body: {
   referenceImage?: string
   productImage?: string
   brandName: string
@@ -183,9 +183,6 @@ async function generateCreative(_apiKey: string, body: {
   aspectRatio: string
   style: Record<string, unknown>
 }) {
-  const geminiKey = process.env.GEMINI_API_KEY
-  if (!geminiKey) return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
-
   const {
     referenceImage, productImage, brandName, brandColors,
     hook, subheadline, benefits, cta, price, salePrice,
@@ -198,23 +195,7 @@ async function generateCreative(_apiKey: string, body: {
     '9:16': '1080x1920',
   }
 
-  interface Part { text?: string; inlineData?: { mimeType: string; data: string } }
-  const parts: Part[] = []
-
-  // Add reference image
-  if (referenceImage && !referenceImage.startsWith('http')) {
-    const match = referenceImage.match(/^data:(image\/\w+);base64,(.+)$/)
-    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
-  }
-
-  // Add product image
-  if (productImage && !productImage.startsWith('http')) {
-    const match = productImage.match(/^data:(image\/\w+);base64,(.+)$/)
-    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
-  }
-
-  parts.push({
-    text: `Create a paid social ad creative image for ${brandName}.
+  const promptText = `Create a paid social ad creative image for ${brandName}.
 
 ${referenceImage ? 'REFERENCE: The first image is a reference ad. Match its layout, typography style, and composition exactly. Do NOT copy its text or product - only the visual design structure.' : ''}
 ${productImage ? 'PRODUCT: The second image is the product. Feature it prominently in the ad.' : ''}
@@ -242,7 +223,72 @@ CRITICAL REQUIREMENTS:
 - This must look like a professional DTC paid social media advertisement
 - Clean, modern design with clear visual hierarchy
 - Generate the complete ad image`
-  })
+
+  // --- Try Claude first (best text rendering) ---
+  try {
+    console.log('Trying Claude image generation...')
+    const claudeContent: Array<Record<string, unknown>> = []
+
+    if (referenceImage && !referenceImage.startsWith('http')) {
+      const match = referenceImage.match(/^data:(image\/\w+);base64,(.+)$/)
+      if (match) claudeContent.push({ type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } })
+    }
+    if (productImage && !productImage.startsWith('http')) {
+      const match = productImage.match(/^data:(image\/\w+);base64,(.+)$/)
+      if (match) claudeContent.push({ type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } })
+    }
+    claudeContent.push({ type: 'text', text: promptText })
+
+    const claudeRes = await fetch(`${ANTHROPIC_BASE}/messages`, {
+      method: 'POST',
+      headers: {
+        'x-api-key': anthropicKey,
+        'content-type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 16384,
+        messages: [{ role: 'user', content: claudeContent }],
+      }),
+    })
+
+    if (claudeRes.ok) {
+      const claudeData = await claudeRes.json()
+      const imageBlock = claudeData.content?.find((b: { type: string }) => b.type === 'image')
+      if (imageBlock?.source?.data) {
+        console.log('Claude image generation succeeded!')
+        return NextResponse.json({
+          imageUrl: `data:${imageBlock.source.media_type || 'image/png'};base64,${imageBlock.source.data}`,
+          generator: 'claude',
+        })
+      }
+      console.log('Claude response had no image block. Types:', claudeData.content?.map((b: { type: string }) => b.type))
+    } else {
+      const err = await claudeRes.text()
+      console.log(`Claude image gen failed (${claudeRes.status}):`, err.slice(0, 200))
+    }
+  } catch (e: unknown) {
+    console.log('Claude image gen error:', e instanceof Error ? e.message : String(e))
+  }
+
+  // --- Fall back to Gemini ---
+  console.log('Falling back to Gemini image generation...')
+  const geminiKey = process.env.GEMINI_API_KEY
+  if (!geminiKey) return NextResponse.json({ error: 'Neither Claude nor Gemini image generation available' }, { status: 500 })
+
+  interface Part { text?: string; inlineData?: { mimeType: string; data: string } }
+  const parts: Part[] = []
+
+  if (referenceImage && !referenceImage.startsWith('http')) {
+    const match = referenceImage.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
+  }
+  if (productImage && !productImage.startsWith('http')) {
+    const match = productImage.match(/^data:(image\/\w+);base64,(.+)$/)
+    if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } })
+  }
+  parts.push({ text: promptText })
 
   const models = ['gemini-2.5-flash-image', 'gemini-3.1-flash-image-preview', 'gemini-3-pro-image-preview']
   let lastError = ''
@@ -267,6 +313,7 @@ CRITICAL REQUIREMENTS:
         if (part.inlineData?.mimeType?.startsWith('image/')) {
           return NextResponse.json({
             imageUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+            generator: 'gemini',
           })
         }
       }
