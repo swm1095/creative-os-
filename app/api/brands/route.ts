@@ -57,6 +57,11 @@ export async function POST(req: NextRequest) {
       if (assigned_to !== undefined) updates.assigned_to = assigned_to
       if (body.research !== undefined) updates.research = body.research
       if (body.competitor_urls !== undefined) updates.competitor_urls = body.competitor_urls
+      if (body.logo_url !== undefined) updates.logo_url = body.logo_url
+      if (body.brand_colors !== undefined) updates.brand_colors = body.brand_colors
+      if (body.brand_fonts !== undefined) updates.brand_fonts = body.brand_fonts
+      if (body.tone_notes !== undefined) updates.tone_notes = body.tone_notes
+      if (body.brand_guidelines_url !== undefined) updates.brand_guidelines_url = body.brand_guidelines_url
 
       const { data, error } = await supabase.from('brands').update(updates).eq('id', id).select().single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })

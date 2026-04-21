@@ -53,9 +53,21 @@ export function useBrands() {
     }
   }, [])
 
-  const updateBrand = useCallback((brandId: string, updates: Partial<Brand>) => {
+  const updateBrand = useCallback(async (brandId: string, updates: Partial<Brand>) => {
+    // Update local state immediately for responsiveness
     setBrands(prev => prev.map(b => b.id === brandId ? { ...b, ...updates } : b))
     setActiveBrand(prev => prev?.id === brandId ? { ...prev, ...updates } : prev)
+
+    // Persist to database
+    try {
+      await fetch('/api/brands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: brandId, ...updates }),
+      })
+    } catch (e) {
+      console.error('Failed to save brand update:', e)
+    }
   }, [])
 
   return { brands, activeBrand, setActiveBrand, loading, createBrand, updateBrand, refreshBrands: loadBrands }
