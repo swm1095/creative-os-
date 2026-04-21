@@ -292,44 +292,6 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
         </div>
       </Card>}
 
-      {/* AMAZON PRODUCT URL - team only */}
-      {brand && !isClient && (
-        <Card className="mb-6">
-          <div className="text-sm font-bold mb-1">Track Competitor Products on Amazon</div>
-          <div className="text-2xs text-text-dim mb-3">Paste Amazon product URLs to mine customer reviews. HyperListening uses these on every scan.</div>
-          <div className="flex gap-2 mb-3">
-            <input
-              type="url"
-              placeholder="https://amazon.com/dp/B08XYZ... or full Amazon product URL"
-              value={newCompetitorUrl}
-              onChange={e => setNewCompetitorUrl(e.target.value)}
-              className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
-            />
-            <Button
-              disabled={!newCompetitorUrl.trim() || savingUrls}
-              onClick={async () => {
-                if (!newCompetitorUrl.trim()) return
-                const urls = [...competitorUrls, newCompetitorUrl.trim()]
-                setNewCompetitorUrl('')
-                await saveCompetitorUrls(urls)
-              }}
-            >
-              {savingUrls ? 'Saving...' : 'Add + Save'}
-            </Button>
-          </div>
-          {competitorUrls.length > 0 && (
-            <div className="space-y-1.5">
-              {competitorUrls.map((url, i) => (
-                <div key={i} className="flex items-center gap-2 bg-page border border-border rounded px-3 py-1.5">
-                  <span className="text-xs text-text-secondary truncate flex-1">{url}</span>
-                  <button onClick={async () => { const urls = competitorUrls.filter((_, idx) => idx !== i); await saveCompetitorUrls(urls) }} className="text-text-dim hover:text-red text-xs px-1 shrink-0">remove</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      )}
-
       {/* Brand header */}
       {brand && research && (
         <PageHeader
@@ -468,6 +430,34 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
               </div>
             </Card>
 
+            {/* Competitor Amazon URLs */}
+            {!isClient && (
+              <Card className="mb-4">
+                <div className="text-sm font-bold mb-1">Track Competitor Products on Amazon</div>
+                <div className="text-2xs text-text-dim mb-3">Paste competitor Amazon product URLs to mine their customer reviews.</div>
+                <div className="flex gap-2 mb-3">
+                  <input type="url" placeholder="https://amazon.com/dp/B08XYZ..." value={newCompetitorUrl} onChange={e => setNewCompetitorUrl(e.target.value)}
+                    className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
+                  <Button disabled={!newCompetitorUrl.trim() || savingUrls} onClick={async () => {
+                    if (!newCompetitorUrl.trim()) return
+                    const urls = [...competitorUrls, newCompetitorUrl.trim()]
+                    setNewCompetitorUrl('')
+                    await saveCompetitorUrls(urls)
+                  }}>{savingUrls ? 'Saving...' : 'Add + Save'}</Button>
+                </div>
+                {competitorUrls.length > 0 && (
+                  <div className="space-y-1.5">
+                    {competitorUrls.map((url, i) => (
+                      <div key={i} className="flex items-center gap-2 bg-page border border-border rounded px-3 py-1.5">
+                        <span className="text-xs text-text-secondary truncate flex-1">{url}</span>
+                        <button onClick={async () => { await saveCompetitorUrls(competitorUrls.filter((_, idx) => idx !== i)) }} className="text-text-dim hover:text-red text-xs px-1 shrink-0">remove</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
+
             {researchingCompetitors && (
               <LoadingState size="md" title="Mining Reddit for competitor discussions..." subtitle="Claude is analyzing weaknesses, complaints, and ad opportunities" />
             )}
@@ -534,8 +524,8 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             )}
           </div>
 
-          {/* AMAZON REVIEWS */}
-          <div id="amazon-reviews">
+          {/* AMAZON REVIEWS - only in brand research mode, not competitor mode */}
+          {initialSection !== 'competitor-analysis' && <div id="amazon-reviews">
             <h3 className="text-lg font-black mb-4">Amazon Review Tracking</h3>
 
             <Card className="mb-4">
@@ -617,7 +607,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
                 </div>
               </Card>
             )}
-          </div>
+          </div>}
 
           {/* VALUE PROPS - hide in competitor mode */}
           {initialSection !== 'competitor-analysis' && (<>
