@@ -381,7 +381,8 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             </Card>
           </div>
 
-          {/* TARGET PERSONAS */}
+          {/* TARGET PERSONAS - hide when in competitor research mode */}
+          {initialSection !== 'competitor-analysis' && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-black">Target Personas</h3>
@@ -445,6 +446,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
               </div>
             )}
           </div>
+          )}
 
           {/* COMPETITOR ANALYSIS */}
           <div id="competitor-analysis">
@@ -616,6 +618,8 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             )}
           </div>
 
+          {/* VALUE PROPS - hide in competitor mode */}
+          {initialSection !== 'competitor-analysis' && (<>
           {/* VALUE PROPS */}
           <Card title="Value Propositions">
             <ul className="space-y-1.5 list-disc list-inside">
@@ -654,6 +658,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
               {research.subreddits?.map((s, i) => <span key={i} className="text-2xs bg-elevated border border-border px-2 py-0.5 rounded">r/{s}</span>)}
             </div>
           </Card>
+          </>)}
         </div>
       )}
 
