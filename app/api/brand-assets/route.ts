@@ -88,3 +88,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
   }
 }
+
+// DELETE - remove an asset
+export async function DELETE(req: NextRequest) {
+  try {
+    const supabase = createClient()
+    const { brandId, fileName } = await req.json()
+
+    if (!brandId || !fileName) {
+      return NextResponse.json({ error: 'brandId and fileName required' }, { status: 400 })
+    }
+
+    const path = `brands/${brandId}/assets/${fileName}`
+    const { error } = await supabase.storage.from('brand-assets').remove([path])
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  } catch (e: unknown) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
+}

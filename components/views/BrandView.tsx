@@ -745,6 +745,22 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
                   className="relative aspect-square rounded-lg overflow-hidden border border-border cursor-pointer hover:border-fulton/40 transition-colors group"
                 >
                   <img src={asset.url} alt={asset.name} className="w-full h-full object-cover" onClick={() => setPreviewImage(asset.url)} />
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      if (!confirm(`Delete "${asset.name}"?`)) return
+                      try {
+                        await fetch('/api/brand-assets', {
+                          method: 'DELETE',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ brandId: brand?.id, fileName: asset.name }),
+                        })
+                        setSavedAssets(prev => prev.filter(a => a.name !== asset.name))
+                        onToast('Asset removed', 'success')
+                      } catch { onToast('Failed to remove asset', 'error') }
+                    }}
+                    className="absolute top-1 right-1 w-5 h-5 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10"
+                  >x</button>
                   <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-1.5 py-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="text-2xs text-white truncate mb-1">{asset.name}</div>
                     <button
