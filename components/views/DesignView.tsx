@@ -478,18 +478,24 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   }
 
   const handleGenerate = async () => {
+    // Generate button = generate AI copy if no copy yet, or render exports if copy exists
+    if (!copyVariants) {
+      await handleGenerateCopy()
+      return
+    }
+
+    // Render export images from current canvas state
     if (!creative.headline.trim()) { onToast('Add a headline first', 'error'); return }
     setGenerating(true)
     setGeneratedImages({})
+    setRightTab('export')
 
     try {
-      // Generate 1:1 first
-      onToast('Generating 1:1 creative...', 'info')
+      onToast('Rendering 1:1 export...', 'info')
       const squareUrl = await generateOne('1:1')
       setGeneratedImages(prev => ({ ...prev, '1:1': squareUrl }))
-      onToast('1:1 done. Generating 4:5 and 9:16 to match...', 'info')
+      onToast('1:1 done. Rendering 4:5 and 9:16...', 'info')
 
-      // Generate 4:5 and 9:16 using the 1:1 as design reference for consistency
       const [r45, r916] = await Promise.allSettled([
         generateOne('4:5', squareUrl),
         generateOne('9:16', squareUrl),
@@ -498,9 +504,9 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
       else onToast(`4:5 failed: ${r45.reason?.message}`, 'error')
       if (r916.status === 'fulfilled') setGeneratedImages(prev => ({ ...prev, '9:16': r916.value }))
       else onToast(`9:16 failed: ${r916.reason?.message}`, 'error')
-      onToast('All creatives generated', 'success')
+      onToast('Exports ready - download from the Export tab', 'success')
     } catch (err: unknown) {
-      onToast(`Generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+      onToast(`Export failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setGenerating(false)
   }
@@ -675,8 +681,11 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
             <span>{zoom}%</span>
             <button onClick={() => setZoom(z => Math.min(150, z + 10))} style={{ padding: '2px 6px' }}>+</button>
           </div>
-          <Button onClick={handleGenerate} disabled={generating} size="sm" className="px-4 ml-2">
-            {generating ? <><LoadingSpinner size={14} /> Generating...</> : 'Generate'}
+          <Button onClick={handleGenerateCopy} disabled={copyLoading} size="sm" variant="secondary" className="px-3 ml-2">
+            {copyLoading ? <><LoadingSpinner size={14} /> Copy...</> : 'Generate Copy'}
+          </Button>
+          <Button onClick={handleGenerate} disabled={generating} size="sm" className="px-4">
+            {generating ? <><LoadingSpinner size={14} /> Exporting...</> : 'Export Images'}
           </Button>
         </div>
 
@@ -694,36 +703,23 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
                   <span style={{ padding: '2px 6px', background: 'var(--elevated, #1a1e2e)', borderRadius: 4, fontSize: 10 }}>{spec.use}</span>
                   <span style={{ fontSize: 10 }}>{a === '1x1' ? '1080x1080' : a === '4x5' ? '1080x1350' : '1080x1920'}</span>
                 </div>
-                <div style={{ width: spec.w * scale, height: spec.h * scale, position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', cursor: hasGenerated ? 'pointer' : 'default' }}
-                  onClick={() => hasGenerated && setPreviewImage(hasGenerated)}>
-                  {hasGenerated ? (
-                    <img src={hasGenerated} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', background: brandColors[0] || '#f5f0eb' }} />
-                  ) : (
-                    <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: spec.w, height: spec.h }}>
-                      <AdCanvas
-                        aspect={a}
-                        creative={creative}
-                        brandColors={brandColors}
-                        brandName={brand?.name || 'Brand'}
-                        productImage={productImage}
-                        selected={selected}
-                        editing={editing}
-                        onSelect={setSelected}
-                        onLayoutChange={handleLayoutChange}
-                        onTextChange={handleTextChange}
-                        onStartEdit={setEditing}
-                      />
-                    </div>
-                  )}
-                </div>
-                {hasGenerated && (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={e => { e.stopPropagation(); setGeneratedImages(prev => { const next = { ...prev }; delete next[a.replace('x', ':')]; return next }) }}
-                      style={{ fontSize: 10, padding: '3px 8px', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, color: '#888' }}>Edit Layout</button>
-                    <button onClick={e => { e.stopPropagation(); const link = document.createElement('a'); link.href = hasGenerated; link.download = `${brand?.name || 'creative'}-${a}-${Date.now()}.png`; link.click() }}
-                      style={{ fontSize: 10, padding: '3px 8px', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, color: '#888' }}>Save</button>
+                <div style={{ width: spec.w * scale, height: spec.h * scale, position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                  <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: spec.w, height: spec.h }}>
+                    <AdCanvas
+                      aspect={a}
+                      creative={creative}
+                      brandColors={brandColors}
+                      brandName={brand?.name || 'Brand'}
+                      productImage={productImage}
+                      selected={selected}
+                      editing={editing}
+                      onSelect={setSelected}
+                      onLayoutChange={handleLayoutChange}
+                      onTextChange={handleTextChange}
+                      onStartEdit={setEditing}
+                    />
                   </div>
-                )}
+                </div>
               </div>
             )
           })}
@@ -803,26 +799,43 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
 
           {rightTab === 'export' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {Object.keys(generatedImages).length === 0 && (
+                <div style={{ textAlign: 'center', padding: 20 }}>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>Edit your design on the canvas, then click Export Images to render final files</div>
+                  <Button onClick={handleGenerate} disabled={generating} className="w-full justify-center" size="sm">
+                    {generating ? <><LoadingSpinner size={14} /> Exporting...</> : 'Export Images'}
+                  </Button>
+                </div>
+              )}
               {Object.entries(generatedImages).map(([ar, url]) => (
-                <button key={ar} onClick={() => {
-                  const link = document.createElement('a'); link.href = url
-                  link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`; link.click()
-                  onToast(`${ar} downloaded`, 'success')
-                }} style={{ width: '100%', padding: '10px 12px', background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 8, fontSize: 12, color: 'inherit', textAlign: 'left' }}>
-                  Download {ar} ({ar === '1:1' ? '1080x1080' : ar === '4:5' ? '1080x1350' : '1080x1920'})
-                </button>
-              ))}
-              {Object.keys(generatedImages).length > 0 && (
-                <Button onClick={() => {
-                  Object.entries(generatedImages).forEach(([ar, url]) => {
+                <div key={ar} style={{ padding: 10, background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 6, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>{ar} {ar === '1:1' ? '1080x1080' : ar === '4:5' ? '1080x1350' : '1080x1920'}</span>
+                  </div>
+                  <img src={url} alt={`${ar} export`} style={{ width: '100%', borderRadius: 6, border: '1px solid var(--border, #2a2e3a)', cursor: 'pointer', marginBottom: 6 }}
+                    onClick={() => setPreviewImage(url)} />
+                  <button onClick={() => {
                     const link = document.createElement('a'); link.href = url
                     link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`; link.click()
-                  })
-                  onToast('All formats downloaded', 'success')
-                }} className="w-full justify-center">Download All</Button>
-              )}
-              {Object.keys(generatedImages).length === 0 && (
-                <div style={{ fontSize: 12, color: '#888', textAlign: 'center', padding: 20 }}>Generate creatives first to export</div>
+                    onToast(`${ar} downloaded`, 'success')
+                  }} style={{ width: '100%', padding: '6px', background: 'var(--bg, #111)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 4, fontSize: 11, color: 'inherit', textAlign: 'center' }}>
+                    Download
+                  </button>
+                </div>
+              ))}
+              {Object.keys(generatedImages).length > 0 && (
+                <>
+                  <Button onClick={() => {
+                    Object.entries(generatedImages).forEach(([ar, url]) => {
+                      const link = document.createElement('a'); link.href = url
+                      link.download = `${brand?.name || 'creative'}-${ar.replace(':', 'x')}-${Date.now()}.png`; link.click()
+                    })
+                    onToast('All formats downloaded', 'success')
+                  }} className="w-full justify-center">Download All</Button>
+                  <Button onClick={handleGenerate} disabled={generating} variant="secondary" className="w-full justify-center" size="sm">
+                    {generating ? <><LoadingSpinner size={14} /> Re-exporting...</> : 'Re-export with Changes'}
+                  </Button>
+                </>
               )}
             </div>
           )}
