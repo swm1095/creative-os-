@@ -32,7 +32,7 @@ async function analyzeWithGemini(file: File): Promise<BrandAnalysis> {
   let mimeType = file.type || 'image/png'
   if (mimeType === 'application/pdf') mimeType = 'application/pdf'
 
-  const models = ['gemini-2.5-flash-preview-04-17', 'gemini-2.0-flash']
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-preview-04-17']
   let lastError = ''
 
   for (const model of models) {
