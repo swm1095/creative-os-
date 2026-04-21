@@ -372,19 +372,27 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({})
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-  // Load brand colors + reset state when brand changes
-  useEffect(() => {
-    // Reset creative state for new brand
-    setCreative({
-      headline: 'YOUR\nHEADLINE\nHERE', subhead: 'SUBHEADLINE',
-      bullets: ['Benefit one', 'Benefit two', 'Benefit three', 'Benefit four'],
-      cta: 'SHOP NOW', priceOld: '', priceNew: '', layouts: {},
-    })
-    setRefImage(null); setRefAnalysis(null)
-    setProductImage(null); setCopyVariants(null)
-    setGeneratedImages({}); setSelected(null); setEditing(null)
+  // Track brand ID to detect actual brand switches
+  const prevBrandId = useRef(brand?.id)
 
-    // Load brand colors - same source as BrandView
+  // Load brand colors on mount + reset state on brand switch
+  useEffect(() => {
+    const isBrandSwitch = prevBrandId.current !== undefined && prevBrandId.current !== brand?.id
+    prevBrandId.current = brand?.id
+
+    // Only reset creative state on actual brand switches, not initial load
+    if (isBrandSwitch) {
+      setCreative({
+        headline: 'YOUR\nHEADLINE\nHERE', subhead: 'SUBHEADLINE',
+        bullets: ['Benefit one', 'Benefit two', 'Benefit three', 'Benefit four'],
+        cta: 'SHOP NOW', priceOld: '', priceNew: '', layouts: {},
+      })
+      setRefImage(null); setRefAnalysis(null)
+      setProductImage(null); setCopyVariants(null)
+      setGeneratedImages({}); setSelected(null); setEditing(null)
+    }
+
+    // Always load brand colors
     const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
     setBrandColors(colors)
     const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
@@ -541,7 +549,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
             {/* 01 Reference */}
             <div>
               <SectionTitle num="01" label="Reference Ad" />
-              <input ref={refInputRef} type="file" accept="image/*" className="hidden" onChange={handleRefUpload} />
+              <input ref={refInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleRefUpload} />
               {refImage ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ position: 'relative' }}>
@@ -577,7 +585,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
             {/* 02 Product */}
             <div>
               <SectionTitle num="02" label="Product" />
-              <input ref={productInputRef} type="file" accept="image/*" className="hidden" onChange={handleProductUpload} />
+              <input ref={productInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleProductUpload} />
               {productImage ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <img src={productImage} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border, #2a2e3a)' }} />
