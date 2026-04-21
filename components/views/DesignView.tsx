@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Brand } from '@/lib/types'
+import { DEFAULT_BRAND } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ImagePreview from '@/components/ui/ImagePreview'
@@ -383,17 +384,11 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
     setProductImage(null); setCopyVariants(null)
     setGeneratedImages({}); setSelected(null); setEditing(null)
 
-    // Load brand colors - try brand_colors first, then parse from brand.color
-    if (brand?.brand_colors?.length) {
-      setBrandColors(brand.brand_colors)
-    } else if (brand?.color) {
-      // Use brand color as accent, derive bg and ink
-      setBrandColors(['#f5f0eb', '#1a1a1a', brand.color])
-    } else {
-      setBrandColors(['#f5f0eb', '#1a1a1a', '#2138ff'])
-    }
-    if (brand?.brand_fonts?.length) setBrandFont(brand.brand_fonts[0])
-    else setBrandFont('Impact, sans-serif')
+    // Load brand colors - same source as BrandView
+    const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
+    setBrandColors(colors)
+    const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
+    setBrandFont(fonts[0] || 'Impact, sans-serif')
   }, [brand?.id])
 
   // Escape to deselect

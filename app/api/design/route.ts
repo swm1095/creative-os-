@@ -198,9 +198,16 @@ async function generateCreative(anthropicKey: string, body: {
 
   const promptText = `Create a paid social ad creative image for ${brandName}.
 
-${sourceImage ? 'DESIGN REFERENCE: One of the images below is a previously generated 1:1 version of this ad. Recreate the EXACT same design, colors, layout, and text but reformat it for the new aspect ratio. Keep everything identical - same fonts, same colors, same copy placement - just reflow for the new dimensions.' : ''}
-${referenceImage && !sourceImage ? 'LAYOUT REFERENCE: One of the images is a reference ad from a different brand. Use ONLY its layout structure and composition as inspiration (where the headline goes, where the product sits, how benefits are listed). Do NOT copy any photos, icons, logos, text, colors, or visual elements from it. Create completely fresh visuals using only the brand colors and product image provided.' : ''}
-${productImage ? 'PRODUCT: One of the images is the actual product photo. Feature it prominently in the ad.' : ''}
+${sourceImage ? 'DESIGN REFERENCE: One of the images below is a previously generated 1:1 version of this ad. Recreate the EXACT same design, layout, typography style, and visual composition but reformat it for the new aspect ratio. Keep the same overall look and feel - just reflow for the new dimensions.' : ''}
+${referenceImage && !sourceImage ? `REFERENCE AD: One of the images is a reference ad. Recreate this ad's design for ${brandName}:
+- Match the layout structure exactly (where headline sits, product placement, benefit positioning, CTA placement)
+- Match the typography style (weight, size hierarchy, uppercase/lowercase, tracking)
+- Match the design style (modern, bold, minimal, etc.) and visual energy level
+- BUT use ONLY these brand colors: ${brandColors.join(', ')} - NOT the reference's colors
+- BUT use the provided product image, NOT the reference's product
+- BUT use the copy text provided below, NOT the reference's copy
+The goal: same visual design quality and layout, different brand.` : ''}
+${productImage ? 'PRODUCT: One of the images is the actual product photo. Feature it prominently in the ad, matching the product placement from the reference.' : ''}
 
 DESIGN SPECS:
 - Dimensions: ${dimensions[aspectRatio] || '1080x1080'}
@@ -253,7 +260,7 @@ CRITICAL REQUIREMENTS:
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6-20250514',
         max_tokens: 16384,
         messages: [{ role: 'user', content: claudeContent }],
       }),
