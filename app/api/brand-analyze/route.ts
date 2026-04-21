@@ -18,94 +18,64 @@ Extract the following information and respond in this EXACT JSON format with no 
 
 For colors: identify the primary, secondary, and accent colors. Return as hex codes. Find at least 3.
 For fonts: identify font families used. If unclear, describe the style (e.g., "Clean sans-serif, similar to Helvetica").
-Be specific and actionable — creative teams will use this to match the brand in AI-generated ads.
+Be specific and actionable - creative teams will use this to match the brand in AI-generated ads.
 Respond ONLY with the JSON object, no markdown, no explanation.`
 
-async function analyzeWithGemini(file: File): Promise<BrandAnalysis> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('GEMINI_API_KEY not configured')
+// Analyze with Claude (handles PDFs natively)
+async function analyzeWithClaude(fileData: string, mimeType: string): Promise<BrandAnalysis> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
-  const bytes = await file.arrayBuffer()
-  const base64 = Buffer.from(bytes).toString('base64')
+  const mediaType = mimeType === 'application/pdf' ? 'application/pdf'
+    : mimeType.startsWith('image/') ? mimeType
+    : 'image/png'
 
-  // Map file types to Gemini mime types
-  let mimeType = file.type || 'image/png'
-  if (mimeType === 'application/pdf') mimeType = 'application/pdf'
-
-  // Try multiple model + API version combinations
-  const attempts = [
-    { model: 'gemini-2.5-flash', version: 'v1beta' },
-    { model: 'gemini-2.5-flash-preview-04-17', version: 'v1beta' },
-    { model: 'gemini-2.0-flash', version: 'v1beta' },
-    { model: 'gemini-1.5-flash', version: 'v1beta' },
-    { model: 'gemini-2.5-flash', version: 'v1' },
-    { model: 'gemini-1.5-flash', version: 'v1' },
-  ]
-  let lastError = ''
-
-  for (const { model, version } of attempts) {
-    try {
-      console.log(`Trying brand analysis: ${model} (${version}), file size: ${file.size}, type: ${mimeType}`)
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: base64,
-                  },
-                },
-                { text: BRAND_ANALYSIS_PROMPT },
-              ],
-            }],
-            generationConfig: {
-              temperature: 0.1,
-              maxOutputTokens: 1024,
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'content-type': 'application/json',
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: mediaType === 'application/pdf' ? 'document' : 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: fileData,
             },
-          }),
-        }
-      )
+          },
+          { type: 'text', text: BRAND_ANALYSIS_PROMPT },
+        ],
+      }],
+    }),
+  })
 
-      if (!res.ok) {
-        const errText = await res.text()
-        lastError = `${model}(${version}): ${res.status} ${errText.slice(0, 200)}`
-        console.log(`Failed: ${lastError}`)
-        continue
-      }
-      console.log(`Success with ${model} (${version})`)
-
-      const data = await res.json()
-      const textPart = data.candidates?.[0]?.content?.parts?.find(
-        (p: { text?: string }) => p.text
-      )
-
-      if (!textPart?.text) {
-        lastError = `${model}: No text in response`
-        continue
-      }
-
-      const jsonMatch = textPart.text.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) throw new Error('Could not parse brand analysis response')
-      return JSON.parse(jsonMatch[0]) as BrandAnalysis
-    } catch (e: unknown) {
-      lastError = `${model}: ${e instanceof Error ? e.message : String(e)}`
-    }
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Claude API error: ${res.status} ${err.slice(0, 200)}`)
   }
 
-  throw new Error(`Brand analysis failed: ${lastError}`)
+  const data = await res.json()
+  const text = data.content?.find((b: { type: string }) => b.type === 'text')?.text || ''
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('Could not parse brand analysis response')
+  return JSON.parse(jsonMatch[0]) as BrandAnalysis
 }
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient()
 
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY not configured. Add it in Vercel environment variables.' }, { status: 500 })
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
     const formData = await req.formData()
@@ -130,37 +100,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Upload at least a logo or brand guidelines file' }, { status: 400 })
     }
 
-    // File size limit: 20MB (only for files sent through FormData)
-    const MAX_SIZE = 20 * 1024 * 1024
-    if (logoFile && logoFile.size > MAX_SIZE) return NextResponse.json({ error: 'Logo file too large (max 20MB)' }, { status: 400 })
-    if (guidelinesFile && guidelinesFile.size > MAX_SIZE) return NextResponse.json({ error: 'Guidelines file too large (max 20MB)' }, { status: 400 })
-
-    // If guidelines provided as URL, download and create a File-like object
-    let guidelinesForAnalysis = guidelinesFile
-    if (!guidelinesForAnalysis && guidelinesUrl) {
+    // If guidelines provided as URL, download it
+    let guidelinesData: string | null = null
+    let guidelinesMime = 'application/pdf'
+    if (guidelinesUrl) {
       try {
         const dlRes = await fetch(guidelinesUrl)
         if (dlRes.ok) {
-          const blob = await dlRes.blob()
-          const fileName = guidelinesUrl.split('/').pop() || 'guidelines.pdf'
-          guidelinesForAnalysis = new File([blob], fileName, { type: blob.type || 'application/pdf' })
+          const buf = await dlRes.arrayBuffer()
+          guidelinesData = Buffer.from(buf).toString('base64')
+          guidelinesMime = dlRes.headers.get('content-type') || 'application/pdf'
         }
       } catch {
-        console.log('Could not download guidelines from URL, skipping')
+        console.log('Could not download guidelines from URL')
       }
+    } else if (guidelinesFile) {
+      const buf = await guidelinesFile.arrayBuffer()
+      guidelinesData = Buffer.from(buf).toString('base64')
+      guidelinesMime = guidelinesFile.type || 'application/pdf'
     }
 
-    // Analyze the primary file (prefer guidelines, fallback to logo)
-    const primaryFile = guidelinesForAnalysis || logoFile
-    if (!primaryFile) {
+    // Get logo data
+    let logoData: string | null = null
+    let logoMime = 'image/png'
+    if (logoFile) {
+      const buf = await logoFile.arrayBuffer()
+      logoData = Buffer.from(buf).toString('base64')
+      logoMime = logoFile.type || 'image/png'
+    }
+
+    // Analyze primary file (prefer guidelines, fallback to logo)
+    const primaryData = guidelinesData || logoData
+    const primaryMime = guidelinesData ? guidelinesMime : logoMime
+    if (!primaryData) {
       return NextResponse.json({ error: 'No analyzable file available' }, { status: 400 })
     }
-    const analysis = await analyzeWithGemini(primaryFile)
 
-    // If both files uploaded, also analyze the logo and merge colors
-    if (logoFile && guidelinesForAnalysis) {
+    console.log(`Analyzing brand with Claude: ${primaryMime}, size: ${primaryData.length} chars base64`)
+    const analysis = await analyzeWithClaude(primaryData, primaryMime)
+
+    // If both files exist, also analyze the logo and merge colors
+    if (logoData && guidelinesData) {
       try {
-        const logoAnalysis = await analyzeWithGemini(logoFile)
+        const logoAnalysis = await analyzeWithClaude(logoData, logoMime)
         const allColors = [...new Set([...analysis.colors, ...logoAnalysis.colors])].slice(0, 8)
         analysis.colors = allColors
         if (!analysis.logoDescription) analysis.logoDescription = logoAnalysis.logoDescription
