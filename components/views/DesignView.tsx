@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Brand } from '@/lib/types'
-import { DEFAULT_BRAND } from '@/lib/constants'
 import Button from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ImagePreview from '@/components/ui/ImagePreview'

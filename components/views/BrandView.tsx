@@ -118,7 +118,7 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
 
   const colors = brand?.brand_colors || []
   const fonts = brand?.brand_fonts || []
-  const tone = brand?.tone_notes || DEFAULT_BRAND.tone
+  const tone = brand?.tone_notes || ''
 
   // Load saved assets from Supabase
   const loadAssets = useCallback(async () => {
@@ -512,6 +512,7 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
             onChange={e => {
               if (brand) onBrandUpdate(brand.id, { tone_notes: e.target.value })
             }}
+            placeholder="Describe the brand's tone, voice, and personality. E.g. Bold, direct, empowering. Speaks to customers like a knowledgeable friend, not a corporation."
             className="w-full bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed focus:border-fulton focus:outline-none resize-y min-h-[60px]"
             rows={3}
           />

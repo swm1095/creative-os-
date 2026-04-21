@@ -22,6 +22,9 @@ const MOCK_TOP_ADS = [
 export default function HubView({ onNavigate }: HubViewProps) {
   return (
     <div className="animate-fadeIn">
+      <div className="bg-blue/5 border border-blue/20 rounded-lg px-4 py-2 mb-4 text-xs text-blue">
+        Dashboard stats are placeholder data. Connect Meta/Google Ads to see real performance metrics.
+      </div>
       {/* KPI Row */}
       <div className="grid grid-cols-4 gap-3.5 mb-6">
         <StatCard label="Total Assets Generated" value={MOCK_STATS.totalCreatives} change={`↑ ${MOCK_STATS.weeklyCreatives} this week`} />

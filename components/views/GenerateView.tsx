@@ -298,12 +298,23 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated }: G
             {refLibImages.map((img, i) => (
               <div
                 key={i}
-                className={`w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer transition-all ${
+                className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 cursor-pointer transition-all group ${
                   referencePreview === img.url ? 'border-blue ring-2 ring-blue/30' : 'border-border hover:border-blue/40'
                 }`}
                 onClick={() => { setReferencePreview(img.url); setReferenceImage(null) }}
               >
                 <img src={img.url} alt="" className="w-full h-full object-cover" />
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation()
+                    const fileName = img.url.split('/').pop() || ''
+                    await fetch('/api/brand-assets', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brandId || 'shared', fileName }) }).catch(() => {})
+                    setRefLibImages(prev => prev.filter((_, idx) => idx !== i))
+                    if (referencePreview === img.url) { setReferencePreview(null); setReferenceImage(null) }
+                    onToast('Reference removed', 'success')
+                  }}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >x</button>
               </div>
             ))}
             <button
@@ -389,20 +400,20 @@ export default function GenerateView({ brandId, brand, onToast, onGenerated }: G
 
       {/* Right column */}
       <div className="space-y-4">
-        <Card title="Pipeline Options">
-          <div className="space-y-3">
+        <Card title="Pipeline Options" subtitle="Coming soon">
+          <div className="space-y-3 opacity-60">
             {[
-              { name: 'Remove Background', desc: 'Remove.bg - transparent PNG', checked: false },
-              { name: 'Render All Formats', desc: 'Creatomate - 1x1, 4x5, 9x16', checked: false },
-              { name: 'Auto-run QC', desc: 'Claude - 3 checks after generation', checked: true },
+              { name: 'Remove Background', desc: 'Remove.bg - transparent PNG' },
+              { name: 'Render All Formats', desc: 'Creatomate - 1x1, 4x5, 9x16' },
+              { name: 'Auto-run QC', desc: 'Claude - 3 checks after generation' },
             ].map(opt => (
-              <label key={opt.name} className="flex items-center justify-between cursor-pointer">
+              <div key={opt.name} className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold">{opt.name}</div>
                   <div className="text-2xs text-text-dim">{opt.desc}</div>
                 </div>
-                <input type="checkbox" defaultChecked={opt.checked} className="w-4 h-4 accent-fulton" />
-              </label>
+                <input type="checkbox" disabled className="w-4 h-4 accent-fulton" />
+              </div>
             ))}
           </div>
         </Card>
