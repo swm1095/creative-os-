@@ -509,31 +509,63 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
           <input ref={guidelinesRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleGuidelinesUpload} />
 
           <div className="space-y-3 mb-4">
-            <button
-              onClick={() => logoRef.current?.click()}
-              className={`w-full p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
-                logoFile ? 'border-fulton bg-fulton-light' : 'border-border bg-page hover:border-text-subtle'
-              }`}
-            >
-              <span className="text-lg">{logoFile ? '✓' : '🏷'}</span>
-              <div>
-                <div className="text-xs font-semibold">{logoFile ? logoFile.name : 'Upload Logo'}</div>
-                <div className="text-2xs text-text-dim">{logoFile ? `${(logoFile.size / 1024).toFixed(0)} KB` : 'PNG, SVG, JPG'}</div>
-              </div>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => logoRef.current?.click()}
+                className={`flex-1 p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                  logoFile || logoPreview ? 'border-fulton bg-fulton-light' : 'border-border bg-page hover:border-text-subtle'
+                }`}
+              >
+                <span className="text-lg">{logoFile || logoPreview ? '✓' : '🏷'}</span>
+                <div>
+                  <div className="text-xs font-semibold">{logoFile ? logoFile.name : logoPreview ? 'Logo Saved' : 'Upload Logo'}</div>
+                  <div className="text-2xs text-text-dim">{logoFile ? `${(logoFile.size / 1024).toFixed(0)} KB` : logoPreview ? 'Click to replace' : 'PNG, SVG, JPG'}</div>
+                </div>
+              </button>
+              {(logoFile || logoPreview) && (
+                <button
+                  onClick={() => {
+                    setLogoFile(null)
+                    setLogoPreview(null)
+                    if (brand) onBrandUpdate(brand.id, { logo_url: '' } as Partial<Brand>)
+                    onToast('Logo removed', 'info')
+                  }}
+                  className="px-3 rounded-lg border border-border hover:border-red/40 hover:bg-red/5 transition-all flex items-center"
+                  title="Remove logo"
+                >
+                  <span className="text-red text-sm">x</span>
+                </button>
+              )}
+            </div>
 
-            <button
-              onClick={() => guidelinesRef.current?.click()}
-              className={`w-full p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
-                guidelinesFile || guidelinesUrl ? 'border-fulton bg-fulton-light' : 'border-border bg-page hover:border-text-subtle'
-              }`}
-            >
-              <span className="text-lg">{guidelinesFile || guidelinesUrl ? '✓' : '📄'}</span>
-              <div>
-                <div className="text-xs font-semibold">{guidelinesFile ? guidelinesFile.name : guidelinesUrl ? 'Brand Guidelines Saved' : 'Upload Brand Guidelines'}</div>
-                <div className="text-2xs text-text-dim">{guidelinesFile ? `${(guidelinesFile.size / 1024).toFixed(0)} KB` : guidelinesUrl ? 'Click to replace' : 'PDF, PNG, JPG'}</div>
-              </div>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => guidelinesRef.current?.click()}
+                className={`flex-1 p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
+                  guidelinesFile || guidelinesUrl ? 'border-fulton bg-fulton-light' : 'border-border bg-page hover:border-text-subtle'
+                }`}
+              >
+                <span className="text-lg">{guidelinesFile || guidelinesUrl ? '✓' : '📄'}</span>
+                <div>
+                  <div className="text-xs font-semibold">{guidelinesFile ? guidelinesFile.name : guidelinesUrl ? 'Brand Guidelines Saved' : 'Upload Brand Guidelines'}</div>
+                  <div className="text-2xs text-text-dim">{guidelinesFile ? `${(guidelinesFile.size / 1024).toFixed(0)} KB` : guidelinesUrl ? 'Click to replace' : 'PDF, PNG, JPG'}</div>
+                </div>
+              </button>
+              {(guidelinesFile || guidelinesUrl) && (
+                <button
+                  onClick={() => {
+                    setGuidelinesFile(null)
+                    setGuidelinesUrl(null)
+                    if (brand) onBrandUpdate(brand.id, { brand_guidelines_url: '' } as Partial<Brand>)
+                    onToast('Brand guidelines removed', 'info')
+                  }}
+                  className="px-3 rounded-lg border border-border hover:border-red/40 hover:bg-red/5 transition-all flex items-center"
+                  title="Remove guidelines"
+                >
+                  <span className="text-red text-sm">x</span>
+                </button>
+              )}
+            </div>
           </div>
 
           {!isClient && (
