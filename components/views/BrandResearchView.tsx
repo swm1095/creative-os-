@@ -9,6 +9,7 @@ import FormInput from '@/components/ui/FormInput'
 import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import Pill from '@/components/ui/Pill'
 import PageHeader from '@/components/ui/PageHeader'
+import Modal from '@/components/ui/Modal'
 
 interface CompetitorInsight {
   name: string
@@ -58,6 +59,78 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaDesc, setNewPersonaDesc] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
+
+  // UGC Scripts + Headlines generation
+  const [generatingScripts, setGeneratingScripts] = useState(false)
+  const [generatingHeadlines, setGeneratingHeadlines] = useState(false)
+  const [ugcScripts, setUgcScripts] = useState<{ hooks: { persona: string; persona_number: number; hook: string }[]; body: string; cta: string } | null>(null)
+  const [headlines, setHeadlines] = useState<{ persona: string; headlines: string[] }[]>([])
+  const [showScriptsModal, setShowScriptsModal] = useState(false)
+  const [showHeadlinesModal, setShowHeadlinesModal] = useState(false)
+
+  const generateUGCScripts = async () => {
+    if (!brand?.id || !research?.personas?.length) { onToast('Brand research with personas required', 'error'); return }
+    setGeneratingScripts(true)
+    onToast('Generating UGC scripts from brand research...', 'info')
+    try {
+      const res = await fetch('/api/ugc-script', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: brand.id,
+          insight: {
+            title: `${brand.name} brand overview`,
+            summary: research.summary || `${brand.name} is a ${research.industry} brand in ${research.productCategory}`,
+            painPoints: research.painPoints?.slice(0, 3) || [],
+            motivators: research.motivators?.slice(0, 3) || [],
+          },
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setUgcScripts(data)
+      setShowScriptsModal(true)
+      onToast(`${data.hooks?.length || 0} UGC script hooks generated`, 'success')
+    } catch (err: unknown) {
+      onToast(`Script generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setGeneratingScripts(false)
+  }
+
+  const generateHeadlines = async () => {
+    if (!brand?.id || !research?.personas?.length) { onToast('Brand research with personas required', 'error'); return }
+    setGeneratingHeadlines(true)
+    onToast('Generating static ad headlines...', 'info')
+    try {
+      const res = await fetch('/api/design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-copy',
+          brandName: brand.name,
+          brandResearch: research,
+          persona: research.personas.map(p => p.name).join(', '),
+          angle: 'Problem/Solution',
+          referenceAnalysis: null,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      const result = research.personas.map((p, i) => ({
+        persona: p.name,
+        headlines: [
+          ...(data.copy?.hooks || []),
+          ...(data.copy?.subheadlines || []),
+        ].slice(i * 2, i * 2 + 4),
+      }))
+      setHeadlines(result)
+      setShowHeadlinesModal(true)
+      onToast('Headlines generated', 'success')
+    } catch (err: unknown) {
+      onToast(`Headline generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setGeneratingHeadlines(false)
+  }
 
   const runResearch = async (targetBrandId?: string, targetUrl?: string, targetName?: string) => {
     const brandId = targetBrandId || brand?.id
@@ -302,6 +375,18 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
                 </Card>
               ))}
             </div>
+
+            {/* Generate Actions */}
+            {research.personas?.length > 0 && (
+              <div className="flex gap-2 mt-4">
+                <Button onClick={generateUGCScripts} disabled={generatingScripts} variant="secondary" size="sm" className="flex-1 justify-center">
+                  {generatingScripts ? <><LoadingSpinner size={14} /> Generating...</> : '🎬 Generate UGC Scripts'}
+                </Button>
+                <Button onClick={generateHeadlines} disabled={generatingHeadlines} variant="secondary" size="sm" className="flex-1 justify-center">
+                  {generatingHeadlines ? <><LoadingSpinner size={14} /> Generating...</> : '📝 Generate Ad Headlines'}
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* COMPETITOR ANALYSIS */}
@@ -429,6 +514,72 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
           </Card>
         </div>
       )}
+
+      {/* UGC Scripts Modal */}
+      <Modal open={showScriptsModal} onClose={() => setShowScriptsModal(false)} title="UGC Scripts" subtitle={`Generated from ${brand?.name} brand research`} maxWidth="max-w-3xl">
+        {ugcScripts && (
+          <div className="space-y-5">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">Hook Options (pick one)</div>
+                <span className="text-2xs text-text-dim">0-3 sec</span>
+              </div>
+              <div className="space-y-2">
+                {ugcScripts.hooks.map((h, i) => (
+                  <div key={i} className="bg-page border border-border rounded-lg p-4 hover:border-fulton/40 transition-colors">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded shrink-0 mt-0.5">P{h.persona_number}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-2xs text-text-dim mb-1">{h.persona}</div>
+                        <div className="text-sm text-text-secondary leading-relaxed italic">&quot;{h.hook}&quot;</div>
+                      </div>
+                      <button onClick={() => { navigator.clipboard.writeText(`${h.hook}\n\n${ugcScripts.body}\n\n${ugcScripts.cta}`); onToast(`P${h.persona_number} script copied`, 'success') }}
+                        className="text-2xs text-text-dim hover:text-text-primary shrink-0">Copy</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">Body (shared)</div>
+                <span className="text-2xs text-text-dim">3-20 sec</span>
+              </div>
+              <div className="bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed">{ugcScripts.body}</div>
+            </div>
+            <div>
+              <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">CTA</div>
+              <div className="bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm font-bold text-text-secondary">{ugcScripts.cta}</div>
+            </div>
+            <Button onClick={() => { navigator.clipboard.writeText(`HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number}: ${h.hook}`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`); onToast('All scripts copied', 'success') }}
+              className="w-full justify-center">Copy All Scripts</Button>
+          </div>
+        )}
+      </Modal>
+
+      {/* Headlines Modal */}
+      <Modal open={showHeadlinesModal} onClose={() => setShowHeadlinesModal(false)} title="Ad Headlines" subtitle={`Generated from ${brand?.name} brand research`} maxWidth="max-w-2xl">
+        <div className="space-y-4">
+          {headlines.map((group, i) => (
+            <div key={i} className="bg-page border border-border rounded-lg p-4">
+              <div className="text-2xs font-bold text-fulton uppercase tracking-wider mb-2">{group.persona}</div>
+              <div className="space-y-2">
+                {group.headlines.map((h, j) => (
+                  <div key={j} className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-text-primary">{h}</div>
+                    <button onClick={() => { navigator.clipboard.writeText(h); onToast('Headline copied', 'success') }}
+                      className="text-2xs text-text-dim hover:text-text-primary shrink-0">Copy</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {headlines.length > 0 && (
+            <Button onClick={() => { navigator.clipboard.writeText(headlines.map(g => `${g.persona}:\n${g.headlines.join('\n')}`).join('\n\n')); onToast('All headlines copied', 'success') }}
+              className="w-full justify-center">Copy All Headlines</Button>
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }
