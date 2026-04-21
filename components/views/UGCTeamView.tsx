@@ -34,6 +34,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingCreator, setEditingCreator] = useState<Creator | null>(null)
   const [formData, setFormData] = useState({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const loadCreators = useCallback(async () => {
     try {
@@ -123,6 +124,23 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
     onToast('All addresses copied to clipboard', 'success')
   }
 
+  const handleExportSelected = () => {
+    const selected = creators.filter(c => selectedIds.has(c.id) && c.address)
+    if (!selected.length) { onToast('Select creators with addresses first', 'error'); return }
+    const text = selected.map(c => `${c.name}\n${c.address.replace(/\n/g, ', ')}\n${c.email || ''}`).join('\n\n')
+    navigator.clipboard.writeText(text)
+    onToast(`${selected.length} address${selected.length > 1 ? 'es' : ''} copied to clipboard`, 'success')
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === creators.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(creators.map(c => c.id)))
+  }
+
   if (loading) return <LoadingState size="md" title="Loading team roster..." />
 
   return (
@@ -201,29 +219,48 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
           <PageHeader
             title="Creator Addresses"
             subtitle="Mailing addresses for product shipments"
-            action={<Button onClick={handleExportAddresses}>Export All</Button>}
+            action={
+              <div className="flex gap-2">
+                {selectedIds.size > 0 && (
+                  <Button onClick={handleExportSelected}>
+                    Export Selected ({selectedIds.size})
+                  </Button>
+                )}
+                <Button variant="secondary" onClick={handleExportAddresses}>Export All</Button>
+              </div>
+            }
           />
 
           {creators.length === 0 ? (
             <EmptyState emoji="📋" title="No addresses" subtitle="Add creators to the roster first" />
           ) : (
             <Card padding={false}>
-              <div className="grid grid-cols-[160px_1fr_120px_100px_80px_100px] gap-0 px-5 py-3 border-b border-border">
+              <div className="grid grid-cols-[40px_180px_1fr_150px_130px_70px_80px] gap-0 px-5 py-3 border-b border-border">
+                <div className="flex items-center">
+                  <input type="checkbox" checked={selectedIds.size === creators.length} onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-blue cursor-pointer" />
+                </div>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Name</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Address</span>
-                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">IG</span>
+                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">IG Handle</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Demo</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Count</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Action</span>
               </div>
               {creators.map(creator => (
-                <div key={creator.id} className="grid grid-cols-[160px_1fr_120px_100px_80px_100px] gap-0 px-5 py-3 border-b border-border/50 items-center hover:bg-elevated/50 transition-colors">
+                <div key={creator.id} className={`grid grid-cols-[40px_180px_1fr_150px_130px_70px_80px] gap-0 px-5 py-3 border-b border-border/50 items-center transition-colors cursor-pointer ${selectedIds.has(creator.id) ? 'bg-blue/5' : 'hover:bg-elevated/50'}`}
+                  onClick={() => toggleSelect(creator.id)}>
+                  <div className="flex items-center">
+                    <input type="checkbox" checked={selectedIds.has(creator.id)} onChange={() => toggleSelect(creator.id)}
+                      onClick={e => e.stopPropagation()} className="w-4 h-4 accent-blue cursor-pointer" />
+                  </div>
                   <span className="text-sm font-bold">{creator.name}</span>
-                  <span className="text-xs text-text-dim">{creator.address || 'No address on file'}</span>
+                  <span className="text-xs text-text-dim pr-4">{creator.address || 'No address on file'}</span>
                   <span className="text-xs text-blue">{creator.ig_handle ? `@${creator.ig_handle.replace('@', '')}` : '-'}</span>
                   <span className="text-xs text-text-dim">{creator.demo || '-'}</span>
-                  <span className="text-xs font-bold">{creator.deliverables || 0}</span>
-                  <Button size="sm" variant="ghost" onClick={() => {
+                  <span className="text-xs font-bold text-center">{creator.deliverables || 0}</span>
+                  <Button size="sm" variant="ghost" onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation()
                     navigator.clipboard.writeText(`${creator.name}\n${creator.address || ''}\n${creator.email || ''}`)
                     onToast(`${creator.name}'s info copied`, 'success')
                   }}>
