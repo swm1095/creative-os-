@@ -26,8 +26,9 @@ interface BrandAsset {
 export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: BrandViewProps) {
   const [analyzing, setAnalyzing] = useState(false)
   const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(brand?.logo_url || null)
   const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null)
+  const [guidelinesUrl, setGuidelinesUrl] = useState<string | null>(brand?.brand_guidelines_url || null)
   const [savedAssets, setSavedAssets] = useState<BrandAsset[]>([])
   const [pendingAssets, setPendingAssets] = useState<{ file: File; preview: string }[]>([])
   const [saving, setSaving] = useState(false)
@@ -62,25 +63,62 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
 
   useEffect(() => { loadAssets() }, [loadAssets])
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Sync logo/guidelines previews when brand changes
+  useEffect(() => {
+    setLogoPreview(brand?.logo_url || null)
+    setGuidelinesUrl(brand?.brand_guidelines_url || null)
+    setLogoFile(null)
+    setGuidelinesFile(null)
+  }, [brand?.id, brand?.logo_url, brand?.brand_guidelines_url])
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !brand?.id) return
     setLogoFile(file)
     const reader = new FileReader()
     reader.onload = ev => setLogoPreview(ev.target?.result as string)
     reader.readAsDataURL(file)
-    onToast('Logo uploaded', 'success')
+
+    // Upload to Supabase and save URL to brand
+    const formData = new FormData()
+    formData.append('brandId', brand.id)
+    formData.append('files', file)
+    try {
+      const res = await fetch('/api/brand-assets', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.uploaded?.[0]?.url) {
+        onBrandUpdate(brand.id, { logo_url: data.uploaded[0].url })
+        onToast('Logo saved to brand kit', 'success')
+      }
+    } catch {
+      onToast('Logo uploaded locally but failed to save - try again', 'error')
+    }
   }
 
-  const handleGuidelinesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGuidelinesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file) return
+    if (!file || !brand?.id) return
     if (file.size > 50 * 1024 * 1024) {
       onToast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`, 'error')
       return
     }
     setGuidelinesFile(file)
-    onToast(`${file.name} uploaded - click "Re-analyze with Gemini" to extract`, 'info')
+
+    // Upload to Supabase and save URL to brand
+    const formData = new FormData()
+    formData.append('brandId', brand.id)
+    formData.append('files', file)
+    try {
+      const res = await fetch('/api/brand-assets', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.uploaded?.[0]?.url) {
+        setGuidelinesUrl(data.uploaded[0].url)
+        onBrandUpdate(brand.id, { brand_guidelines_url: data.uploaded[0].url })
+        onToast('Brand guidelines saved to brand kit', 'success')
+      }
+    } catch {
+      onToast('Guidelines uploaded locally but failed to save - try again', 'error')
+    }
   }
 
   const handleAssetUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -466,13 +504,13 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
             <button
               onClick={() => guidelinesRef.current?.click()}
               className={`w-full p-3 rounded-lg border text-left flex items-center gap-3 transition-all ${
-                guidelinesFile ? 'border-fulton bg-fulton-light' : 'border-border bg-page hover:border-text-subtle'
+                guidelinesFile || guidelinesUrl ? 'border-fulton bg-fulton-light' : 'border-border bg-page hover:border-text-subtle'
               }`}
             >
-              <span className="text-lg">{guidelinesFile ? '✓' : '📄'}</span>
+              <span className="text-lg">{guidelinesFile || guidelinesUrl ? '✓' : '📄'}</span>
               <div>
-                <div className="text-xs font-semibold">{guidelinesFile ? guidelinesFile.name : 'Upload Brand Guidelines'}</div>
-                <div className="text-2xs text-text-dim">{guidelinesFile ? `${(guidelinesFile.size / 1024).toFixed(0)} KB` : 'PDF, PNG, JPG'}</div>
+                <div className="text-xs font-semibold">{guidelinesFile ? guidelinesFile.name : guidelinesUrl ? 'Brand Guidelines Saved' : 'Upload Brand Guidelines'}</div>
+                <div className="text-2xs text-text-dim">{guidelinesFile ? `${(guidelinesFile.size / 1024).toFixed(0)} KB` : guidelinesUrl ? 'Click to replace' : 'PDF, PNG, JPG'}</div>
               </div>
             </button>
           </div>
