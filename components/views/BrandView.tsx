@@ -114,6 +114,7 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
   const logoRef = useRef<HTMLInputElement>(null)
   const guidelinesRef = useRef<HTMLInputElement>(null)
   const assetRef = useRef<HTMLInputElement>(null)
+  const fontFileRef = useRef<HTMLInputElement>(null)
 
   const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
   const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
@@ -193,6 +194,37 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
       onToast('Brand guidelines saved to brand kit', 'success')
     } catch (err) {
       onToast(`Guidelines upload failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+  }
+
+  const handleFontFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !brand?.id) return
+
+    // Prompt for font name
+    const fileName = file.name.replace(/\.(ttf|otf|woff2?|eot)$/i, '')
+    const fontName = prompt('Name this font:', fileName)
+    if (!fontName) return
+
+    onToast(`Uploading ${fontName}...`, 'info')
+    try {
+      // Upload font file to Supabase storage
+      const formData = new FormData()
+      formData.append('brandId', brand.id)
+      formData.append('files', file)
+      const res = await fetch('/api/brand-assets', { method: 'POST', body: formData })
+      const data = await res.json()
+
+      if (data.uploaded?.[0]?.url) {
+        // Add font name to brand_fonts
+        const next = [...fonts, fontName]
+        onBrandUpdate(brand.id, { brand_fonts: next })
+        onToast(`${fontName} uploaded and added to brand kit`, 'success')
+      } else {
+        throw new Error('Upload failed')
+      }
+    } catch (err) {
+      onToast(`Font upload failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }
 
@@ -455,13 +487,20 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
                 >x</button>
               </div>
             ))}
-            <button
-              onClick={() => {
-                const next = [...fonts, '']
-                if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
-              }}
-              className="px-3 py-2 border-2 border-dashed border-border rounded text-sm text-text-dim hover:border-blue/40 transition-colors cursor-pointer text-center"
-            >+ Add Font</button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const next = [...fonts, '']
+                  if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
+                }}
+                className="flex-1 px-3 py-2 border-2 border-dashed border-border rounded text-sm text-text-dim hover:border-blue/40 transition-colors cursor-pointer text-center"
+              >+ Add Font</button>
+              <button
+                onClick={() => fontFileRef.current?.click()}
+                className="flex-1 px-3 py-2 border-2 border-dashed border-border rounded text-sm text-text-dim hover:border-blue/40 transition-colors cursor-pointer text-center"
+              >Upload Font File</button>
+            </div>
+            <input ref={fontFileRef} type="file" accept=".ttf,.otf,.woff,.woff2" style={{ display: 'none' }} onChange={handleFontFileUpload} />
           </div>
         </div>
 
