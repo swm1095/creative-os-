@@ -318,27 +318,85 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
 
         {/* Colors */}
         <div>
-          <SectionHeader title="Brand Colors" />
+          <SectionHeader title="Brand Colors" subtitle="Click to edit, + to add" />
           <div className="flex gap-2 flex-wrap">
             {colors.map((c, i) => (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <div className="w-10 h-10 rounded-full border-2 border-white/10" style={{ background: typeof c === 'string' ? c : '#000' }} />
-                <span className="text-2xs font-mono text-text-dim">{typeof c === 'string' ? c : ''}</span>
+              <div key={i} className="flex flex-col items-center gap-1 group relative">
+                <input
+                  type="color"
+                  value={typeof c === 'string' ? c : '#000000'}
+                  onChange={e => {
+                    const next = [...colors]
+                    next[i] = e.target.value
+                    if (brand) onBrandUpdate(brand.id, { brand_colors: next })
+                  }}
+                  className="w-10 h-10 rounded-full border-2 border-white/10 cursor-pointer p-0"
+                  style={{ background: typeof c === 'string' ? c : '#000' }}
+                />
+                <input
+                  type="text"
+                  value={typeof c === 'string' ? c : ''}
+                  onChange={e => {
+                    const next = [...colors]
+                    next[i] = e.target.value
+                    if (brand) onBrandUpdate(brand.id, { brand_colors: next })
+                  }}
+                  className="text-2xs font-mono text-text-dim bg-transparent border-none text-center w-16 focus:outline-none focus:text-text-primary"
+                />
+                <button
+                  onClick={() => {
+                    const next = colors.filter((_, idx) => idx !== i)
+                    if (brand) onBrandUpdate(brand.id, { brand_colors: next })
+                  }}
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >x</button>
               </div>
             ))}
+            <button
+              onClick={() => {
+                const next = [...colors, '#888888']
+                if (brand) onBrandUpdate(brand.id, { brand_colors: next })
+              }}
+              className="w-10 h-10 rounded-full border-2 border-dashed border-border flex items-center justify-center text-text-dim hover:border-blue/40 transition-colors cursor-pointer"
+            >+</button>
           </div>
         </div>
 
         {/* Typography */}
         <div>
-          <SectionHeader title="Typography" />
+          <SectionHeader title="Typography" subtitle="Click to edit, + to add" />
           <div className="flex gap-2 flex-wrap">
             {fonts.map((f, i) => (
-              <span key={i} className="px-3 py-1.5 bg-elevated border border-border rounded text-sm font-semibold">
-                {typeof f === 'string' ? f : ''}
-              </span>
+              <div key={i} className="relative group">
+                <input
+                  type="text"
+                  value={typeof f === 'string' ? f : ''}
+                  onChange={e => {
+                    const next = [...fonts]
+                    next[i] = e.target.value
+                    if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
+                  }}
+                  className="px-3 py-1.5 bg-elevated border border-border rounded text-sm font-semibold text-text-primary focus:border-blue focus:outline-none min-w-[120px]"
+                  placeholder="Font name"
+                />
+                <button
+                  onClick={() => {
+                    const next = fonts.filter((_, idx) => idx !== i)
+                    if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
+                  }}
+                  className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                >x</button>
+              </div>
             ))}
+            <button
+              onClick={() => {
+                const next = [...fonts, '']
+                if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
+              }}
+              className="px-3 py-1.5 border-2 border-dashed border-border rounded text-sm text-text-dim hover:border-blue/40 transition-colors cursor-pointer"
+            >+ Add Font</button>
           </div>
+          <div className="text-2xs text-text-dim mt-2">Use Google Fonts names (e.g. "Inter", "Archivo Black", "Playfair Display")</div>
         </div>
 
         {/* Tone */}
@@ -416,15 +474,23 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-green-light border border-green/20 rounded-lg p-4">
             <div className="text-xs font-bold text-green mb-2">DO</div>
-            <ul className="space-y-1.5">
-              {DEFAULT_BRAND.dos.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
-            </ul>
+            {(brand?.research?.keyPhrases?.length) ? (
+              <ul className="space-y-1.5">
+                {brand.research.keyPhrases.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
+              </ul>
+            ) : (
+              <div className="text-xs text-text-dim italic">Edit manually based on client preferences. Add key phrases and brand guidelines that should always be followed.</div>
+            )}
           </div>
           <div className="bg-red-light border border-red/20 rounded-lg p-4">
             <div className="text-xs font-bold text-red mb-2">DON'T</div>
-            <ul className="space-y-1.5">
-              {DEFAULT_BRAND.donts.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
-            </ul>
+            {(brand?.research?.avoidPhrases?.length) ? (
+              <ul className="space-y-1.5">
+                {brand.research.avoidPhrases.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
+              </ul>
+            ) : (
+              <div className="text-xs text-text-dim italic">Edit manually based on client preferences. Add phrases, styles, and approaches that should be avoided for this brand.</div>
+            )}
           </div>
         </div>
 
