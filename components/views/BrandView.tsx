@@ -9,6 +9,76 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import LoadingSpinner, { LoadingState } from '@/components/ui/LoadingSpinner'
 import ImagePreview from '@/components/ui/ImagePreview'
 
+// Google Fonts picker with search
+let googleFontsCache: string[] | null = null
+
+function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [query, setQuery] = useState(value)
+  const [fonts, setFonts] = useState<string[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Load Google Fonts list via our API (cached)
+  useEffect(() => {
+    if (googleFontsCache) { setFonts(googleFontsCache); return }
+    setLoading(true)
+    fetch('/api/fonts')
+      .then(r => r.json())
+      .then(data => {
+        if (data.fonts?.length) {
+          googleFontsCache = data.fonts
+          setFonts(data.fonts)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setShowDropdown(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Sync query with value prop
+  useEffect(() => { setQuery(value) }, [value])
+
+  const filtered = query
+    ? fonts.filter(f => f.toLowerCase().includes(query.toLowerCase())).slice(0, 8)
+    : fonts.slice(0, 8)
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        type="text"
+        value={query}
+        onChange={e => { setQuery(e.target.value); setShowDropdown(true) }}
+        onFocus={() => setShowDropdown(true)}
+        onBlur={() => { setTimeout(() => { onChange(query) }, 200) }}
+        placeholder="Search Google Fonts..."
+        className="w-full px-3 py-2 bg-elevated border border-border rounded text-sm font-semibold text-text-primary focus:border-blue focus:outline-none pr-8"
+      />
+      {loading && <span className="absolute right-2 top-2.5 text-2xs text-text-dim">Loading...</span>}
+      {showDropdown && filtered.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-surface border border-border rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+          {filtered.map(f => (
+            <button key={f} onMouseDown={e => e.preventDefault()}
+              onClick={() => { setQuery(f); onChange(f); setShowDropdown(false) }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-elevated transition-colors ${f === value ? 'text-blue font-bold' : 'text-text-primary'}`}
+              style={{ fontFamily: `"${f}", sans-serif` }}>
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface BrandViewProps {
   brand: Brand | null
   onToast: (msg: string, type: 'success' | 'error' | 'info') => void
@@ -364,27 +434,24 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
 
         {/* Typography */}
         <div>
-          <SectionHeader title="Typography" subtitle="Click to edit, + to add" />
-          <div className="flex gap-2 flex-wrap">
+          <SectionHeader title="Typography" subtitle="Search Google Fonts or type manually" />
+          <div className="flex flex-col gap-2">
             {fonts.map((f, i) => (
               <div key={i} className="relative group">
-                <input
-                  type="text"
+                <FontPicker
                   value={typeof f === 'string' ? f : ''}
-                  onChange={e => {
+                  onChange={v => {
                     const next = [...fonts]
-                    next[i] = e.target.value
+                    next[i] = v
                     if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
                   }}
-                  className="px-3 py-1.5 bg-elevated border border-border rounded text-sm font-semibold text-text-primary focus:border-blue focus:outline-none min-w-[120px]"
-                  placeholder="Font name"
                 />
                 <button
                   onClick={() => {
                     const next = fonts.filter((_, idx) => idx !== i)
                     if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
                   }}
-                  className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  className="absolute top-1.5 right-1.5 w-5 h-5 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-10"
                 >x</button>
               </div>
             ))}
@@ -393,10 +460,9 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
                 const next = [...fonts, '']
                 if (brand) onBrandUpdate(brand.id, { brand_fonts: next })
               }}
-              className="px-3 py-1.5 border-2 border-dashed border-border rounded text-sm text-text-dim hover:border-blue/40 transition-colors cursor-pointer"
+              className="px-3 py-2 border-2 border-dashed border-border rounded text-sm text-text-dim hover:border-blue/40 transition-colors cursor-pointer text-center"
             >+ Add Font</button>
           </div>
-          <div className="text-2xs text-text-dim mt-2">Use Google Fonts names (e.g. "Inter", "Archivo Black", "Playfair Display")</div>
         </div>
 
         {/* Tone */}
