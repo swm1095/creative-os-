@@ -186,8 +186,8 @@ function EditText({ value, editing, onCommit, style, multiline }: {
 }
 
 // ── Ad: renders a single creative at a given aspect ──
-function AdCanvas({ aspect, creative, brandColors, brandName, productImage, selected, editing, onSelect, onLayoutChange, onTextChange, onStartEdit }: {
-  aspect: string; creative: Creative; brandColors: string[]; brandName: string; productImage: string | null
+function AdCanvas({ aspect, creative, brandColors, brandName, brandFont, productImage, selected, editing, onSelect, onLayoutChange, onTextChange, onStartEdit }: {
+  aspect: string; creative: Creative; brandColors: string[]; brandName: string; brandFont: string; productImage: string | null
   selected: string | null; editing: string | null
   onSelect: (id: string | null) => void
   onLayoutChange: (aspect: string, id: string, box: LayoutBox) => void
@@ -222,7 +222,7 @@ function AdCanvas({ aspect, creative, brandColors, brandName, productImage, sele
 
   return (
     <div className="ad-canvas" style={{
-      background: bg, overflow: 'hidden', position: 'absolute', inset: 0, fontFamily: 'Impact, sans-serif',
+      background: bg, overflow: 'hidden', position: 'absolute', inset: 0, fontFamily: brandFont ? `"${brandFont}", Impact, sans-serif` : 'Impact, sans-serif',
     }} onMouseDown={e => { if ((e.target as HTMLElement).classList.contains('ad-canvas')) onSelect(null) }}>
 
       {/* Product */}
@@ -719,13 +719,14 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
                   <span style={{ padding: '2px 6px', background: 'var(--elevated, #1a1e2e)', borderRadius: 4, fontSize: 10 }}>{spec.use}</span>
                   <span style={{ fontSize: 10 }}>{a === '1x1' ? '1080x1080' : a === '4x5' ? '1080x1350' : '1080x1920'}</span>
                 </div>
-                <div style={{ width: spec.w * scale, height: spec.h * scale, position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
-                  <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: spec.w, height: spec.h }}>
+                <div style={{ width: spec.w * scale, height: spec.h * scale, position: 'relative', borderRadius: 8, overflow: 'visible', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
+                  <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: spec.w, height: spec.h, borderRadius: 8, overflow: 'hidden' }}>
                     <AdCanvas
                       aspect={a}
                       creative={creative}
                       brandColors={brandColors}
                       brandName={brand?.name || 'Brand'}
+                      brandFont={brandFont}
                       productImage={productImage}
                       selected={selected}
                       editing={editing}
