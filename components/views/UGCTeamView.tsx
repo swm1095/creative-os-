@@ -35,6 +35,8 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
   const [editingCreator, setEditingCreator] = useState<Creator | null>(null)
   const [formData, setFormData] = useState({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [genderFilter, setGenderFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'deliverables'>('name')
 
   const loadCreators = useCallback(async () => {
     try {
@@ -141,6 +143,17 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
     else setSelectedIds(new Set(creators.map(c => c.id)))
   }
 
+  // Get unique genders for filter
+  const genders = [...new Set(creators.map(c => c.gender).filter(Boolean))]
+
+  // Filter and sort
+  const filteredCreators = creators
+    .filter(c => genderFilter === 'all' || c.gender === genderFilter)
+    .sort((a, b) => {
+      if (sortBy === 'deliverables') return (b.deliverables || 0) - (a.deliverables || 0)
+      return a.name.localeCompare(b.name)
+    })
+
   if (loading) return <LoadingState size="md" title="Loading team roster..." />
 
   return (
@@ -164,6 +177,36 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
             action={<Button onClick={() => { setEditingCreator(null); setFormData({ name: '', specialty: '', email: '', address: '', portfolio_url: '', ig_handle: '', gender: '', demo: '', deliverables: 0, tracker_link: '', website: '' }); setShowAddModal(true) }}>+ Add Creator</Button>}
           />
 
+          {/* Filters */}
+          {creators.length > 0 && (
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Gender:</span>
+                <div className="flex gap-1">
+                  <button onClick={() => setGenderFilter('all')}
+                    className={`px-2.5 py-1 text-xs rounded border transition-all ${genderFilter === 'all' ? 'border-blue bg-blue-light text-blue font-bold' : 'border-border text-text-dim hover:border-text-subtle'}`}>
+                    All
+                  </button>
+                  {genders.map(g => (
+                    <button key={g} onClick={() => setGenderFilter(g!)}
+                      className={`px-2.5 py-1 text-xs rounded border transition-all ${genderFilter === g ? 'border-blue bg-blue-light text-blue font-bold' : 'border-border text-text-dim hover:border-text-subtle'}`}>
+                      {g}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-4">
+                <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Sort:</span>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value as 'name' | 'deliverables')}
+                  className="px-2 py-1 bg-page border border-border rounded text-xs text-text-primary focus:border-blue focus:outline-none">
+                  <option value="name">A-Z</option>
+                  <option value="deliverables">Deliverables</option>
+                </select>
+              </div>
+              <span className="text-2xs text-text-dim ml-auto">{filteredCreators.length} of {creators.length} creators</span>
+            </div>
+          )}
+
           {creators.length === 0 ? (
             <EmptyState
               emoji="👥"
@@ -173,7 +216,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
             />
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-              {creators.map(creator => (
+              {filteredCreators.map(creator => (
                 <Card key={creator.id} className="hover:border-blue/40 transition-colors">
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-black text-white shrink-0" style={{ background: creator.color || '#2138ff' }}>
@@ -247,7 +290,7 @@ export default function UGCTeamView({ onToast }: { onToast: (msg: string, type: 
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Count</span>
                 <span className="text-2xs font-bold uppercase tracking-wider text-text-dim">Action</span>
               </div>
-              {creators.map(creator => (
+              {filteredCreators.map(creator => (
                 <div key={creator.id} className={`grid grid-cols-[40px_180px_1fr_150px_130px_70px_80px] gap-0 px-5 py-3 border-b border-border/50 items-center transition-colors cursor-pointer ${selectedIds.has(creator.id) ? 'bg-blue/5' : 'hover:bg-elevated/50'}`}
                   onClick={() => toggleSelect(creator.id)}>
                   <div className="flex items-center">
