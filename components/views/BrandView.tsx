@@ -413,8 +413,8 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
             </div>
           </div>
           <div>
-            <h2 className="text-2xl font-black tracking-tight">{brand?.name || 'Fulton'}</h2>
-            <p className="text-xs text-text-dim">{DEFAULT_BRAND.industry}</p>
+            <h2 className="text-2xl font-black tracking-tight">{brand?.name || 'Brand'}</h2>
+            <p className="text-xs text-text-dim">{brand?.research?.industry || brand?.research?.productCategory || 'Run brand research to populate'}</p>
           </div>
         </div>
 
@@ -506,10 +506,15 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
 
         {/* Tone */}
         <div>
-          <SectionHeader title="Brand Tone" />
-          <div className="bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed">
-            {tone}
-          </div>
+          <SectionHeader title="Brand Tone" subtitle="Click to edit" />
+          <textarea
+            value={tone}
+            onChange={e => {
+              if (brand) onBrandUpdate(brand.id, { tone_notes: e.target.value })
+            }}
+            className="w-full bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed focus:border-fulton focus:outline-none resize-y min-h-[60px]"
+            rows={3}
+          />
         </div>
 
         {/* Target Personas */}
@@ -555,15 +560,56 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
           {brand?.research?.personas && brand.research.personas.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               {brand.research.personas.map((p, i) => (
-                <div key={i} className="bg-surface border border-border rounded-lg p-3">
+                <div key={i} className="bg-surface border border-border rounded-lg p-3 relative group">
                   <div className="text-2xs font-bold text-fulton uppercase tracking-wider mb-1">P{i + 1}</div>
-                  <div className="text-sm font-bold mb-1">{p.name}</div>
-                  {p.description && <div className="text-xs text-text-dim mb-1.5">{p.description}</div>}
-                  {p.hook && (
-                    <div className="bg-fulton-light border border-fulton/20 rounded px-2.5 py-1.5 mt-2">
-                      <span className="text-2xs font-bold text-fulton">Hook: </span>
-                      <span className="text-xs text-text-secondary">{p.hook}</span>
-                    </div>
+                  <input
+                    type="text"
+                    value={p.name}
+                    onChange={e => {
+                      if (!brand?.research) return
+                      const updated = [...brand.research.personas]
+                      updated[i] = { ...updated[i], name: e.target.value }
+                      onBrandUpdate(brand.id, { research: { ...brand.research, personas: updated } })
+                    }}
+                    className="w-full text-sm font-bold mb-1 bg-transparent border-none focus:outline-none focus:bg-elevated rounded px-1 -ml-1"
+                  />
+                  <textarea
+                    value={p.description || ''}
+                    onChange={e => {
+                      if (!brand?.research) return
+                      const updated = [...brand.research.personas]
+                      updated[i] = { ...updated[i], description: e.target.value }
+                      onBrandUpdate(brand.id, { research: { ...brand.research, personas: updated } })
+                    }}
+                    placeholder="Description..."
+                    className="w-full text-xs text-text-dim mb-1.5 bg-transparent border-none focus:outline-none focus:bg-elevated rounded px-1 -ml-1 resize-none"
+                    rows={2}
+                  />
+                  <div className="bg-fulton-light border border-fulton/20 rounded px-2.5 py-1.5 mt-1">
+                    <span className="text-2xs font-bold text-fulton">Hook: </span>
+                    <input
+                      type="text"
+                      value={p.hook || ''}
+                      onChange={e => {
+                        if (!brand?.research) return
+                        const updated = [...brand.research.personas]
+                        updated[i] = { ...updated[i], hook: e.target.value }
+                        onBrandUpdate(brand.id, { research: { ...brand.research, personas: updated } })
+                      }}
+                      placeholder="Ad hook..."
+                      className="text-xs text-text-secondary bg-transparent border-none focus:outline-none w-full"
+                    />
+                  </div>
+                  {!isClient && (
+                    <button
+                      onClick={() => {
+                        if (!brand?.research) return
+                        const updated = brand.research.personas.filter((_, idx) => idx !== i)
+                        onBrandUpdate(brand.id, { research: { ...brand.research, personas: updated } })
+                        onToast(`Persona removed`, 'info')
+                      }}
+                      className="absolute top-2 right-2 w-5 h-5 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                    >x</button>
                   )}
                 </div>
               ))}
@@ -579,22 +625,70 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-green-light border border-green/20 rounded-lg p-4">
             <div className="text-xs font-bold text-green mb-2">DO</div>
-            {(brand?.research?.keyPhrases?.length) ? (
-              <ul className="space-y-1.5">
-                {brand.research.keyPhrases.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
-              </ul>
-            ) : (
-              <div className="text-xs text-text-dim italic">Edit manually based on client preferences. Add key phrases and brand guidelines that should always be followed.</div>
+            <div className="space-y-1.5">
+              {(brand?.research?.keyPhrases || []).map((d, i) => (
+                <div key={i} className="flex items-center gap-1 group">
+                  <span className="text-xs text-text-secondary">-</span>
+                  <input
+                    type="text"
+                    value={d}
+                    onChange={e => {
+                      if (!brand?.research) return
+                      const updated = [...(brand.research.keyPhrases || [])]
+                      updated[i] = e.target.value
+                      onBrandUpdate(brand.id, { research: { ...brand.research, keyPhrases: updated } })
+                    }}
+                    className="flex-1 text-xs text-text-secondary bg-transparent border-none focus:outline-none focus:bg-white/10 rounded px-1"
+                  />
+                  <button onClick={() => {
+                    if (!brand?.research) return
+                    const updated = (brand.research.keyPhrases || []).filter((_, idx) => idx !== i)
+                    onBrandUpdate(brand.id, { research: { ...brand.research, keyPhrases: updated } })
+                  }} className="text-2xs text-red opacity-0 group-hover:opacity-100">x</button>
+                </div>
+              ))}
+              <button onClick={() => {
+                if (!brand?.research) return
+                const updated = [...(brand.research.keyPhrases || []), '']
+                onBrandUpdate(brand.id, { research: { ...brand.research, keyPhrases: updated } })
+              }} className="text-2xs text-green hover:underline">+ Add</button>
+            </div>
+            {!(brand?.research?.keyPhrases?.length) && (
+              <div className="text-xs text-text-dim italic mt-1">Add key phrases and guidelines that should always be followed</div>
             )}
           </div>
           <div className="bg-red-light border border-red/20 rounded-lg p-4">
             <div className="text-xs font-bold text-red mb-2">DON'T</div>
-            {(brand?.research?.avoidPhrases?.length) ? (
-              <ul className="space-y-1.5">
-                {brand.research.avoidPhrases.map((d, i) => <li key={i} className="text-xs text-text-secondary">- {d}</li>)}
-              </ul>
-            ) : (
-              <div className="text-xs text-text-dim italic">Edit manually based on client preferences. Add phrases, styles, and approaches that should be avoided for this brand.</div>
+            <div className="space-y-1.5">
+              {(brand?.research?.avoidPhrases || []).map((d, i) => (
+                <div key={i} className="flex items-center gap-1 group">
+                  <span className="text-xs text-text-secondary">-</span>
+                  <input
+                    type="text"
+                    value={d}
+                    onChange={e => {
+                      if (!brand?.research) return
+                      const updated = [...(brand.research.avoidPhrases || [])]
+                      updated[i] = e.target.value
+                      onBrandUpdate(brand.id, { research: { ...brand.research, avoidPhrases: updated } })
+                    }}
+                    className="flex-1 text-xs text-text-secondary bg-transparent border-none focus:outline-none focus:bg-white/10 rounded px-1"
+                  />
+                  <button onClick={() => {
+                    if (!brand?.research) return
+                    const updated = (brand.research.avoidPhrases || []).filter((_, idx) => idx !== i)
+                    onBrandUpdate(brand.id, { research: { ...brand.research, avoidPhrases: updated } })
+                  }} className="text-2xs text-red opacity-0 group-hover:opacity-100">x</button>
+                </div>
+              ))}
+              <button onClick={() => {
+                if (!brand?.research) return
+                const updated = [...(brand.research.avoidPhrases || []), '']
+                onBrandUpdate(brand.id, { research: { ...brand.research, avoidPhrases: updated } })
+              }} className="text-2xs text-red hover:underline">+ Add</button>
+            </div>
+            {!(brand?.research?.avoidPhrases?.length) && (
+              <div className="text-xs text-text-dim italic mt-1">Add phrases, styles, and approaches to avoid for this brand</div>
             )}
           </div>
         </div>
