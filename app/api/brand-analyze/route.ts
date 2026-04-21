@@ -32,14 +32,22 @@ async function analyzeWithGemini(file: File): Promise<BrandAnalysis> {
   let mimeType = file.type || 'image/png'
   if (mimeType === 'application/pdf') mimeType = 'application/pdf'
 
-  const models = ['gemini-2.5-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash']
+  // Try multiple model + API version combinations
+  const attempts = [
+    { model: 'gemini-2.5-flash', version: 'v1beta' },
+    { model: 'gemini-2.5-flash-preview-04-17', version: 'v1beta' },
+    { model: 'gemini-2.0-flash', version: 'v1beta' },
+    { model: 'gemini-1.5-flash', version: 'v1beta' },
+    { model: 'gemini-2.5-flash', version: 'v1' },
+    { model: 'gemini-1.5-flash', version: 'v1' },
+  ]
   let lastError = ''
 
-  for (const model of models) {
+  for (const { model, version } of attempts) {
     try {
-      console.log(`Trying brand analysis with ${model}, file size: ${file.size}, type: ${mimeType}`)
+      console.log(`Trying brand analysis: ${model} (${version}), file size: ${file.size}, type: ${mimeType}`)
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/${version}/models/${model}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -65,9 +73,11 @@ async function analyzeWithGemini(file: File): Promise<BrandAnalysis> {
 
       if (!res.ok) {
         const errText = await res.text()
-        lastError = `${model}: ${res.status} ${errText.slice(0, 200)}`
+        lastError = `${model}(${version}): ${res.status} ${errText.slice(0, 200)}`
+        console.log(`Failed: ${lastError}`)
         continue
       }
+      console.log(`Success with ${model} (${version})`)
 
       const data = await res.json()
       const textPart = data.candidates?.[0]?.content?.parts?.find(
