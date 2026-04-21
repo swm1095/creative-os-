@@ -371,12 +371,30 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
   const [generatedImages, setGeneratedImages] = useState<Record<string, string>>({})
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
-  // Load brand colors
+  // Load brand colors + reset state when brand changes
   useEffect(() => {
-    if (brand?.brand_colors?.length) setBrandColors(brand.brand_colors)
-    else if (brand?.color) setBrandColors([brand.color, '#1a1a1a', '#2138ff'])
+    // Reset creative state for new brand
+    setCreative({
+      headline: 'YOUR\nHEADLINE\nHERE', subhead: 'SUBHEADLINE',
+      bullets: ['Benefit one', 'Benefit two', 'Benefit three', 'Benefit four'],
+      cta: 'SHOP NOW', priceOld: '', priceNew: '', layouts: {},
+    })
+    setRefImage(null); setRefAnalysis(null)
+    setProductImage(null); setCopyVariants(null)
+    setGeneratedImages({}); setSelected(null); setEditing(null)
+
+    // Load brand colors - try brand_colors first, then parse from brand.color
+    if (brand?.brand_colors?.length) {
+      setBrandColors(brand.brand_colors)
+    } else if (brand?.color) {
+      // Use brand color as accent, derive bg and ink
+      setBrandColors(['#f5f0eb', '#1a1a1a', brand.color])
+    } else {
+      setBrandColors(['#f5f0eb', '#1a1a1a', '#2138ff'])
+    }
     if (brand?.brand_fonts?.length) setBrandFont(brand.brand_fonts[0])
-  }, [brand?.id, brand?.color, brand?.brand_colors, brand?.brand_fonts])
+    else setBrandFont('Impact, sans-serif')
+  }, [brand?.id])
 
   // Escape to deselect
   useEffect(() => {
@@ -453,20 +471,41 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
     setCopyLoading(false)
   }
 
+  const generateOne = async (ar: string, sourceImage?: string) => {
+    const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'generate-creative', referenceImage: refImage || undefined, productImage: productImage || undefined,
+        sourceImage, brandName: brand?.name || 'Brand', brandColors, hook: creative.headline, subheadline: creative.subhead,
+        benefits: creative.bullets, cta: creative.cta, price: creative.priceOld, salePrice: creative.priceNew, aspectRatio: ar, style: refAnalysis || {} }) })
+    const data = await res.json()
+    if (data.imageUrl) return data.imageUrl
+    if (data.error) throw new Error(data.error)
+    throw new Error('No image returned')
+  }
+
   const handleGenerate = async () => {
     if (!creative.headline.trim()) { onToast('Add a headline first', 'error'); return }
     setGenerating(true)
-    onToast('Generating creatives in all formats...', 'info')
-    for (const ar of ['1:1', '4:5', '9:16']) {
-      try {
-        const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'generate-creative', referenceImage: refImage || undefined, productImage: productImage || undefined,
-            brandName: brand?.name || 'Brand', brandColors, hook: creative.headline, subheadline: creative.subhead,
-            benefits: creative.bullets, cta: creative.cta, price: creative.priceOld, salePrice: creative.priceNew, aspectRatio: ar, style: refAnalysis || {} }) })
-        const data = await res.json()
-        if (data.imageUrl) { setGeneratedImages(prev => ({ ...prev, [ar]: data.imageUrl })); onToast(`${ar} generated`, 'success') }
-        else if (data.error) onToast(`${ar}: ${data.error}`, 'error')
-      } catch (err: unknown) { onToast(`${ar} failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+    setGeneratedImages({})
+
+    try {
+      // Generate 1:1 first
+      onToast('Generating 1:1 creative...', 'info')
+      const squareUrl = await generateOne('1:1')
+      setGeneratedImages(prev => ({ ...prev, '1:1': squareUrl }))
+      onToast('1:1 done. Generating 4:5 and 9:16 to match...', 'info')
+
+      // Generate 4:5 and 9:16 using the 1:1 as design reference for consistency
+      const [r45, r916] = await Promise.allSettled([
+        generateOne('4:5', squareUrl),
+        generateOne('9:16', squareUrl),
+      ])
+      if (r45.status === 'fulfilled') setGeneratedImages(prev => ({ ...prev, '4:5': r45.value }))
+      else onToast(`4:5 failed: ${r45.reason?.message}`, 'error')
+      if (r916.status === 'fulfilled') setGeneratedImages(prev => ({ ...prev, '9:16': r916.value }))
+      else onToast(`9:16 failed: ${r916.reason?.message}`, 'error')
+      onToast('All creatives generated', 'success')
+    } catch (err: unknown) {
+      onToast(`Generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setGenerating(false)
   }
@@ -663,7 +702,7 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
                 <div style={{ width: spec.w * scale, height: spec.h * scale, position: 'relative', borderRadius: 8, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.3)', cursor: hasGenerated ? 'pointer' : 'default' }}
                   onClick={() => hasGenerated && setPreviewImage(hasGenerated)}>
                   {hasGenerated ? (
-                    <img src={hasGenerated} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={hasGenerated} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', background: brandColors[0] || '#f5f0eb' }} />
                   ) : (
                     <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: spec.w, height: spec.h }}>
                       <AdCanvas
