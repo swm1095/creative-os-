@@ -332,9 +332,13 @@ export default function DashboardPage() {
                   onClick={() => { setActiveBrand(b); setShowBrandModal(false) }}
                   className="flex items-center gap-3 flex-1 text-left"
                 >
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
-                    {b.name.charAt(0)}
-                  </div>
+                  {b.logo_url ? (
+                    <img src={b.logo_url} alt={b.name} className="w-6 h-6 rounded-md object-contain bg-white" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center text-2xs font-black text-white" style={{ background: b.color }}>
+                      {b.name.charAt(0)}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <div className="text-sm font-bold">{b.name}</div>
                     <div className="text-2xs text-text-dim">{b.url || 'No website'}</div>
