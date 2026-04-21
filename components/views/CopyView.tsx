@@ -26,15 +26,26 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
   const [contentType, setContentType] = useState('ad-copy')
 
   // Use personas from brand research if available
-  const brandPersonas = brand?.research?.personas?.map(p => ({ name: p.name, angle: p.description || '', hook: p.hook || '' })) || DEFAULT_PERSONAS
+  const hasPersonas = brand?.research?.personas && brand.research.personas.length > 0
+  const brandPersonas = hasPersonas
+    ? brand!.research!.personas!.map(p => ({ name: p.name, angle: p.description || '', hook: p.hook || '' }))
+    : DEFAULT_PERSONAS
 
-  const [persona, setPersona] = useState(brandPersonas[0]?.name || DEFAULT_PERSONAS[0].name)
+  const [persona, setPersona] = useState(brandPersonas[0]?.name || '')
   const [showAddPersona, setShowAddPersona] = useState(false)
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
   const [tone, setTone] = useState('Empathetic')
   const [platform, setPlatform] = useState(PLATFORMS[0])
-  const [prompt, setPrompt] = useState('Write copy for a premium cork arch-support house shoe that solves foot pain. Focus on the cost savings vs physical therapy angle.')
+  const [prompt, setPrompt] = useState('')
+
+  // Reset state when brand changes
+  useEffect(() => {
+    setVariants([])
+    setPrompt('')
+    const personas = brand?.research?.personas
+    if (personas?.length) setPersona(personas[0].name)
+  }, [brand?.id])
 
   // Pre-fill from insight if navigated from HyperListening
   useEffect(() => {
@@ -87,6 +98,20 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
       case 'email': return 'Email'
       default: return 'Variant'
     }
+  }
+
+  if (!brand) {
+    return <EmptyState emoji="📋" title="Select a brand" subtitle="Choose a client from the sidebar to start generating copy" />
+  }
+
+  if (!hasPersonas) {
+    return (
+      <EmptyState
+        emoji="👥"
+        title="No personas found"
+        subtitle="Run brand research first to create target personas, or add them manually in the Brand Kit"
+      />
+    )
   }
 
   return (
@@ -256,6 +281,19 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
             title={`${activeType?.label || 'Copy'} Variants`}
             subtitle="Generated content will appear here"
           />
+        )}
+        {variants.length > 0 && !generating && (
+          <Button
+            variant="secondary"
+            className="w-full justify-center"
+            onClick={() => {
+              const all = variants.map((v, i) => `--- ${getVariantLabel()} ${i + 1} ---\n${v.headline}\n${v.body}\n${v.cta || ''}`).join('\n\n')
+              navigator.clipboard.writeText(all)
+              onToast('All variants copied to clipboard', 'success')
+            }}
+          >
+            Copy All Variants
+          </Button>
         )}
       </div>
     </div>

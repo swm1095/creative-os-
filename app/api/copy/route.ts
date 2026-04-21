@@ -29,8 +29,11 @@ export async function POST(req: NextRequest) {
     }
 
     const { persona, tone, platform, prompt, brandId } = await req.json()
-    if (!persona || !prompt) {
-      return NextResponse.json({ error: 'persona and prompt are required' }, { status: 400 })
+    if (!prompt) {
+      return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
+    }
+    if (!brandId) {
+      return NextResponse.json({ error: 'Select a brand first' }, { status: 400 })
     }
 
     // Load brand research from Supabase

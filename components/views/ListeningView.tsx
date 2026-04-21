@@ -96,6 +96,12 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       setHasRun(false)
       return
     }
+    // Close any open modals when brand changes
+    setShowUgcModal(false)
+    setShowVideoModal(false)
+    setUgcScripts(null)
+    setGeneratingUGC(null)
+    setGeneratingVideoPrompt(null)
     let cancelled = false
     ;(async () => {
       try {

@@ -220,13 +220,14 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
   const handleAddPersona = async () => {
     if (!brand?.id || !newPersonaName.trim() || !research) return
+    const savedName = newPersonaName
     const newP = { name: newPersonaName, age: '', description: newPersonaDesc, painPoints: [], motivators: [], channels: [], hook: newPersonaHook }
     const updated = { ...research, personas: [...(research.personas || []), newP] }
     try {
       await fetch('/api/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: brand.id, research: updated }) })
       setResearch(updated); onBrandUpdate(brand.id, { research: updated })
       setNewPersonaName(''); setNewPersonaDesc(''); setNewPersonaHook(''); setShowAddPersona(false)
-      onToast(`Persona "${newPersonaName}" added`, 'success')
+      onToast(`Persona "${savedName}" added`, 'success')
     } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
   }
 
