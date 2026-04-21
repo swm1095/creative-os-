@@ -32,9 +32,10 @@ interface BrandResearchViewProps {
   onChangeTab?: (tab: 'research' | 'saved-insights') => void
   addBackgroundTask?: (type: 'research' | 'competitor-analysis' | 'scan' | 'generate' | 'ugc-scripts', brandId: string, brandName: string, message: string, fn: (signal: AbortSignal) => Promise<unknown>) => string
   isClient?: boolean
+  initialSection?: string
 }
 
-export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab, addBackgroundTask, isClient }: BrandResearchViewProps) {
+export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCreateBrand, onRefreshBrands, onSetActiveBrand, activeTab = 'research', onChangeTab, addBackgroundTask, isClient, initialSection }: BrandResearchViewProps) {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [researching, setResearching] = useState(false)
@@ -45,17 +46,34 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
     return b?.competitor_research || []
   })
 
+  // Scroll to section if specified
+  useEffect(() => {
+    if (initialSection) {
+      setTimeout(() => {
+        document.getElementById(initialSection)?.scrollIntoView({ behavior: 'smooth' })
+      }, 300)
+    }
+  }, [initialSection])
+
   // Sync local state when brand changes
   useEffect(() => {
     setResearch(brand?.research as BrandResearch || null)
     const b = brand as Brand & { competitor_research?: CompetitorInsight[] }
     setCompetitorInsights(b?.competitor_research || [])
     setCompetitorUrls(brand?.competitor_urls || [])
+    setOwnProductUrls((brand as Brand & { own_product_urls?: string[] })?.own_product_urls || [])
+    setReviewAnalysis(null)
   }, [brand?.id])
   const [competitorUrls, setCompetitorUrls] = useState<string[]>(brand?.competitor_urls || [])
   const [newCompetitorUrl, setNewCompetitorUrl] = useState('')
   const [savingUrls, setSavingUrls] = useState(false)
   const [showAddPersona, setShowAddPersona] = useState(false)
+
+  // Amazon reviews
+  const [ownProductUrls, setOwnProductUrls] = useState<string[]>((brand as Brand & { own_product_urls?: string[] })?.own_product_urls || [])
+  const [newOwnUrl, setNewOwnUrl] = useState('')
+  const [scrapingReviews, setScrapingReviews] = useState(false)
+  const [reviewAnalysis, setReviewAnalysis] = useState<{ sentiment: string; praise: string[]; complaints: string[]; themes: string[]; summary: string } | null>(null)
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaDesc, setNewPersonaDesc] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
@@ -130,6 +148,45 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
       onToast(`Headline generation failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
     setGeneratingHeadlines(false)
+  }
+
+  const saveOwnUrls = async (urls: string[]) => {
+    setOwnProductUrls(urls)
+    if (brand?.id) {
+      try {
+        await fetch('/api/brands', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: brand.id, own_product_urls: urls }),
+        })
+      } catch { /* silent */ }
+    }
+  }
+
+  const scrapeOwnReviews = async () => {
+    if (!brand?.id || ownProductUrls.length === 0) { onToast('Add at least one product URL', 'error'); return }
+    setScrapingReviews(true)
+    onToast('Scraping Amazon reviews and analyzing with Claude...', 'info')
+    try {
+      const res = await fetch('/api/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyze-reviews',
+          brandId: brand.id,
+          brandName: brand.name,
+          productUrls: ownProductUrls,
+          brandResearch: research,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setReviewAnalysis(data.analysis)
+      onToast('Review analysis complete', 'success')
+    } catch (err: unknown) {
+      onToast(`Review scraping failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setScrapingReviews(false)
   }
 
   const runResearch = async (targetBrandId?: string, targetUrl?: string, targetName?: string) => {
@@ -469,6 +526,91 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
                   <div className="text-2xl mb-2">⚔️</div>
                   <div className="text-sm font-bold mb-1">No competitor analysis yet</div>
                   <div className="text-xs text-text-dim">Click "Run Competitor Analysis" to mine Reddit for competitor weaknesses, customer complaints, and ad angles</div>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* AMAZON REVIEWS */}
+          <div id="amazon-reviews">
+            <h3 className="text-lg font-black mb-4">Amazon Review Tracking</h3>
+
+            <Card className="mb-4">
+              <div className="text-sm font-bold mb-2">Your Product URLs</div>
+              <div className="text-2xs text-text-dim mb-3">Add your Amazon product pages to track and analyze customer reviews</div>
+              <div className="space-y-2 mb-3">
+                {ownProductUrls.map((url, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-blue flex-1 truncate">{url}</span>
+                    <button onClick={() => saveOwnUrls(ownProductUrls.filter((_, idx) => idx !== i))}
+                      className="text-2xs text-red hover:underline shrink-0">Remove</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  placeholder="https://www.amazon.com/dp/..."
+                  value={newOwnUrl}
+                  onChange={e => setNewOwnUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                />
+                <Button size="sm" disabled={!newOwnUrl.trim()} onClick={() => {
+                  if (!newOwnUrl.trim()) return
+                  saveOwnUrls([...ownProductUrls, newOwnUrl.trim()])
+                  setNewOwnUrl('')
+                  onToast('Product URL added', 'success')
+                }}>Add</Button>
+              </div>
+            </Card>
+
+            <Button onClick={scrapeOwnReviews} disabled={scrapingReviews || ownProductUrls.length === 0} className="w-full justify-center mb-4">
+              {scrapingReviews ? <><LoadingSpinner size={14} /> Analyzing Reviews...</> : 'Analyze Amazon Reviews'}
+            </Button>
+
+            {scrapingReviews && (
+              <LoadingState size="md" title="Scraping and analyzing reviews..." subtitle="This may take 30-60 seconds" />
+            )}
+
+            {reviewAnalysis && !scrapingReviews && (
+              <div className="space-y-3">
+                <Card>
+                  <div className="text-sm font-bold mb-2">Overall Sentiment</div>
+                  <div className="text-sm text-text-secondary">{reviewAnalysis.sentiment}</div>
+                </Card>
+                <Card>
+                  <div className="text-sm font-bold mb-2">Summary</div>
+                  <div className="text-sm text-text-secondary leading-relaxed">{reviewAnalysis.summary}</div>
+                </Card>
+                <div className="grid grid-cols-2 gap-3">
+                  <Card>
+                    <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">What Customers Love</div>
+                    <ul className="space-y-1 list-disc list-inside">
+                      {reviewAnalysis.praise?.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
+                    </ul>
+                  </Card>
+                  <Card>
+                    <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Common Complaints</div>
+                    <ul className="space-y-1 list-disc list-inside">
+                      {reviewAnalysis.complaints?.map((c, i) => <li key={i} className="text-xs text-text-secondary">{c}</li>)}
+                    </ul>
+                  </Card>
+                </div>
+                <Card>
+                  <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Trending Themes</div>
+                  <div className="flex flex-wrap gap-2">
+                    {reviewAnalysis.themes?.map((t, i) => <span key={i} className="text-2xs bg-fulton-light text-fulton px-2 py-0.5 rounded">{t}</span>)}
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {!reviewAnalysis && !scrapingReviews && ownProductUrls.length === 0 && (
+              <Card>
+                <div className="text-center py-6">
+                  <div className="text-2xl mb-2">📦</div>
+                  <div className="text-sm font-bold mb-1">No products tracked yet</div>
+                  <div className="text-xs text-text-dim">Add your Amazon product URLs above to start tracking reviews</div>
                 </div>
               </Card>
             )}

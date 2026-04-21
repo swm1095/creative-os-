@@ -102,6 +102,7 @@ export const TOOLS: ToolDef[] = [
     defaultView: 'brand-research',
     views: [
       { id: 'brand-research' as const, label: 'Brand Research' },
+      { id: 'competitor-research' as const, label: 'Competitor Research' },
       { id: 'saved-insights' as const, label: 'Saved Insights' },
     ],
     implemented: true,

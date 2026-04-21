@@ -19,6 +19,7 @@ export type ViewId =
   | 'saved-insights'
   | 'admin'
   | 'design'
+  | 'competitor-research'
   | 'coming-soon'
 
 // ── Brand ────────────────────────────────────────────────────

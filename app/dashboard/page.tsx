@@ -155,6 +155,22 @@ export default function DashboardPage() {
             isClient={isClient}
           />
         )
+      case 'competitor-research':
+        return (
+          <BrandResearchView
+            brand={activeBrand}
+            onToast={addToast}
+            onBrandUpdate={isClient ? () => {} : updateBrand}
+            onCreateBrand={createBrand}
+            onRefreshBrands={refreshBrands}
+            onSetActiveBrand={setActiveBrand}
+            activeTab="research"
+            onChangeTab={(tab) => navigate(null, tab === 'research' ? 'brand-research' : 'saved-insights')}
+            addBackgroundTask={isClient ? undefined : addTask}
+            isClient={isClient}
+            initialSection="competitor-analysis"
+          />
+        )
       case 'saved-insights':
         // Show saved insights with tab bar (works for both brand-research context and hyperlistening context)
         if (currentTool === 'hyperlistening') {
