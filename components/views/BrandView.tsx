@@ -116,8 +116,8 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
   const assetRef = useRef<HTMLInputElement>(null)
   const fontFileRef = useRef<HTMLInputElement>(null)
 
-  const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
-  const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
+  const colors = brand?.brand_colors || []
+  const fonts = brand?.brand_fonts || []
   const tone = brand?.tone_notes || DEFAULT_BRAND.tone
 
   // Load saved assets from Supabase

@@ -392,11 +392,9 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
       setGeneratedImages({}); setSelected(null); setEditing(null)
     }
 
-    // Always load brand colors
-    const colors = brand?.brand_colors || DEFAULT_BRAND.colors.map(c => c.hex)
-    setBrandColors(colors)
-    const fonts = brand?.brand_fonts || DEFAULT_BRAND.fonts.map(f => f.name)
-    setBrandFont(fonts[0] || 'Impact, sans-serif')
+    // Load brand colors - empty for new brands without colors set
+    setBrandColors(brand?.brand_colors || [])
+    setBrandFont(brand?.brand_fonts?.[0] || '')
   }, [brand?.id])
 
   // Escape to deselect
@@ -617,8 +615,18 @@ export default function DesignView({ brand, brandId, onToast }: DesignViewProps)
                   style={{ width: 28, height: 28, borderRadius: 6, border: '2px dashed var(--border, #2a2e3a)', fontSize: 14, color: '#888', display: 'grid', placeItems: 'center' }}>+</button>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>Display type</div>
-              <input type="text" value={brandFont} onChange={e => setBrandFont(e.target.value)} placeholder="Impact, sans-serif"
-                style={{ width: '100%', padding: '6px 10px', background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 6, fontSize: 12, color: 'inherit' }} />
+              {(brand?.brand_fonts?.length || 0) > 0 ? (
+                <select value={brandFont} onChange={e => setBrandFont(e.target.value)}
+                  style={{ width: '100%', padding: '6px 10px', background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 6, fontSize: 12, color: 'inherit' }}>
+                  {brand?.brand_fonts?.map((f, i) => (
+                    <option key={i} value={f}>{f}</option>
+                  ))}
+                </select>
+              ) : (
+                <div style={{ padding: '6px 10px', background: 'var(--elevated, #1a1e2e)', border: '1px solid var(--border, #2a2e3a)', borderRadius: 6, fontSize: 11, color: '#888' }}>
+                  Add fonts in Brand Kit first
+                </div>
+              )}
             </div>
 
             {/* 04 Persona */}
