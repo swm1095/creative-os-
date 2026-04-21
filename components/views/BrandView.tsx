@@ -103,21 +103,26 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
       return
     }
     setGuidelinesFile(file)
+    onToast('Uploading brand guidelines...', 'info')
 
-    // Upload to Supabase and save URL to brand
-    const formData = new FormData()
-    formData.append('brandId', brand.id)
-    formData.append('files', file)
     try {
-      const res = await fetch('/api/brand-assets', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (data.uploaded?.[0]?.url) {
-        setGuidelinesUrl(data.uploaded[0].url)
-        onBrandUpdate(brand.id, { brand_guidelines_url: data.uploaded[0].url })
-        onToast('Brand guidelines saved to brand kit', 'success')
-      }
-    } catch {
-      onToast('Guidelines uploaded locally but failed to save - try again', 'error')
+      // Use signed URL for direct upload (bypasses Vercel 4.5MB limit)
+      const signedRes = await fetch(`/api/reference-images?action=signedUrl&brandId=${brand.id}&fileName=${encodeURIComponent(file.name)}&contentType=${encodeURIComponent(file.type)}`)
+      const signedData = await signedRes.json()
+      if (signedData.error) throw new Error(signedData.error)
+
+      const uploadRes = await fetch(signedData.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      })
+      if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.status}`)
+
+      setGuidelinesUrl(signedData.publicUrl)
+      onBrandUpdate(brand.id, { brand_guidelines_url: signedData.publicUrl })
+      onToast('Brand guidelines saved to brand kit', 'success')
+    } catch (err) {
+      onToast(`Guidelines upload failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
     }
   }
 
@@ -159,7 +164,9 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
   }
 
   const handleAnalyze = async () => {
-    if (!logoFile && !guidelinesFile) {
+    const hasLogo = logoFile || logoPreview
+    const hasGuidelines = guidelinesFile || guidelinesUrl
+    if (!hasLogo && !hasGuidelines) {
       onToast('Upload a logo or brand guidelines first', 'error')
       return
     }
@@ -167,10 +174,24 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
     onToast('Analyzing brand assets with Gemini...', 'info')
 
     try {
+      // For small files (logo), send via FormData. For guidelines, send URL.
       const formData = new FormData()
       formData.append('brandId', brand?.id || 'demo')
       if (logoFile) formData.append('logo', logoFile)
-      if (guidelinesFile) formData.append('guidelines', guidelinesFile)
+      if (guidelinesUrl) formData.append('guidelinesUrl', guidelinesUrl)
+      else if (guidelinesFile && guidelinesFile.size < 4 * 1024 * 1024) formData.append('guidelines', guidelinesFile)
+      else if (guidelinesFile) {
+        // File too large for FormData - upload first then pass URL
+        onToast('Uploading guidelines before analysis...', 'info')
+        const signedRes = await fetch(`/api/reference-images?action=signedUrl&brandId=${brand?.id || 'shared'}&fileName=${encodeURIComponent(guidelinesFile.name)}&contentType=${encodeURIComponent(guidelinesFile.type)}`)
+        const signedData = await signedRes.json()
+        if (!signedData.error) {
+          await fetch(signedData.signedUrl, { method: 'PUT', headers: { 'Content-Type': guidelinesFile.type }, body: guidelinesFile })
+          formData.append('guidelinesUrl', signedData.publicUrl)
+          setGuidelinesUrl(signedData.publicUrl)
+          onBrandUpdate(brand!.id, { brand_guidelines_url: signedData.publicUrl })
+        }
+      }
 
       const res = await fetch('/api/brand-analyze', { method: 'POST', body: formData })
       if (!res.ok) {

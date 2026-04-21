@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
     const brandName = formData.get('brandName') as string || 'Fulton'
     const logoFile = formData.get('logo') as File | null
     const guidelinesFile = formData.get('guidelines') as File | null
+    const guidelinesUrl = formData.get('guidelinesUrl') as string | null
 
     // Auto-create brand for demo mode
     if (!brandId || brandId === 'demo') {
@@ -114,21 +115,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!logoFile && !guidelinesFile) {
+    if (!logoFile && !guidelinesFile && !guidelinesUrl) {
       return NextResponse.json({ error: 'Upload at least a logo or brand guidelines file' }, { status: 400 })
     }
 
-    // File size limit: 20MB
+    // File size limit: 20MB (only for files sent through FormData)
     const MAX_SIZE = 20 * 1024 * 1024
     if (logoFile && logoFile.size > MAX_SIZE) return NextResponse.json({ error: 'Logo file too large (max 20MB)' }, { status: 400 })
     if (guidelinesFile && guidelinesFile.size > MAX_SIZE) return NextResponse.json({ error: 'Guidelines file too large (max 20MB)' }, { status: 400 })
 
+    // If guidelines provided as URL, download and create a File-like object
+    let guidelinesForAnalysis = guidelinesFile
+    if (!guidelinesForAnalysis && guidelinesUrl) {
+      try {
+        const dlRes = await fetch(guidelinesUrl)
+        if (dlRes.ok) {
+          const blob = await dlRes.blob()
+          const fileName = guidelinesUrl.split('/').pop() || 'guidelines.pdf'
+          guidelinesForAnalysis = new File([blob], fileName, { type: blob.type || 'application/pdf' })
+        }
+      } catch {
+        console.log('Could not download guidelines from URL, skipping')
+      }
+    }
+
     // Analyze the primary file (prefer guidelines, fallback to logo)
-    const primaryFile = guidelinesFile || logoFile!
+    const primaryFile = guidelinesForAnalysis || logoFile
+    if (!primaryFile) {
+      return NextResponse.json({ error: 'No analyzable file available' }, { status: 400 })
+    }
     const analysis = await analyzeWithGemini(primaryFile)
 
     // If both files uploaded, also analyze the logo and merge colors
-    if (logoFile && guidelinesFile) {
+    if (logoFile && guidelinesForAnalysis) {
       try {
         const logoAnalysis = await analyzeWithGemini(logoFile)
         const allColors = [...new Set([...analysis.colors, ...logoAnalysis.colors])].slice(0, 8)
