@@ -314,6 +314,81 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
       {research && !researching && (
         <div className="space-y-6">
+          {/* AMAZON REVIEWS - client's own product reviews */}
+          {initialSection !== 'competitor-analysis' && (
+          <div id="amazon-reviews">
+            <h3 className="text-lg font-black mb-4">Amazon Review Tracking</h3>
+            <Card className="mb-4">
+              <div className="text-sm font-bold mb-2">Your Product URLs</div>
+              <div className="text-2xs text-text-dim mb-3">Add your Amazon product pages to track and analyze customer reviews</div>
+              <div className="space-y-2 mb-3">
+                {ownProductUrls.map((url, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="text-xs text-blue flex-1 truncate">{url}</span>
+                    <button onClick={() => saveOwnUrls(ownProductUrls.filter((_, idx) => idx !== i))}
+                      className="text-2xs text-red hover:underline shrink-0">Remove</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input type="url" placeholder="https://www.amazon.com/dp/..." value={newOwnUrl} onChange={e => setNewOwnUrl(e.target.value)}
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
+                <Button size="sm" disabled={!newOwnUrl.trim()} onClick={() => {
+                  if (!newOwnUrl.trim()) return
+                  saveOwnUrls([...ownProductUrls, newOwnUrl.trim()])
+                  setNewOwnUrl('')
+                  onToast('Product URL added', 'success')
+                }}>Add</Button>
+              </div>
+            </Card>
+            <Button onClick={scrapeOwnReviews} disabled={scrapingReviews || ownProductUrls.length === 0} className="w-full justify-center mb-4">
+              {scrapingReviews ? <><LoadingSpinner size={14} /> Analyzing Reviews...</> : 'Analyze Amazon Reviews'}
+            </Button>
+            {scrapingReviews && <LoadingState size="md" title="Analyzing reviews..." subtitle="This may take 30-60 seconds" />}
+            {reviewAnalysis && !scrapingReviews && (
+              <div className="space-y-3 mb-6">
+                <Card>
+                  <div className="text-sm font-bold mb-2">Overall Sentiment</div>
+                  <div className="text-sm text-text-secondary">{reviewAnalysis.sentiment}</div>
+                </Card>
+                <Card>
+                  <div className="text-sm font-bold mb-2">Summary</div>
+                  <div className="text-sm text-text-secondary leading-relaxed">{reviewAnalysis.summary}</div>
+                </Card>
+                <div className="grid grid-cols-2 gap-3">
+                  <Card>
+                    <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">What Customers Love</div>
+                    <ul className="space-y-1 list-disc list-inside">
+                      {reviewAnalysis.praise?.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
+                    </ul>
+                  </Card>
+                  <Card>
+                    <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Common Complaints</div>
+                    <ul className="space-y-1 list-disc list-inside">
+                      {reviewAnalysis.complaints?.map((c, i) => <li key={i} className="text-xs text-text-secondary">{c}</li>)}
+                    </ul>
+                  </Card>
+                </div>
+                <Card>
+                  <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Trending Themes</div>
+                  <div className="flex flex-wrap gap-2">
+                    {reviewAnalysis.themes?.map((t, i) => <span key={i} className="text-2xs bg-fulton-light text-fulton px-2 py-0.5 rounded">{t}</span>)}
+                  </div>
+                </Card>
+              </div>
+            )}
+            {!reviewAnalysis && !scrapingReviews && ownProductUrls.length === 0 && (
+              <Card className="mb-6">
+                <div className="text-center py-6">
+                  <div className="text-2xl mb-2">📦</div>
+                  <div className="text-sm font-bold mb-1">No products tracked yet</div>
+                  <div className="text-xs text-text-dim">Add your Amazon product URLs above to start tracking reviews</div>
+                </div>
+              </Card>
+            )}
+          </div>
+          )}
+
           {/* SUMMARY */}
           <Card title="Executive Summary">
             <p className="text-sm text-text-secondary leading-relaxed mb-3">{research.summary}</p>
@@ -524,90 +599,6 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
             )}
           </div>
 
-          {/* AMAZON REVIEWS - only in brand research mode, not competitor mode */}
-          {initialSection !== 'competitor-analysis' && <div id="amazon-reviews">
-            <h3 className="text-lg font-black mb-4">Amazon Review Tracking</h3>
-
-            <Card className="mb-4">
-              <div className="text-sm font-bold mb-2">Your Product URLs</div>
-              <div className="text-2xs text-text-dim mb-3">Add your Amazon product pages to track and analyze customer reviews</div>
-              <div className="space-y-2 mb-3">
-                {ownProductUrls.map((url, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="text-xs text-blue flex-1 truncate">{url}</span>
-                    <button onClick={() => saveOwnUrls(ownProductUrls.filter((_, idx) => idx !== i))}
-                      className="text-2xs text-red hover:underline shrink-0">Remove</button>
-                  </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="https://www.amazon.com/dp/..."
-                  value={newOwnUrl}
-                  onChange={e => setNewOwnUrl(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
-                />
-                <Button size="sm" disabled={!newOwnUrl.trim()} onClick={() => {
-                  if (!newOwnUrl.trim()) return
-                  saveOwnUrls([...ownProductUrls, newOwnUrl.trim()])
-                  setNewOwnUrl('')
-                  onToast('Product URL added', 'success')
-                }}>Add</Button>
-              </div>
-            </Card>
-
-            <Button onClick={scrapeOwnReviews} disabled={scrapingReviews || ownProductUrls.length === 0} className="w-full justify-center mb-4">
-              {scrapingReviews ? <><LoadingSpinner size={14} /> Analyzing Reviews...</> : 'Analyze Amazon Reviews'}
-            </Button>
-
-            {scrapingReviews && (
-              <LoadingState size="md" title="Scraping and analyzing reviews..." subtitle="This may take 30-60 seconds" />
-            )}
-
-            {reviewAnalysis && !scrapingReviews && (
-              <div className="space-y-3">
-                <Card>
-                  <div className="text-sm font-bold mb-2">Overall Sentiment</div>
-                  <div className="text-sm text-text-secondary">{reviewAnalysis.sentiment}</div>
-                </Card>
-                <Card>
-                  <div className="text-sm font-bold mb-2">Summary</div>
-                  <div className="text-sm text-text-secondary leading-relaxed">{reviewAnalysis.summary}</div>
-                </Card>
-                <div className="grid grid-cols-2 gap-3">
-                  <Card>
-                    <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">What Customers Love</div>
-                    <ul className="space-y-1 list-disc list-inside">
-                      {reviewAnalysis.praise?.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
-                    </ul>
-                  </Card>
-                  <Card>
-                    <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Common Complaints</div>
-                    <ul className="space-y-1 list-disc list-inside">
-                      {reviewAnalysis.complaints?.map((c, i) => <li key={i} className="text-xs text-text-secondary">{c}</li>)}
-                    </ul>
-                  </Card>
-                </div>
-                <Card>
-                  <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Trending Themes</div>
-                  <div className="flex flex-wrap gap-2">
-                    {reviewAnalysis.themes?.map((t, i) => <span key={i} className="text-2xs bg-fulton-light text-fulton px-2 py-0.5 rounded">{t}</span>)}
-                  </div>
-                </Card>
-              </div>
-            )}
-
-            {!reviewAnalysis && !scrapingReviews && ownProductUrls.length === 0 && (
-              <Card>
-                <div className="text-center py-6">
-                  <div className="text-2xl mb-2">📦</div>
-                  <div className="text-sm font-bold mb-1">No products tracked yet</div>
-                  <div className="text-xs text-text-dim">Add your Amazon product URLs above to start tracking reviews</div>
-                </div>
-              </Card>
-            )}
-          </div>}
 
           {/* VALUE PROPS - hide in competitor mode */}
           {initialSection !== 'competitor-analysis' && (<>
