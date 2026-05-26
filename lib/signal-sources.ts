@@ -351,6 +351,126 @@ export async function searchApifyTwitter(_query: string): Promise<SocialSignal[]
   return []
 }
 
+// Instagram scraper via Apify
+export async function searchApifyInstagram(query: string, limit: number = 15): Promise<SocialSignal[]> {
+  if (!process.env.APIFY_API_KEY) return []
+
+  const items = await runApifyActor('apify~instagram-hashtag-scraper', {
+    hashtags: [query.replace(/\s+/g, '').replace('#', '')],
+    resultsLimit: limit,
+  }, 90)
+
+  if (!Array.isArray(items)) return []
+  return (items as Array<{ id?: string; shortCode?: string; caption?: string; url?: string; likesCount?: number; commentsCount?: number; timestamp?: string; ownerUsername?: string }>)
+    .filter(item => item && (item.id || item.shortCode))
+    .slice(0, limit)
+    .map(item => ({
+      id: `apify-ig-${item.shortCode || item.id}`,
+      source: `Instagram (@${item.ownerUsername || 'unknown'})`,
+      title: (item.caption || '').slice(0, 150),
+      content: (item.caption || '').slice(0, 1000),
+      url: item.url || `https://instagram.com/p/${item.shortCode}`,
+      score: (item.likesCount || 0) + (item.commentsCount || 0),
+      date: item.timestamp || new Date().toISOString(),
+      sentiment: 'neutral' as const,
+      relevance: 0,
+    }))
+}
+
+// Trustpilot scraper via Apify
+export async function searchApifyTrustpilot(companyDomain: string, limit: number = 15): Promise<SocialSignal[]> {
+  if (!process.env.APIFY_API_KEY || !companyDomain) return []
+
+  const items = await runApifyActor('vaclavskoupa~trustpilot-reviews-scraper', {
+    urls: [`https://www.trustpilot.com/review/${companyDomain.replace('https://', '').replace('http://', '').replace('www.', '')}`],
+    maxReviews: limit,
+  }, 90)
+
+  if (!Array.isArray(items)) return []
+  return items
+    .filter(item => item && (item.title || item.text))
+    .slice(0, limit)
+    .map((item, i) => ({
+      id: `apify-trustpilot-${i}-${Date.now()}`,
+      source: 'Trustpilot',
+      title: (item.title || 'Trustpilot Review').toString().slice(0, 150),
+      content: (item.text || item.body || '').toString().slice(0, 1500),
+      url: (item.url || `https://trustpilot.com/review/${companyDomain}`).toString(),
+      score: Math.round(((item.rating || item.stars || 3) as number) * 20),
+      date: (item.date || item.publishedDate || new Date().toISOString()).toString(),
+      sentiment: ((item.rating || item.stars || 3) as number) < 3 ? 'negative' as const : 'positive' as const,
+      relevance: 0,
+    }))
+}
+
+// ── Google News RSS (free, no API key) ────────────────────────────────────
+export async function searchGoogleNews(query: string, limit: number = 10): Promise<SocialSignal[]> {
+  try {
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return []
+    const xml = await res.text()
+
+    // Simple XML parsing for RSS items
+    const items: SocialSignal[] = []
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g
+    let match
+    while ((match = itemRegex.exec(xml)) !== null && items.length < limit) {
+      const itemXml = match[1]
+      const title = itemXml.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1') || ''
+      const link = itemXml.match(/<link>([\s\S]*?)<\/link>/)?.[1] || ''
+      const pubDate = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || ''
+      const source = itemXml.match(/<source[^>]*>([\s\S]*?)<\/source>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1') || 'News'
+      const description = itemXml.match(/<description>([\s\S]*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')?.replace(/<[^>]*>/g, '') || ''
+
+      items.push({
+        id: `news-${Buffer.from(link).toString('base64').slice(0, 20)}-${items.length}`,
+        source: `News (${source})`,
+        title: title.slice(0, 200),
+        content: description.slice(0, 1000),
+        url: link,
+        score: 50, // News articles get baseline score
+        date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+        sentiment: 'neutral' as const,
+        relevance: 0,
+      })
+    }
+    return items
+  } catch { return [] }
+}
+
+// ── Google "People Also Ask" via autocomplete (free) ──────────────────────
+export async function getGooglePeopleAlsoAsk(query: string): Promise<{ questions: string[]; suggestions: string[] }> {
+  const questions: string[] = []
+  const suggestions: string[] = []
+
+  // Get autocomplete suggestions for question-style queries
+  const prefixes = [`${query}`, `why ${query}`, `how to ${query}`, `best ${query}`, `${query} vs`, `is ${query}`]
+
+  for (const prefix of prefixes) {
+    try {
+      const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(prefix)}`
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) })
+      if (res.ok) {
+        const data = await res.json()
+        const results = (data[1] || []) as string[]
+        for (const r of results) {
+          if (r.includes('?') || r.startsWith('why') || r.startsWith('how') || r.startsWith('is') || r.startsWith('what') || r.startsWith('can')) {
+            questions.push(r)
+          } else {
+            suggestions.push(r)
+          }
+        }
+      }
+    } catch { /* silent */ }
+  }
+
+  return {
+    questions: [...new Set(questions)].slice(0, 15),
+    suggestions: [...new Set(suggestions)].slice(0, 15),
+  }
+}
+
 export function isApifyEnabled(): boolean {
   return !!process.env.APIFY_API_KEY
 }

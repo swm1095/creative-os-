@@ -11,10 +11,14 @@ import {
   searchYouTubeDeep,
   getYouTubeComments,
   getGoogleTrendsDeep,
+  getGooglePeopleAlsoAsk,
+  searchGoogleNews,
   searchApifyReddit,
   searchApifyTikTok,
   searchApifyAmazon,
   searchApifyTwitter,
+  searchApifyInstagram,
+  searchApifyTrustpilot,
   isApifyEnabled,
 } from '@/lib/signal-sources'
 
@@ -297,28 +301,72 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Apify sources (scaffolded - flips on when APIFY_API_KEY set) ──
+    // ── Google News (free, no API key) ──
+    console.log('Google News...')
+    const topKeyword = (research.searchKeywords || [])[0] || brand.name
+    const newsPromises = [
+      searchGoogleNews(brand.name),
+      searchGoogleNews(research.productCategory || research.industry || ''),
+    ]
+    const newsResults = await Promise.allSettled(newsPromises)
+    for (const result of newsResults) {
+      if (result.status === 'fulfilled') allSignals.push(...result.value)
+    }
+
+    // ── Google People Also Ask (free) ──
+    console.log('Google People Also Ask...')
+    const paaData = await getGooglePeopleAlsoAsk(research.productCategory || brand.name)
+    // Convert questions to signals
+    for (const q of paaData.questions) {
+      allSignals.push({
+        id: `paa-${Buffer.from(q).toString('base64').slice(0, 15)}`,
+        source: 'Google PAA',
+        title: q,
+        content: `People are searching: "${q}" - this is a real consumer question about ${research.productCategory || brand.name}`,
+        url: `https://google.com/search?q=${encodeURIComponent(q)}`,
+        score: 30,
+        date: new Date().toISOString(),
+        sentiment: 'neutral' as const,
+        relevance: 0,
+      })
+    }
+
+    // ── Apify sources (flips on when APIFY_API_KEY set) ──
     if (apifyOn) {
       console.log('=== APIFY ENABLED - running scrapers in parallel ===')
       const apifyPromises: Promise<SocialSignal[]>[] = []
 
-      // TikTok - top keyword only to save credits
-      const topKeyword = (research.searchKeywords || [])[0]
+      // TikTok - top keyword
       if (topKeyword) apifyPromises.push(searchApifyTikTok(topKeyword))
 
       // Reddit - top keyword
       if (topKeyword) apifyPromises.push(searchApifyReddit(topKeyword))
 
-      // Amazon - first 2 competitor URLs
+      // Instagram - top keyword + brand name
+      if (topKeyword) apifyPromises.push(searchApifyInstagram(topKeyword))
+      apifyPromises.push(searchApifyInstagram(brand.name.replace(/\s+/g, '')))
+
+      // Amazon - competitor URLs
       const competitorUrls: string[] = brand.competitor_urls || []
       for (const url of competitorUrls.slice(0, 2)) {
         apifyPromises.push(searchApifyAmazon(url))
       }
 
+      // Amazon - own product URLs
+      const ownUrls: string[] = brand.own_product_urls || []
+      for (const url of ownUrls.slice(0, 2)) {
+        apifyPromises.push(searchApifyAmazon(url))
+      }
+
+      // Trustpilot - brand domain
+      if (brand.url) {
+        apifyPromises.push(searchApifyTrustpilot(brand.url))
+      }
+
       // Twitter/X - top keyword
       if (topKeyword) apifyPromises.push(searchApifyTwitter(topKeyword))
 
-      // Run all in parallel to stay within timeout
+      // Run all in parallel
       const apifyResults = await Promise.allSettled(apifyPromises)
       for (const result of apifyResults) {
         if (result.status === 'fulfilled') {
@@ -493,9 +541,13 @@ Priorities: high (act this week), medium (this month), low (monitor)`,
       hackernews: uniqueSignals.filter(s => s.source === 'HackerNews').length,
       youtube: uniqueSignals.filter(s => s.source.startsWith('YouTube') && !s.source.includes('comment')).length,
       'yt comments': uniqueSignals.filter(s => s.source === 'YouTube comment').length,
+      news: uniqueSignals.filter(s => s.source.startsWith('News')).length,
+      'google paa': uniqueSignals.filter(s => s.source === 'Google PAA').length,
       ...(apifyOn ? {
         tiktok: uniqueSignals.filter(s => s.source === 'TikTok').length,
+        instagram: uniqueSignals.filter(s => s.source.startsWith('Instagram')).length,
         amazon: uniqueSignals.filter(s => s.source === 'Amazon Review').length,
+        trustpilot: uniqueSignals.filter(s => s.source === 'Trustpilot').length,
       } : {}),
     }
 
