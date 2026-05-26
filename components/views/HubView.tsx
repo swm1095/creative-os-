@@ -62,8 +62,12 @@ export default function HubView({ onNavigate, brands = [], activeBrand, onSetAct
     else setLoading(false)
   }, [brands])
 
-  // Flatten and sort all insights by priority
-  const topInsights = allInsights
+  // Filter insights to active brand only
+  const activeBrandInsights = activeBrand
+    ? allInsights.filter(b => b.brandId === activeBrand.id)
+    : allInsights
+
+  const topInsights = activeBrandInsights
     .flatMap(b => b.insights.map(i => ({ ...i, brandName: b.brandName, brandColor: b.brandColor, brandId: b.brandId, scannedAt: b.scannedAt })))
     .sort((a, b) => {
       const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
