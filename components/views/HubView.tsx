@@ -75,10 +75,7 @@ export default function HubView({ onNavigate }: HubViewProps) {
               </div>
               <div className="flex gap-2 shrink-0">
                 <Button size="sm" variant="secondary" onClick={() => onNavigate('hypercopy', 'copy')}>
-                  Recreate Script
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => onNavigate('hypeimage', 'generate')}>
-                  Recreate Image
+                  Create Copy
                 </Button>
               </div>
             </div>

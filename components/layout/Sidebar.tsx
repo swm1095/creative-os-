@@ -70,7 +70,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
             {isClient ? (
               <>
                 <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Your Dashboard</div>
-                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
+                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate(null, 'brand')} />
                 <NavItem label="HyperChat" emoji="💬" active={activeView === 'chat'} onClick={() => onNavigate('hyperchat', 'chat')} />
                 <NavItem label="HyperCopy" emoji="✍️" active={activeView === 'copy'} onClick={() => onNavigate('hypercopy', 'copy')} />
                 <NavItem label="HyperListening" emoji="👂" active={activeView === 'listening'} onClick={() => onNavigate('hyperlistening', 'listening')} />
@@ -80,7 +80,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
               <>
                 <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
                 <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
-                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate('hypeimage', 'brand')} />
+                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate(null, 'brand')} />
                 <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
                 <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
                 {(userRole === 'admin' || userEmail === 'sam@hype10agency.com') && (

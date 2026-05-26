@@ -237,13 +237,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
     if (!onNavigate) return
     const brief = `Based on this insight: "${insight.title}"\n\n${insight.detail}\n\nAction: ${insight.actionable}${insight.copy_examples?.length ? '\n\nExample phrases: ' + insight.copy_examples.join(' | ') : ''}`
     localStorage.setItem('hc-brief-draft', brief)
-    if (type === 'copy') {
-      onNavigate('hypercopy', 'copy')
-      onToast(`Opening HyperCopy with brief from "${insight.title}"`, 'info')
-    } else {
-      onNavigate('hypeimage', 'generate')
-      onToast(`Opening HyperImage with context from "${insight.title}"`, 'info')
-    }
+    onNavigate('hypercopy', 'copy')
+    onToast(`Opening HyperCopy with brief from "${insight.title}"`, 'info')
   }
 
   const updateCadence = async (cadence: string) => {
@@ -413,14 +408,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                           <Button size="sm" onClick={() => generateUGCScripts(insight)} disabled={generatingUGC === insight.id}>
                             {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '🎬 UGC Scripts'}
                           </Button>
-                          <Button size="sm" onClick={() => generateVideoPrompt(insight)} disabled={generatingVideoPrompt === insight.id}>
-                            {generatingVideoPrompt === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '📹 Generate Video'}
-                          </Button>
                           <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'copy')}>
                             ✍ Copy
-                          </Button>
-                          <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'image')}>
-                            🖼 Ad
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => saveInsight(insight)} disabled={savingInsight === insight.id}>
                             {savingInsight === insight.id ? 'Saving...' : '📁 Save'}

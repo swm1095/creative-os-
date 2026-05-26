@@ -88,12 +88,8 @@ export default function SavedInsightsView({ brand, onToast, onNavigate }: SavedI
     if (!onNavigate) return
     const brief = `Based on this insight: "${insight.title}"\n\n${insight.detail}${insight.notes ? '\n\nNotes: ' + insight.notes : ''}${insight.source_data?.actionable ? '\n\nAction: ' + insight.source_data.actionable : ''}`
     localStorage.setItem('hc-brief-draft', brief)
-    if (type === 'copy') {
-      onNavigate('hypercopy', 'copy')
-    } else {
-      onNavigate('hypeimage', 'generate')
-    }
-    onToast(`Opening ${type === 'copy' ? 'HyperCopy' : 'HyperImage'} with insight context`, 'info')
+    onNavigate('hypercopy', 'copy')
+    onToast('Opening HyperCopy with insight context', 'info')
   }
 
   const filtered = filter === 'all' ? insights : insights.filter(i => i.status === filter || i.insight_type === filter)

@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { ToolId, ViewId, Creative } from '@/lib/types'
 import { TOOLS } from '@/lib/constants'
 import { useBrands } from '@/lib/hooks/use-brands'
-import { useCreatives } from '@/lib/hooks/use-creatives'
 import { useToast } from '@/lib/hooks/use-toast'
 import Sidebar from '@/components/layout/Sidebar'
 import Topbar from '@/components/layout/Topbar'
@@ -19,27 +18,19 @@ import LoginView from '@/components/views/LoginView'
 
 // Views
 import HubView from '@/components/views/HubView'
-import ImageDashboardView from '@/components/views/ImageDashboardView'
-import GenerateView from '@/components/views/GenerateView'
-import QCView from '@/components/views/QCView'
 import BrandView from '@/components/views/BrandView'
 import ChatView from '@/components/views/ChatView'
 import CopyView from '@/components/views/CopyView'
-import PerformanceView from '@/components/views/PerformanceView'
-import ResizeView from '@/components/views/ResizeView'
 import DataConnectionsView from '@/components/views/DataConnectionsView'
 import ListeningView from '@/components/views/ListeningView'
 import UGCTeamView from '@/components/views/UGCTeamView'
-import VideoView from '@/components/views/VideoView'
 import AdminDashboardView from '@/components/views/AdminDashboardView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
-import DesignView from '@/components/views/DesignView'
 
 export default function DashboardPage() {
   const { user, loading: authLoading, login, loginWithGoogle, logout, isAdmin } = useAuth()
   const { brands, activeBrand, setActiveBrand, createBrand, updateBrand, refreshBrands } = useBrands()
-  const { creatives, addCreatives } = useCreatives(activeBrand?.id)
   const { toasts, addToast, dismissToast } = useToast()
   const { tasks, addTask, dismissTask } = useBackgroundTasks()
 
@@ -59,9 +50,6 @@ export default function DashboardPage() {
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [addingBrand, setAddingBrand] = useState(false)
-  const [selectedCreative, setSelectedCreative] = useState<Creative | null>(null)
-  const [lastGeneratedFormats, setLastGeneratedFormats] = useState<Record<string, string>>({})
-  const [lastGeneratedHeadline, setLastGeneratedHeadline] = useState('')
   const navigate = useCallback((tool: ToolId, view: ViewId) => {
     setCurrentTool(tool)
     setActiveView(view)
@@ -86,50 +74,6 @@ export default function DashboardPage() {
     switch (activeView) {
       case 'hub':
         return <HubView onNavigate={navigate} />
-      case 'image-dashboard':
-        return (
-          <ImageDashboardView
-            creatives={creatives}
-            onNavigate={(view) => navigate(currentTool, view)}
-            onSelectCreative={(c) => { setSelectedCreative(c); navigate(currentTool, 'qc') }}
-          />
-        )
-      case 'generate':
-        return (
-          <GenerateView
-            brandId={activeBrand?.id}
-            brand={activeBrand}
-            onToast={addToast}
-            onGenerated={(results) => {
-              const newCreatives: Creative[] = results
-                .filter(r => r.imageUrl)
-                .map(r => ({
-                  id: crypto.randomUUID(),
-                  brand_id: activeBrand?.id || '',
-                  title: `${r.persona.name} - ${r.persona.angle.slice(0, 30)}`,
-                  image_url: r.imageUrl,
-                  format: '9x16' as const,
-                  generator: 'gemini' as const,
-                  qc_spelling: 'pending' as const,
-                  qc_brand: 'pending' as const,
-                  qc_claims: 'pending' as const,
-                  created_at: new Date().toISOString(),
-                }))
-              addCreatives(newCreatives)
-
-              // Store format URLs for resize view
-              const firstResult = results[0]
-              if (firstResult?.formats) {
-                setLastGeneratedFormats(firstResult.formats as Record<string, string>)
-                setLastGeneratedHeadline(firstResult.persona?.hook || firstResult.persona?.angle || '')
-              }
-            }}
-          />
-        )
-      case 'resize':
-        return <ResizeView formats={lastGeneratedFormats} headline={lastGeneratedHeadline} onToast={addToast} />
-      case 'qc':
-        return <QCView imageUrl={selectedCreative?.image_url} onToast={addToast} />
       case 'integrations':
         return <DataConnectionsView onToast={addToast} />
       case 'brand':
@@ -198,14 +142,8 @@ export default function DashboardPage() {
         if (isAdmin) return <AdminDashboardView onToast={addToast} />
         navigate(null, 'hub')
         return <HubView onNavigate={navigate} />
-      case 'video':
-        return <VideoView brand={activeBrand} brandId={activeBrand?.id} onToast={addToast} />
-      case 'design':
-        return <DesignView brand={activeBrand} brandId={activeBrand?.id} onToast={addToast} />
       case 'tracker':
         return <UGCTeamView onToast={addToast} />
-      case 'performance':
-        return <PerformanceView />
       case 'coming-soon':
         return (
           <div className="animate-fadeIn">
