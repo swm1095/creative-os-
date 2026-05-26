@@ -75,7 +75,7 @@ export default function DashboardPage() {
   const renderView = () => {
     switch (activeView) {
       case 'hub':
-        return <HubView onNavigate={navigate} />
+        return <HubView onNavigate={navigate} brands={brands} activeBrand={activeBrand} onSetActiveBrand={setActiveBrand} />
       case 'integrations':
         return <DataConnectionsView onToast={addToast} />
       case 'brand':
