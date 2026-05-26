@@ -27,6 +27,7 @@ import UGCTeamView from '@/components/views/UGCTeamView'
 import AdminDashboardView from '@/components/views/AdminDashboardView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
+import BrandOnboarding from '@/components/views/BrandOnboarding'
 
 export default function DashboardPage() {
   const { user, loading: authLoading, login, loginWithGoogle, logout, isAdmin } = useAuth()
@@ -47,6 +48,7 @@ export default function DashboardPage() {
   }, [isClient, user?.brand_id, brands, activeBrand, setActiveBrand])
   const [showBrandModal, setShowBrandModal] = useState(false)
   const [showAddBrandForm, setShowAddBrandForm] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [newBrandName, setNewBrandName] = useState('')
   const [newBrandUrl, setNewBrandUrl] = useState('')
   const [addingBrand, setAddingBrand] = useState(false)
@@ -192,7 +194,18 @@ export default function DashboardPage() {
         />
 
         <div className="flex-1 px-7 py-6">
-          {renderView()}
+          {showOnboarding ? (
+            <BrandOnboarding
+              onComplete={(brand) => {
+                setActiveBrand(brand)
+                setShowOnboarding(false)
+                refreshBrands()
+                addToast(`${brand.name} is ready to go`, 'success')
+              }}
+              onCancel={() => setShowOnboarding(false)}
+              onToast={addToast}
+            />
+          ) : renderView()}
         </div>
       </main>
 
@@ -326,7 +339,7 @@ export default function DashboardPage() {
               </div>
             ))}
             <button
-              onClick={() => setShowAddBrandForm(true)}
+              onClick={() => { setShowBrandModal(false); setShowOnboarding(true) }}
               className="w-full px-3 py-2.5 border border-dashed border-border rounded-lg text-sm text-text-dim hover:text-text-primary hover:border-text-subtle transition-all text-center"
             >
               + Add Brand
