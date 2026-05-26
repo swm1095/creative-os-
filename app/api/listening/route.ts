@@ -315,6 +315,9 @@ export async function POST(req: NextRequest) {
         apifyPromises.push(searchApifyAmazon(url))
       }
 
+      // Twitter/X - top keyword
+      if (topKeyword) apifyPromises.push(searchApifyTwitter(topKeyword))
+
       // Run all in parallel to stay within timeout
       const apifyResults = await Promise.allSettled(apifyPromises)
       for (const result of apifyResults) {
@@ -327,14 +330,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Filter out irrelevant and NSFW signals before analysis
+    // ── FRESHNESS FILTER: only keep signals from the last 7 days ──
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+    const now = Date.now()
+    const freshSignals = allSignals.filter(s => {
+      if (!s.date) return true // keep signals without dates (we can't filter them)
+      const signalDate = new Date(s.date).getTime()
+      return (now - signalDate) < SEVEN_DAYS_MS
+    })
+    console.log(`Freshness filter: ${allSignals.length} -> ${freshSignals.length} (within 7 days)`)
+
+    // ── RELEVANCE FILTER: strict matching against brand context ──
     const relevantSubreddits = new Set((research.subreddits || []).map(s => s.toLowerCase()))
     const brandKeywords = (research.searchKeywords || []).map(k => k.toLowerCase())
     const brandIndustry = (research.industry || '').toLowerCase()
+    const productCategory = (research.productCategory || '').toLowerCase()
+    const painPoints = (research.painPoints || []).map(p => p.toLowerCase())
+    const personas = (research.personas || []).map(p => p.name.toLowerCase())
 
-    const filteredSignals = allSignals.filter(s => {
+    const filteredSignals = freshSignals.filter(s => {
       const title = (s.title || '').toLowerCase()
       const content = (s.content || '').toLowerCase()
+      const combined = `${title} ${content}`
       const source = (s.source || '').toLowerCase()
 
       // Always keep signals from research-specified subreddits
@@ -343,20 +360,52 @@ export async function POST(req: NextRequest) {
         if (relevantSubreddits.has(sub)) return true
       }
 
-      // Always keep HackerNews, YouTube, TikTok, Amazon (already targeted by keywords)
-      if (!source.startsWith('r/')) return true
+      // Score relevance: must match at least one strong signal
+      let relevanceScore = 0
 
-      // For Reddit general search results, check relevance
-      const isRelevant = brandKeywords.some(k => title.includes(k) || content.includes(k)) ||
-        title.includes(brandIndustry) || content.includes(brandIndustry)
+      // Direct keyword match (strongest)
+      if (brandKeywords.some(k => combined.includes(k))) relevanceScore += 3
 
-      return isRelevant
+      // Industry/category match
+      if (brandIndustry && combined.includes(brandIndustry)) relevanceScore += 2
+      if (productCategory && combined.includes(productCategory)) relevanceScore += 2
+
+      // Pain point match
+      if (painPoints.some(p => combined.includes(p))) relevanceScore += 2
+
+      // Persona-relevant terms
+      if (personas.some(p => combined.includes(p))) relevanceScore += 1
+
+      // Brand name mention
+      if (combined.includes(brand.name.toLowerCase())) relevanceScore += 3
+
+      // Minimum threshold: must score at least 2 to be included
+      return relevanceScore >= 2
+    })
+    console.log(`Relevance filter: ${freshSignals.length} -> ${filteredSignals.length}`)
+
+    // Dedupe by similar content (not just ID)
+    const seen = new Set<string>()
+    const dedupedSignals = filteredSignals.filter(s => {
+      const key = (s.title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 50)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
     })
 
-    // Dedupe and sort
-    const uniqueSignals = Array.from(new Map(filteredSignals.map(s => [s.id, s])).values())
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 100)
+    // Sort by: freshness first, then engagement
+    const uniqueSignals = Array.from(new Map(dedupedSignals.map(s => [s.id, s])).values())
+      .sort((a, b) => {
+        // Fresh + high engagement first
+        const aDate = a.date ? new Date(a.date).getTime() : 0
+        const bDate = b.date ? new Date(b.date).getTime() : 0
+        const aFreshness = aDate / (now / 100) // normalize
+        const bFreshness = bDate / (now / 100)
+        const aScore = (a.score || 0) + aFreshness * 10
+        const bScore = (b.score || 0) + bFreshness * 10
+        return bScore - aScore
+      })
+      .slice(0, 80)
 
     console.log(`Total signals: ${uniqueSignals.length}`)
 
@@ -392,20 +441,27 @@ export async function POST(req: NextRequest) {
         max_tokens: 4000,
         system: `You are the Head of Creative at Hype10 agency analyzing social signals for ${brand.name}.
 
-Brand: ${research.industry} | ${research.productCategory}
-Personas: ${(research.personas || []).map(p => p.name).join(', ')}
+Brand: ${research.industry} | ${research.productCategory} | ${research.priceRange || ''}
+Target personas: ${(research.personas || []).map(p => `${p.name} (${p.description || ''})`).join('; ')}
+Pain points: ${(research.painPoints || []).slice(0, 5).join(', ')}
 ${competitorContext}
+
+CRITICAL RULES:
+- ONLY include insights directly relevant to ${research.productCategory || research.industry || brand.name}
+- NEVER include generic wellness/lifestyle insights that could apply to any brand
+- Every insight must connect to a specific persona or pain point from the brand research
+- If a signal is about a different product category, SKIP IT completely
+- Prioritize signals that reveal what customers are ACTUALLY saying about this type of product
+- Quote real customer language verbatim - these become ad copy
+- Every insight must be actionable for a creative team THIS WEEK
+- Never use emdashes. Use hyphens or commas.
 ${CONTENT_FILTER}
-${RELEVANCE_FILTER}
 
-Analyze the signals and trends below. Return 8-12 actionable insights.
-NEVER use emdashes. Use hyphens or commas.
-
-Return ONLY valid JSON in this EXACT format (no markdown, no text before or after):
-{"insights":[{"type":"trend","title":"Short title","detail":"2-3 sentences","signals":["source1"],"actionable":"Specific action","priority":"high","copy_examples":["quote1"]}]}
+Return ONLY valid JSON (no markdown, no text before or after):
+{"insights":[{"type":"trend","title":"Short title","detail":"2-3 sentences","signals":["source1"],"actionable":"Specific action for creative team","priority":"high","copy_examples":["actual customer quote"]}]}
 
 Types: trend, pain_point, competitor, opportunity, language
-Priorities: high, medium, low`,
+Priorities: high (act this week), medium (this month), low (monitor)`,
         messages: [{
           role: 'user',
           content: `SIGNALS:\n${signalText}\n\nTRENDS:\n${trendText}`,
