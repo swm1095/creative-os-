@@ -68,7 +68,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [sourceBreakdown, setSourceBreakdown] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false)
   const [hasRun, setHasRun] = useState(false)
-  const [scanCadence, setScanCadence] = useState<string>(brand?.scan_cadence || 'manual')
+  const [scanCadence, setScanCadence] = useState<string>(brand?.scan_cadence || 'daily')
   const [savingInsight, setSavingInsight] = useState<string | null>(null)
   const [showAddUrl, setShowAddUrl] = useState(false)
   const [newUrl, setNewUrl] = useState('')
@@ -83,7 +83,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const hasResearch = brand?.research_completed || !!brand?.research
 
   useEffect(() => {
-    setScanCadence(brand?.scan_cadence || 'manual')
+    setScanCadence(brand?.scan_cadence || 'daily')
   }, [brand?.id, brand?.scan_cadence])
 
   // Load previous scan results when brand changes
