@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       if (body.tone_notes !== undefined) updates.tone_notes = body.tone_notes
       if (body.brand_guidelines_url !== undefined) updates.brand_guidelines_url = body.brand_guidelines_url
       if (body.own_product_urls !== undefined) updates.own_product_urls = body.own_product_urls
+      if (body.customer_reviews !== undefined) updates.customer_reviews = body.customer_reviews
 
       const { data, error } = await supabase.from('brands').update(updates).eq('id', id).select().single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })

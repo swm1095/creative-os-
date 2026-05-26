@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Brand, BrandResearch } from '@/lib/types'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -63,6 +63,13 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
     setCompetitorUrls(brand?.competitor_urls || [])
     setOwnProductUrls((brand as Brand & { own_product_urls?: string[] })?.own_product_urls || [])
     setReviewAnalysis(null)
+    setReviewUploadAnalysis(null)
+    // Load stored review count
+    if (brand?.id) {
+      fetch(`/api/reviews?brandId=${brand.id}`).then(r => r.json()).then(data => {
+        setStoredReviewCount(data.reviews?.length || 0)
+      }).catch(() => {})
+    }
   }, [brand?.id])
   const [competitorUrls, setCompetitorUrls] = useState<string[]>(brand?.competitor_urls || [])
   const [newCompetitorUrl, setNewCompetitorUrl] = useState('')
@@ -74,6 +81,13 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   const [newOwnUrl, setNewOwnUrl] = useState('')
   const [scrapingReviews, setScrapingReviews] = useState(false)
   const [reviewAnalysis, setReviewAnalysis] = useState<{ sentiment: string; praise: string[]; complaints: string[]; themes: string[]; summary: string } | null>(null)
+
+  // Customer reviews upload
+  const [uploadingReviews, setUploadingReviews] = useState(false)
+  const [storedReviewCount, setStoredReviewCount] = useState(0)
+  const [reviewUploadAnalysis, setReviewUploadAnalysis] = useState<{ top_phrases?: string[]; pain_points?: string[]; praise?: string[]; themes?: string[]; sentiment?: string } | null>(null)
+  const [pastedReviewText, setPastedReviewText] = useState('')
+  const reviewFileRef = useRef<HTMLInputElement>(null)
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaDesc, setNewPersonaDesc] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
@@ -385,6 +399,139 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
                   <div className="text-xs text-text-dim">Add your Amazon product URLs above to start tracking reviews</div>
                 </div>
               </Card>
+            )}
+          </div>
+          )}
+
+          {/* CUSTOMER REVIEWS UPLOAD */}
+          {initialSection !== 'competitor-analysis' && (
+          <div>
+            <h3 className="text-lg font-black mb-4">Customer Reviews</h3>
+            <Card className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <div className="text-sm font-bold">Upload Client Reviews</div>
+                  <div className="text-2xs text-text-dim">CSV, Excel, or plain text. Reviews inform UGC scripts, headlines, and all copy generation.</div>
+                </div>
+                {storedReviewCount > 0 && (
+                  <span className="text-2xs bg-green/10 text-green px-2 py-1 rounded font-bold">{storedReviewCount} reviews stored</span>
+                )}
+              </div>
+
+              <input ref={reviewFileRef} type="file" accept=".csv,.tsv,.txt,.xlsx" style={{ display: 'none' }}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file || !brand?.id) return
+                  setUploadingReviews(true)
+                  onToast(`Parsing ${file.name}...`, 'info')
+                  try {
+                    const formData = new FormData()
+                    formData.append('brandId', brand.id)
+                    formData.append('file', file)
+                    const res = await fetch('/api/reviews', { method: 'POST', body: formData })
+                    const data = await res.json()
+                    if (data.error) throw new Error(data.error)
+                    setStoredReviewCount(data.total || 0)
+                    if (data.analysis) setReviewUploadAnalysis(data.analysis)
+                    onToast(`${data.count} reviews uploaded (${data.total} total)`, 'success')
+                  } catch (err: unknown) { onToast(`Upload failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+                  setUploadingReviews(false)
+                  if (reviewFileRef.current) reviewFileRef.current.value = ''
+                }} />
+
+              <div className="flex gap-2 mb-3">
+                <Button size="sm" onClick={() => reviewFileRef.current?.click()} disabled={uploadingReviews}>
+                  {uploadingReviews ? <><LoadingSpinner size={14} /> Uploading...</> : 'Upload CSV / Text File'}
+                </Button>
+                {storedReviewCount > 0 && (
+                  <Button size="sm" variant="ghost" onClick={async () => {
+                    if (!brand?.id || !confirm('Clear all stored reviews?')) return
+                    await fetch('/api/reviews', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brand.id }) })
+                    setStoredReviewCount(0); setReviewUploadAnalysis(null)
+                    onToast('Reviews cleared', 'info')
+                  }}>Clear All</Button>
+                )}
+              </div>
+
+              {/* Paste reviews directly */}
+              <div className="mb-3">
+                <textarea
+                  value={pastedReviewText}
+                  onChange={e => setPastedReviewText(e.target.value)}
+                  placeholder="Or paste reviews here (one per line or separated by blank lines)..."
+                  className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none resize-y min-h-[60px]"
+                  rows={3}
+                />
+                {pastedReviewText.trim() && (
+                  <Button size="sm" className="mt-2" disabled={uploadingReviews} onClick={async () => {
+                    if (!brand?.id || !pastedReviewText.trim()) return
+                    setUploadingReviews(true)
+                    try {
+                      const formData = new FormData()
+                      formData.append('brandId', brand.id)
+                      formData.append('text', pastedReviewText)
+                      const res = await fetch('/api/reviews', { method: 'POST', body: formData })
+                      const data = await res.json()
+                      if (data.error) throw new Error(data.error)
+                      setStoredReviewCount(data.total || 0)
+                      if (data.analysis) setReviewUploadAnalysis(data.analysis)
+                      setPastedReviewText('')
+                      onToast(`${data.count} reviews added (${data.total} total)`, 'success')
+                    } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+                    setUploadingReviews(false)
+                  }}>Save Pasted Reviews</Button>
+                )}
+              </div>
+
+              <div className="text-2xs text-text-dim">
+                Accepted formats: CSV (with columns like review, rating, source), plain text (one review per line), TSV. Reviews are analyzed by Claude and used to inform all copy generation.
+              </div>
+            </Card>
+
+            {/* Review analysis results */}
+            {reviewUploadAnalysis && (
+              <div className="space-y-3 mb-6">
+                {reviewUploadAnalysis.top_phrases?.length ? (
+                  <Card>
+                    <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Top Customer Phrases (use in ad copy)</div>
+                    <div className="space-y-1">
+                      {reviewUploadAnalysis.top_phrases.map((p, i) => (
+                        <div key={i} className="flex items-center justify-between bg-page border border-border rounded px-3 py-2">
+                          <span className="text-sm italic text-text-secondary">&quot;{p}&quot;</span>
+                          <button onClick={() => { navigator.clipboard.writeText(p); onToast('Phrase copied', 'success') }}
+                            className="text-2xs text-text-dim hover:text-text-primary shrink-0">Copy</button>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ) : null}
+                <div className="grid grid-cols-2 gap-3">
+                  {reviewUploadAnalysis.praise?.length ? (
+                    <Card>
+                      <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">What They Love</div>
+                      <ul className="space-y-1 list-disc list-inside">
+                        {reviewUploadAnalysis.praise.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
+                      </ul>
+                    </Card>
+                  ) : null}
+                  {reviewUploadAnalysis.pain_points?.length ? (
+                    <Card>
+                      <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Pain Points</div>
+                      <ul className="space-y-1 list-disc list-inside">
+                        {reviewUploadAnalysis.pain_points.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
+                      </ul>
+                    </Card>
+                  ) : null}
+                </div>
+                {reviewUploadAnalysis.themes?.length ? (
+                  <Card>
+                    <div className="text-xs font-bold text-blue uppercase tracking-wider mb-2">Recurring Themes</div>
+                    <div className="flex flex-wrap gap-2">
+                      {reviewUploadAnalysis.themes.map((t, i) => <span key={i} className="text-2xs bg-blue-light text-blue px-2 py-0.5 rounded">{t}</span>)}
+                    </div>
+                  </Card>
+                ) : null}
+              </div>
             )}
           </div>
           )}

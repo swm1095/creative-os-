@@ -60,6 +60,7 @@ Voice: ${research.brandVoice}
 Product: ${research.productCategory}
 Key phrases: ${(research.keyPhrases || []).slice(0, 5).join(', ')}
 Avoid: ${(research.avoidPhrases || []).slice(0, 3).join(', ')}
+${(brand.customer_reviews as Array<{text: string}> || []).length > 0 ? `\nREAL CUSTOMER LANGUAGE (use these exact phrases and sentiments in scripts):\n${(brand.customer_reviews as Array<{text: string}>).slice(0, 10).map((r: {text: string}) => `- "${r.text.slice(0, 150)}"`).join('\n')}` : ''}
 
 NEVER use emdashes. Use hyphens or commas.
 ${CONTENT_FILTER}

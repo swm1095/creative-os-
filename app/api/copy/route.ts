@@ -44,6 +44,11 @@ export async function POST(req: NextRequest) {
         const { data: brand } = await supabase.from('brands').select('*').eq('id', brandId).single()
         if (brand) {
           brandContextText = buildBrandContext(brand.research, brand.name)
+          // Add customer reviews context if available
+          const reviews = (brand.customer_reviews as Array<{text: string}>) || []
+          if (reviews.length > 0) {
+            brandContextText += `\n\nREAL CUSTOMER REVIEWS (use their exact language and phrases in copy):\n${reviews.slice(0, 10).map((r: {text: string}) => `- "${r.text.slice(0, 150)}"`).join('\n')}`
+          }
         }
       } catch (e) {
         console.error('Failed to load brand context:', e)
