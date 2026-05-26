@@ -19,6 +19,8 @@ import {
   searchApifyTwitter,
   searchApifyInstagram,
   searchApifyTrustpilot,
+  searchNewsApiAi,
+  searchCurrentsApi,
   isApifyEnabled,
 } from '@/lib/signal-sources'
 
@@ -310,6 +312,19 @@ export async function POST(req: NextRequest) {
     ]
     const newsResults = await Promise.allSettled(newsPromises)
     for (const result of newsResults) {
+      if (result.status === 'fulfilled') allSignals.push(...result.value)
+    }
+
+    // ── NewsAPI.ai + Currents API ──
+    console.log('NewsAPI.ai + Currents...')
+    const extraNewsPromises = [
+      searchNewsApiAi(brand.name),
+      searchNewsApiAi(research.productCategory || research.industry || ''),
+      searchCurrentsApi(brand.name),
+      searchCurrentsApi(research.productCategory || ''),
+    ]
+    const extraNewsResults = await Promise.allSettled(extraNewsPromises)
+    for (const result of extraNewsResults) {
       if (result.status === 'fulfilled') allSignals.push(...result.value)
     }
 

@@ -471,6 +471,70 @@ export async function getGooglePeopleAlsoAsk(query: string): Promise<{ questions
   }
 }
 
+// ── NewsAPI.ai (free tier: 2K searches/month) ─────────────────────────────
+export async function searchNewsApiAi(query: string, limit: number = 10): Promise<SocialSignal[]> {
+  const apiKey = process.env.NEWSAPI_AI_KEY
+  if (!apiKey) return []
+
+  try {
+    const res = await fetch('https://eventregistry.org/api/v1/article/getArticles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey,
+        keyword: query,
+        lang: 'eng',
+        articlesCount: limit,
+        articlesSortBy: 'date',
+        articlesSortByAsc: false,
+        dataType: ['news'],
+        includeArticleBody: true,
+      }),
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    const articles = data?.articles?.results || []
+    return articles.map((a: { uri?: string; title?: string; body?: string; url?: string; source?: { title?: string }; dateTime?: string; shares?: { facebook?: number } }, i: number) => ({
+      id: `newsai-${a.uri || i}-${Date.now()}`,
+      source: `News (${a.source?.title || 'NewsAPI'})`,
+      title: (a.title || '').slice(0, 200),
+      content: (a.body || '').slice(0, 1500),
+      url: a.url || '',
+      score: a.shares?.facebook || 30,
+      date: a.dateTime || new Date().toISOString(),
+      sentiment: 'neutral' as const,
+      relevance: 0,
+    }))
+  } catch { return [] }
+}
+
+// ── Currents API (free: 600 req/day, no key needed) ───────────────────────
+export async function searchCurrentsApi(query: string, limit: number = 10): Promise<SocialSignal[]> {
+  try {
+    const url = `https://api.currentsapi.services/v1/search?keywords=${encodeURIComponent(query)}&language=en&type=1`
+    const apiKey = process.env.CURRENTS_API_KEY
+    const res = await fetch(url, {
+      headers: apiKey ? { Authorization: apiKey } : {},
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    const articles = (data?.news || []).slice(0, limit)
+    return articles.map((a: { id?: string; title?: string; description?: string; url?: string; author?: string; published?: string; category?: string[] }, i: number) => ({
+      id: `currents-${a.id || i}-${Date.now()}`,
+      source: `News (${a.author || 'Currents'})`,
+      title: (a.title || '').slice(0, 200),
+      content: (a.description || '').slice(0, 1000),
+      url: a.url || '',
+      score: 25,
+      date: a.published || new Date().toISOString(),
+      sentiment: 'neutral' as const,
+      relevance: 0,
+    }))
+  } catch { return [] }
+}
+
 export function isApifyEnabled(): boolean {
   return !!process.env.APIFY_API_KEY
 }
