@@ -325,11 +325,22 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
               <div className="text-sm font-bold text-text-secondary">{ugcScripts.cta}</div>
             </Card>
 
-            <Button variant="secondary" className="w-full justify-center" onClick={() => {
-              const all = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
-              navigator.clipboard.writeText(all)
-              onToast('All scripts copied', 'success')
-            }}>Copy All Scripts</Button>
+            <div className="flex gap-2">
+              <Button className="flex-1 justify-center" onClick={async () => {
+                if (!brandId) return
+                const fullScript = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
+                try {
+                  await fetch('/api/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ brandId, title: 'UGC Script', detail: fullScript, insight_type: 'ugc-script', priority: 'high' }) })
+                  onToast('Script saved to Insights', 'success')
+                } catch { onToast('Save failed', 'error') }
+              }}>Save to Brand</Button>
+              <Button variant="secondary" className="flex-1 justify-center" onClick={() => {
+                const all = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
+                navigator.clipboard.writeText(all)
+                onToast('All scripts copied', 'success')
+              }}>Copy All</Button>
+            </div>
           </div>
         )}
 
@@ -350,11 +361,22 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                 </div>
               </Card>
             ))}
-            <Button variant="secondary" className="w-full justify-center" onClick={() => {
-              const all = headlines.map(g => `${g.persona}:\n${g.headlines.join('\n')}`).join('\n\n')
-              navigator.clipboard.writeText(all)
-              onToast('All headlines copied', 'success')
-            }}>Copy All Headlines</Button>
+            <div className="flex gap-2">
+              <Button className="flex-1 justify-center" onClick={async () => {
+                if (!brandId) return
+                const all = headlines.map(g => `${g.persona}:\n${g.headlines.join('\n')}`).join('\n\n')
+                try {
+                  await fetch('/api/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ brandId, title: 'Static Headlines', detail: all, insight_type: 'headlines', priority: 'medium' }) })
+                  onToast('Headlines saved to Insights', 'success')
+                } catch { onToast('Save failed', 'error') }
+              }}>Save to Brand</Button>
+              <Button variant="secondary" className="flex-1 justify-center" onClick={() => {
+                const all = headlines.map(g => `${g.persona}:\n${g.headlines.join('\n')}`).join('\n\n')
+                navigator.clipboard.writeText(all)
+                onToast('All headlines copied', 'success')
+              }}>Copy All</Button>
+            </div>
           </div>
         )}
 
@@ -373,11 +395,22 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                 {v.cta && <div className="inline-block px-3 py-1.5 bg-fulton text-white text-xs font-bold rounded">{v.cta}</div>}
               </Card>
             ))}
-            <Button variant="secondary" className="w-full justify-center" onClick={() => {
-              const all = variants.map((v, i) => `--- Variant ${i + 1} ---\n${v.headline}\n${v.body}\n${v.cta || ''}`).join('\n\n')
-              navigator.clipboard.writeText(all)
-              onToast('All variants copied', 'success')
-            }}>Copy All Variants</Button>
+            <div className="flex gap-2">
+              <Button className="flex-1 justify-center" onClick={async () => {
+                if (!brandId) return
+                const all = variants.map((v, i) => `--- Variant ${i + 1} ---\n${v.headline}\n${v.body}\n${v.cta || ''}`).join('\n\n')
+                try {
+                  await fetch('/api/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ brandId, title: 'Ad Copy Variants', detail: all, insight_type: 'ad-copy', priority: 'medium' }) })
+                  onToast('Ad copy saved to Insights', 'success')
+                } catch { onToast('Save failed', 'error') }
+              }}>Save to Brand</Button>
+              <Button variant="secondary" className="flex-1 justify-center" onClick={() => {
+                const all = variants.map((v, i) => `--- Variant ${i + 1} ---\n${v.headline}\n${v.body}\n${v.cta || ''}`).join('\n\n')
+                navigator.clipboard.writeText(all)
+                onToast('All variants copied', 'success')
+              }}>Copy All</Button>
+            </div>
           </div>
         )}
 

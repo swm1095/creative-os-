@@ -565,6 +565,45 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                 <div className="text-xs text-text-dim">{ugcScripts.scene_notes}</div>
               </div>
             )}
+
+            {/* Save + Copy All */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                className="flex-1 justify-center"
+                onClick={async () => {
+                  if (!brand?.id) return
+                  const fullScript = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
+                  try {
+                    await fetch('/api/insights', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        brandId: brand.id,
+                        title: `UGC Script: ${ugcInsightTitle}`,
+                        detail: fullScript,
+                        insight_type: 'ugc-script',
+                        priority: 'high',
+                        notes: `Generated from "${ugcInsightTitle}"`,
+                      }),
+                    })
+                    onToast('UGC script saved to Insights folder', 'success')
+                  } catch { onToast('Save failed', 'error') }
+                }}
+              >
+                Save to Brand
+              </Button>
+              <Button
+                variant="secondary"
+                className="flex-1 justify-center"
+                onClick={() => {
+                  const all = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
+                  navigator.clipboard.writeText(all)
+                  onToast('All scripts copied', 'success')
+                }}
+              >
+                Copy All
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="text-center py-8 text-text-dim">No scripts generated</div>
