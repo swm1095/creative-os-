@@ -287,7 +287,19 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
         title="Social Listening"
         subtitle={`${hoursAgo !== null ? `Last scanned ${hoursAgo}h ago` : 'Never scanned'} · ${brand?.research?.searchKeywords?.length || 0} keywords tracked`}
         action={!isClient ? (
-          <>
+          <div className="flex items-center gap-2">
+            {/* Product filter */}
+            {((brand as Brand & { products?: { id: string; name: string }[] })?.products || []).length > 0 && (
+              <select
+                className="px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                defaultValue="all"
+              >
+                <option value="all">All Products</option>
+                {((brand as Brand & { products?: { id: string; name: string }[] })?.products || []).map((p: { id: string; name: string }) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
             <select
               value={scanCadence}
               onChange={e => updateCadence(e.target.value)}
@@ -300,7 +312,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
             <Button onClick={runListening} disabled={loading}>
               {loading ? <><LoadingSpinner size={14} /> Scanning...</> : hasRun ? 'Rescan' : 'Scan Now'}
             </Button>
-          </>
+          </div>
         ) : undefined}
       />
 

@@ -62,6 +62,7 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
     setCompetitorInsights(b?.competitor_research || [])
     setCompetitorUrls(brand?.competitor_urls || [])
     setOwnProductUrls((brand as Brand & { own_product_urls?: string[] })?.own_product_urls || [])
+    setProducts((brand as Brand & { products?: ProductProfile[] })?.products || [])
     setReviewAnalysis(null)
     setReviewUploadAnalysis(null)
     // Load stored review count
@@ -79,6 +80,11 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
   // Amazon reviews
   const [ownProductUrls, setOwnProductUrls] = useState<string[]>((brand as Brand & { own_product_urls?: string[] })?.own_product_urls || [])
   const [newOwnUrl, setNewOwnUrl] = useState('')
+
+  // Products
+  interface ProductProfile { id: string; name: string; url: string; price: string; description: string; features: string[]; usps: string[]; targetUseCase: string; category?: string }
+  const [products, setProducts] = useState<ProductProfile[]>((brand as Brand & { products?: ProductProfile[] })?.products || [])
+  const [addingProduct, setAddingProduct] = useState(false)
   const [scrapingReviews, setScrapingReviews] = useState(false)
   const [reviewAnalysis, setReviewAnalysis] = useState<{ sentiment: string; praise: string[]; complaints: string[]; themes: string[]; summary: string } | null>(null)
 
@@ -478,22 +484,71 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
               </div>
 
               {/* PRODUCT PAGES */}
+              {/* PRODUCTS */}
               <div>
-                <h3 className="text-lg font-black mb-3">Product Pages</h3>
-                <Card>
-                  <div className="text-2xs text-text-dim mb-3">Amazon, Shopify, or any product page URL</div>
-                  <div className="space-y-1.5 mb-3">
-                    {ownProductUrls.map((url, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs text-blue flex-1 truncate">{url}</span>
-                        <button onClick={() => saveOwnUrls(ownProductUrls.filter((_, idx) => idx !== i))} className="text-2xs text-red shrink-0">Remove</button>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-black">Products</h3>
+                  <span className="text-2xs text-text-dim">{products.length} product{products.length !== 1 ? 's' : ''}</span>
+                </div>
+
+                {/* Existing products */}
+                {products.map(p => (
+                  <Card key={p.id} className="mb-3 relative group">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded bg-fulton-light flex items-center justify-center text-fulton text-xs font-bold shrink-0">{p.name.charAt(0)}</div>
+                      <div className="flex-1">
+                        <div className="text-sm font-bold">{p.name}</div>
+                        {p.price && <div className="text-xs text-green font-bold">{p.price}</div>}
+                        <div className="text-xs text-text-dim mt-1">{p.description}</div>
+                        {p.features.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {p.features.slice(0, 4).map((f, i) => <span key={i} className="text-2xs bg-elevated border border-border px-1.5 py-0.5 rounded">{f}</span>)}
+                          </div>
+                        )}
+                        {p.usps.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {p.usps.map((u, i) => <span key={i} className="text-2xs bg-fulton-light text-fulton px-1.5 py-0.5 rounded">{u}</span>)}
+                          </div>
+                        )}
+                        <div className="flex gap-2 mt-2">
+                          <Button size="sm" variant="secondary" onClick={() => { localStorage.setItem('hc-brief-draft', `Product: ${p.name}. ${p.description}. Features: ${p.features.join(', ')}. USPs: ${p.usps.join(', ')}`); onToast('Product brief loaded', 'success') }}>✍ Copy</Button>
+                          <Button size="sm" variant="secondary" onClick={() => generateUGCScripts()}>🎬 Script</Button>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                      <button onClick={async () => {
+                        if (!brand?.id) return
+                        await fetch('/api/products', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brand.id, productId: p.id }) })
+                        setProducts(prev => prev.filter(pr => pr.id !== p.id))
+                        onToast('Product removed', 'info')
+                      }} className="text-red text-xs opacity-0 group-hover:opacity-100 shrink-0">x</button>
+                    </div>
+                  </Card>
+                ))}
+
+                {/* Add product */}
+                <Card>
+                  <div className="text-sm font-bold mb-1">Add Product</div>
+                  <div className="text-2xs text-text-dim mb-3">Paste any product page URL - Amazon, Shopify, brand website. Claude will auto-build a full product profile.</div>
                   <div className="flex gap-2">
-                    <input type="url" placeholder="https://amazon.com/dp/... or product page URL" value={newOwnUrl} onChange={e => setNewOwnUrl(e.target.value)}
+                    <input type="url" placeholder="https://amazon.com/dp/... or any product page" value={newOwnUrl} onChange={e => setNewOwnUrl(e.target.value)}
                       className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
-                    <Button size="sm" disabled={!newOwnUrl.trim()} onClick={() => { saveOwnUrls([...ownProductUrls, newOwnUrl.trim()]); setNewOwnUrl(''); onToast('Added', 'success') }}>Add</Button>
+                    <Button size="sm" disabled={!newOwnUrl.trim() || addingProduct} onClick={async () => {
+                      if (!brand?.id || !newOwnUrl.trim()) return
+                      setAddingProduct(true)
+                      onToast('Building product profile...', 'info')
+                      try {
+                        const res = await fetch('/api/products', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ brandId: brand.id, url: newOwnUrl.trim() }) })
+                        const data = await res.json()
+                        if (data.error) throw new Error(data.error)
+                        setProducts(prev => [...prev, data.product])
+                        setNewOwnUrl('')
+                        // Also save as product URL for listening
+                        saveOwnUrls([...ownProductUrls, newOwnUrl.trim()])
+                        onToast(`${data.product.name} profile created`, 'success')
+                      } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+                      setAddingProduct(false)
+                    }}>{addingProduct ? <><LoadingSpinner size={14} /> Building...</> : 'Add Product'}</Button>
                   </div>
                 </Card>
               </div>

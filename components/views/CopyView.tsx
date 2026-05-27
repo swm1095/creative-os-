@@ -56,10 +56,15 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
   // Static headlines
   const [headlines, setHeadlines] = useState<{ persona: string; headlines: string[] }[]>([])
 
+  // Products
+  interface ProductProfile { id: string; name: string; url: string; price: string; description: string; features: string[]; usps: string[]; targetUseCase: string }
+  const products: ProductProfile[] = (brand as Brand & { products?: ProductProfile[] })?.products || []
+  const [selectedProduct, setSelectedProduct] = useState<string>('all')
+
   // Reset state when brand changes
   useEffect(() => {
     setVariants([]); setUgcScripts(null); setHeadlines([])
-    setPrompt('')
+    setPrompt(''); setSelectedProduct('all')
     const personas = brand?.research?.personas
     if (personas?.length) setPersona(personas[0].name)
   }, [brand?.id])
@@ -76,18 +81,22 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
     if (contentType === 'ugc-script') {
       // Use the ugc-script API (same as HyperListening)
       setUgcScripts(null)
-      onToast('Generating UGC scripts with 4 hooks...', 'info')
+      const activeProduct = products.find(p => p.id === selectedProduct)
+      const productContext = activeProduct
+        ? `Product: ${activeProduct.name}. ${activeProduct.description}. Features: ${activeProduct.features.join(', ')}. USPs: ${activeProduct.usps.join(', ')}. Price: ${activeProduct.price}. Target: ${activeProduct.targetUseCase}`
+        : ''
+      onToast(`Generating UGC scripts${activeProduct ? ` for ${activeProduct.name}` : ''}...`, 'info')
       try {
         const insight = {
-          title: prompt.trim() || `${brand?.name} product overview`,
-          summary: prompt.trim() || brand?.research?.summary || `${brand?.name} - ${brand?.research?.productCategory || 'product'}`,
+          title: prompt.trim() || (activeProduct ? activeProduct.name : `${brand?.name} product overview`),
+          summary: prompt.trim() || productContext || brand?.research?.summary || `${brand?.name} - ${brand?.research?.productCategory || 'product'}`,
           painPoints: useResearchData ? (brand?.research?.painPoints?.slice(0, 3) || []) : [],
           motivators: useResearchData ? (brand?.research?.motivators?.slice(0, 3) || []) : [],
         }
         const res = await fetch('/api/ugc-script', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brandId, insight }),
+          body: JSON.stringify({ brandId, insight, productContext }),
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
@@ -137,7 +146,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
         const res = await fetch('/api/copy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ persona, tone, platform, prompt, brandId, contentType }),
+          body: JSON.stringify({ persona, tone, platform, prompt: selectedProduct !== 'all' ? `${prompt}\n\nPRODUCT CONTEXT: ${products.find(p => p.id === selectedProduct)?.name}: ${products.find(p => p.id === selectedProduct)?.description}. Features: ${products.find(p => p.id === selectedProduct)?.features.join(', ')}` : prompt, brandId, contentType }),
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
@@ -232,6 +241,18 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                     <span key={i} className="text-2xs bg-fulton-light text-fulton px-2 py-1 rounded font-bold">P{i + 1}: {p.name}</span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Product selector */}
+            {products.length > 0 && (
+              <div>
+                <label className="block text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5">Product</label>
+                <select value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none">
+                  <option value="all">All Products (Brand-wide)</option>
+                  {products.map(p => <option key={p.id} value={p.id}>{p.name}{p.price ? ` - ${p.price}` : ''}</option>)}
+                </select>
               </div>
             )}
 
