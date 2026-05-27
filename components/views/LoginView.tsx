@@ -43,7 +43,7 @@ export default function LoginView({ onLogin, onGoogleLogin }: LoginViewProps) {
           <div className="w-14 h-14 rounded-xl bg-blue flex items-center justify-center mx-auto mb-4">
             <span className="text-white font-black text-lg">H10</span>
           </div>
-          <h1 className="text-2xl font-black tracking-tight">HyperCreate</h1>
+          <h1 className="text-2xl font-black tracking-tight">HyperInsights</h1>
           <p className="text-xs text-text-dim mt-1 uppercase tracking-wider font-semibold">by Hype10</p>
         </div>
 
@@ -126,7 +126,7 @@ export default function LoginView({ onLogin, onGoogleLogin }: LoginViewProps) {
         </div>
 
         <div className="text-center mt-6 text-2xs text-text-dim">
-          HyperCreate by Hype10 Agency
+          HyperInsights by Hype10 Agency
         </div>
       </div>
     </div>

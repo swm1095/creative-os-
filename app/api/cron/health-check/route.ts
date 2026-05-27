@@ -97,13 +97,13 @@ export async function GET(req: NextRequest) {
       if (recipients.length > 0) {
         const statusEmoji = allHealthy ? '✅' : '🚨'
         const subject = allHealthy
-          ? `${statusEmoji} HyperCreate Morning Check - All Systems Healthy`
-          : `${statusEmoji} HyperCreate Alert - ${downServices.length} Service${downServices.length > 1 ? 's' : ''} Down`
+          ? `${statusEmoji} HyperInsights Morning Check - All Systems Healthy`
+          : `${statusEmoji} HyperInsights Alert - ${downServices.length} Service${downServices.length > 1 ? 's' : ''} Down`
 
         const html = `
           <div style="font-family: Inter, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;">
             <div style="background: #080e1a; color: #fff; padding: 24px; border-radius: 12px;">
-              <h2 style="margin: 0 0 16px; font-size: 18px;">${statusEmoji} HyperCreate Health Check</h2>
+              <h2 style="margin: 0 0 16px; font-size: 18px;">${statusEmoji} HyperInsights Health Check</h2>
               <p style="color: #8890b0; font-size: 13px; margin: 0 0 20px;">${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} ET</p>
               ${results.map(r => `
                 <div style="display: flex; align-items: center; padding: 10px 0; border-top: 1px solid #1e2d44;">
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
               `).join('')}
               ${downServices.length > 0 ? `<p style="color: #f87171; font-size: 13px; margin-top: 16px;">Action required: ${downServices.map(s => s.service).join(', ')} need attention.</p>` : ''}
             </div>
-            <p style="text-align: center; color: #6c7086; font-size: 11px; margin-top: 16px;">HyperCreate by Hype10</p>
+            <p style="text-align: center; color: #6c7086; font-size: 11px; margin-top: 16px;">HyperInsights by Hype10</p>
           </div>
         `
 
@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
           await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from: 'HyperCreate <onboarding@resend.dev>', to, subject, html }),
+            body: JSON.stringify({ from: 'HyperInsights <onboarding@resend.dev>', to, subject, html }),
           })
         }
         console.log(`Health check email sent to ${recipients.length} admins`)

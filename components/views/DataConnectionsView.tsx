@@ -93,7 +93,7 @@ export default function DataConnectionsView({ onToast }: DataConnectionsViewProp
     <div className="animate-fadeIn">
       <PageHeader
         title="Data Connections"
-        subtitle="Connect your ad platforms and tools to power HyperCreate"
+        subtitle="Connect your ad platforms and tools to power HyperInsights"
         action={
           <Button variant="secondary" size="sm" onClick={runHealthCheck} disabled={checkingHealth}>
             {checkingHealth ? <><LoadingSpinner size={12} /> Checking...</> : 'Run Health Check'}

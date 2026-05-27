@@ -244,7 +244,7 @@ export default function HubView({ onNavigate, brands = [], activeBrand, onSetAct
       {!loading && brands.length === 0 && (
         <Card className="text-center py-12">
           <div className="text-4xl mb-3">🚀</div>
-          <div className="text-lg font-bold mb-1">Welcome to HyperCreate</div>
+          <div className="text-lg font-bold mb-1">Welcome to HyperInsights</div>
           <div className="text-sm text-text-dim mb-4">Add your first brand to get started with social listening and research</div>
         </Card>
       )}

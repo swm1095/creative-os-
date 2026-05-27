@@ -33,7 +33,7 @@ export async function searchRedditDeep(query: string, subreddit?: string, limit:
   try {
     const sub = subreddit ? `r/${subreddit}/` : ''
     const url = `https://www.reddit.com/${sub}search.json?q=${encodeURIComponent(query)}&sort=top&t=month&limit=${limit}`
-    const res = await fetch(url, { headers: { 'User-Agent': 'HyperCreate/1.0' } })
+    const res = await fetch(url, { headers: { 'User-Agent': 'HyperInsights/1.0' } })
     if (!res.ok) return []
     const data = await res.json()
     const posts: RedditPost[] = data?.data?.children || []
@@ -56,7 +56,7 @@ export async function getRedditCommentsDeep(postUrl: string, limit: number = 10)
   try {
     const cleanUrl = postUrl.replace('https://reddit.com', 'https://www.reddit.com')
     const res = await fetch(`${cleanUrl}.json?limit=${limit}&sort=top`, {
-      headers: { 'User-Agent': 'HyperCreate/1.0' },
+      headers: { 'User-Agent': 'HyperInsights/1.0' },
     })
     if (!res.ok) return []
     const data = await res.json()
@@ -82,7 +82,7 @@ export async function getRedditCommentsDeep(postUrl: string, limit: number = 10)
 export async function getSubredditTop(subreddit: string, limit: number = 15): Promise<SocialSignal[]> {
   try {
     const res = await fetch(`https://www.reddit.com/r/${subreddit}/top.json?t=month&limit=${limit}`, {
-      headers: { 'User-Agent': 'HyperCreate/1.0' },
+      headers: { 'User-Agent': 'HyperInsights/1.0' },
     })
     if (!res.ok) return []
     const data = await res.json()

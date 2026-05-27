@@ -59,7 +59,7 @@ export default function DashboardPage() {
 
   // Get topbar title based on current view
   const getTopbar = () => {
-    if (activeView === 'hub') return { title: 'HyperCreate', subtitle: `Welcome back, ${user?.name || 'there'} · ${brands.length} brands active` }
+    if (activeView === 'hub') return { title: 'HyperInsights', subtitle: `Welcome back, ${user?.name || 'there'} · ${brands.length} brands active` }
     const tool = TOOLS.find(t => t.id === currentTool)
     const viewDef = tool?.views.find(v => v.id === activeView)
     const brandPrefix = activeBrand ? `${activeBrand.name} ` : ''

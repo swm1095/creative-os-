@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     if (websiteUrl) {
       try {
         const res = await fetch(websiteUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HyperCreate/1.0)' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HyperInsights/1.0)' },
         })
         if (res.ok) {
           const html = await res.text()

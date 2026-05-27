@@ -5,7 +5,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'], weight: ['400', '500', '600', '700', '800', '900'] })
 
 export const metadata: Metadata = {
-  title: 'HyperCreate — Hype10',
+  title: 'HyperInsights — Hype10',
   description: 'AI-powered creative production dashboard by Hype10',
 }
 

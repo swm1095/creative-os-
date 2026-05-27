@@ -7,7 +7,7 @@ import { BrandResearch, ResearchPersona } from '@/lib/types'
 
 export const maxDuration = 60
 
-const BASE_PROMPT = `You are HyperChat, an AI creative strategist built into the HyperCreate platform by Hype10 agency.
+const BASE_PROMPT = `You are HyperChat, an AI creative strategist built into the HyperInsights platform by Hype10 agency.
 
 You help creative teams with ad strategy, copy angles, audience insights, and performance interpretation.
 

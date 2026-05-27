@@ -32,7 +32,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
             <span className="text-white font-black text-xs">H10</span>
           </div>
           <div>
-            <div className="text-lg font-black tracking-tight text-text-primary">HyperCreate</div>
+            <div className="text-lg font-black tracking-tight text-text-primary">HyperInsights</div>
             <div className="text-2xs text-blue font-bold tracking-wider uppercase">by Hype10</div>
           </div>
         </button>
@@ -119,7 +119,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
               onClick={() => onNavigate(null, 'hub')}
               className="w-full flex items-center gap-2 px-2.5 py-2 text-xs font-bold text-blue hover:bg-blue-light rounded transition-colors mb-2"
             >
-              ← Back to HyperCreate
+              ← Back to HyperInsights
             </button>
             <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">
               {activeTool?.name || 'Tool'}
