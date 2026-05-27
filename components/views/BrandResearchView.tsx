@@ -328,10 +328,218 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
 
       {research && !researching && (
         <div className="space-y-6">
-          {/* AMAZON REVIEWS - client's own product reviews */}
+
+          {/* EXECUTIVE SUMMARY */}
           {initialSection !== 'competitor-analysis' && (
-          <div id="amazon-reviews">
-            <h3 className="text-lg font-black mb-4">Amazon Review Tracking</h3>
+          <Card>
+            <p className="text-sm text-text-secondary leading-relaxed mb-3">{research.summary}</p>
+            <div className="flex gap-2 flex-wrap">
+              <Pill variant="blue">{research.industry}</Pill>
+              <Pill variant="gray">{research.productCategory}</Pill>
+              <Pill variant="green">{research.priceRange}</Pill>
+              <Pill variant="gray">{research.targetDemo}</Pill>
+            </div>
+          </Card>
+          )}
+
+          {/* TWO COLUMN LAYOUT */}
+          {initialSection !== 'competitor-analysis' && (
+          <div className="grid grid-cols-[1fr_320px] gap-4">
+
+            {/* LEFT COLUMN - Actionable */}
+            <div className="space-y-6">
+
+              {/* PERSONAS */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-black">Target Personas</h3>
+                  <Button variant="ghost" size="sm" onClick={() => setShowAddPersona(!showAddPersona)}>{showAddPersona ? 'Cancel' : '+ Add Persona'}</Button>
+                </div>
+                {showAddPersona && (
+                  <Card className="mb-3">
+                    <div className="space-y-2">
+                      <input type="text" placeholder="Persona name" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" autoFocus />
+                      <input type="text" placeholder="Description" value={newPersonaDesc} onChange={e => setNewPersonaDesc(e.target.value)} className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
+                      <input type="text" placeholder="Ad hook angle" value={newPersonaHook} onChange={e => setNewPersonaHook(e.target.value)} className="w-full px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
+                      <Button size="sm" className="w-full justify-center" onClick={handleAddPersona} disabled={!newPersonaName.trim()}>Save Persona</Button>
+                    </div>
+                  </Card>
+                )}
+                <div className="space-y-3">
+                  {research.personas?.map((p, i) => (
+                    <Card key={i} className="relative group">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded shrink-0 mt-1">P{i + 1}</span>
+                        <div className="flex-1">
+                          <input type="text" value={p.name} onChange={e => { if (!brand?.research) return; const u = [...brand.research.personas]; u[i] = { ...u[i], name: e.target.value }; onBrandUpdate(brand.id, { research: { ...brand.research, personas: u } }) }}
+                            className="w-full text-sm font-bold bg-transparent focus:outline-none focus:bg-elevated rounded px-1 -ml-1" />
+                          <textarea value={p.description || ''} onChange={e => { if (!brand?.research) return; const u = [...brand.research.personas]; u[i] = { ...u[i], description: e.target.value }; onBrandUpdate(brand.id, { research: { ...brand.research, personas: u } }) }}
+                            placeholder="Description..." className="w-full text-xs text-text-dim bg-transparent focus:outline-none focus:bg-elevated rounded px-1 -ml-1 resize-none" rows={2} />
+                          {p.hook && (
+                            <div className="bg-fulton-light border border-fulton/20 rounded px-2.5 py-1.5 mt-1 mb-2">
+                              <span className="text-2xs font-bold text-fulton">Hook: </span>
+                              <input type="text" value={p.hook} onChange={e => { if (!brand?.research) return; const u = [...brand.research.personas]; u[i] = { ...u[i], hook: e.target.value }; onBrandUpdate(brand.id, { research: { ...brand.research, personas: u } }) }}
+                                className="text-xs text-text-secondary bg-transparent focus:outline-none w-full" />
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => { localStorage.setItem('hc-brief-draft', `Persona: ${p.name}. ${p.description || ''}. Hook: ${p.hook || ''}`); onToast('Brief loaded - go to HyperCopy', 'success') }}>✍ Copy</Button>
+                            <Button size="sm" variant="secondary" onClick={() => generateUGCScripts()}>🎬 Script</Button>
+                            <Button size="sm" variant="secondary" onClick={() => generateHeadlines()}>📝 Headlines</Button>
+                          </div>
+                        </div>
+                        {!isClient && <button onClick={() => { if (!brand?.research) return; onBrandUpdate(brand.id, { research: { ...brand.research, personas: brand.research.personas.filter((_, idx) => idx !== i) } }); onToast('Removed', 'info') }}
+                          className="text-red text-xs opacity-0 group-hover:opacity-100 shrink-0">x</button>}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                {research.personas?.length > 0 && (
+                  <div className="flex gap-2 mt-3">
+                    <Button onClick={generateUGCScripts} disabled={generatingScripts} variant="secondary" size="sm" className="flex-1 justify-center">
+                      {generatingScripts ? <><LoadingSpinner size={14} /> Generating...</> : '🎬 All UGC Scripts'}
+                    </Button>
+                    <Button onClick={generateHeadlines} disabled={generatingHeadlines} variant="secondary" size="sm" className="flex-1 justify-center">
+                      {generatingHeadlines ? <><LoadingSpinner size={14} /> Generating...</> : '📝 All Headlines'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* PAIN POINTS + MOTIVATORS */}
+              <div className="grid grid-cols-2 gap-3">
+                <Card>
+                  <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Pain Points</div>
+                  <ul className="space-y-1 list-disc list-inside mb-3">
+                    {research.painPoints?.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
+                  </ul>
+                  <Button size="sm" variant="ghost" className="w-full justify-center" onClick={() => { localStorage.setItem('hc-brief-draft', `Pain points:\n${(research.painPoints || []).join('\n')}`); onToast('Pain points loaded as brief', 'success') }}>✍ Write Copy</Button>
+                </Card>
+                <Card>
+                  <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">Motivators</div>
+                  <ul className="space-y-1 list-disc list-inside mb-3">
+                    {research.motivators?.map((m, i) => <li key={i} className="text-xs text-text-secondary">{m}</li>)}
+                  </ul>
+                  <Button size="sm" variant="ghost" className="w-full justify-center" onClick={() => { localStorage.setItem('hc-brief-draft', `Motivators:\n${(research.motivators || []).join('\n')}`); onToast('Motivators loaded as brief', 'success') }}>✍ Write Copy</Button>
+                </Card>
+              </div>
+
+              {/* CUSTOMER REVIEWS */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-black">Customer Reviews</h3>
+                  {storedReviewCount > 0 && <span className="text-2xs bg-green/10 text-green px-2 py-1 rounded font-bold">{storedReviewCount} stored</span>}
+                </div>
+                <Card className="mb-3">
+                  <input ref={reviewFileRef} type="file" accept=".csv,.tsv,.txt,.xlsx" style={{ display: 'none' }}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]; if (!file || !brand?.id) return; setUploadingReviews(true)
+                      try { const fd = new FormData(); fd.append('brandId', brand.id); fd.append('file', file)
+                        const res = await fetch('/api/reviews', { method: 'POST', body: fd }); const data = await res.json()
+                        if (data.error) throw new Error(data.error); setStoredReviewCount(data.total || 0)
+                        if (data.analysis) setReviewUploadAnalysis(data.analysis); onToast(`${data.count} reviews uploaded`, 'success')
+                      } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+                      setUploadingReviews(false); if (reviewFileRef.current) reviewFileRef.current.value = ''
+                    }} />
+                  <div className="flex gap-2 mb-2">
+                    <Button size="sm" onClick={() => reviewFileRef.current?.click()} disabled={uploadingReviews}>
+                      {uploadingReviews ? <><LoadingSpinner size={14} /> Uploading...</> : 'Upload CSV / Text'}
+                    </Button>
+                    {storedReviewCount > 0 && <Button size="sm" variant="ghost" onClick={async () => {
+                      if (!brand?.id || !confirm('Clear all?')) return
+                      await fetch('/api/reviews', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brand.id }) })
+                      setStoredReviewCount(0); setReviewUploadAnalysis(null); onToast('Cleared', 'info')
+                    }}>Clear</Button>}
+                  </div>
+                  <textarea value={pastedReviewText} onChange={e => setPastedReviewText(e.target.value)}
+                    placeholder="Or paste reviews here (one per line)..."
+                    className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none resize-y min-h-[50px]" rows={2} />
+                  {pastedReviewText.trim() && <Button size="sm" className="mt-2" onClick={async () => {
+                    if (!brand?.id) return; setUploadingReviews(true)
+                    try { const fd = new FormData(); fd.append('brandId', brand.id); fd.append('text', pastedReviewText)
+                      const res = await fetch('/api/reviews', { method: 'POST', body: fd }); const data = await res.json()
+                      if (data.error) throw new Error(data.error); setStoredReviewCount(data.total || 0)
+                      if (data.analysis) setReviewUploadAnalysis(data.analysis); setPastedReviewText(''); onToast(`${data.count} reviews added`, 'success')
+                    } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+                    setUploadingReviews(false)
+                  }}>Save Reviews</Button>}
+                </Card>
+                {reviewUploadAnalysis?.top_phrases?.length ? (
+                  <Card className="mb-3">
+                    <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Top Customer Phrases</div>
+                    {reviewUploadAnalysis.top_phrases.map((p, i) => (
+                      <div key={i} className="flex items-center justify-between bg-page border border-border rounded px-3 py-2 mb-1">
+                        <span className="text-sm italic text-text-secondary">&quot;{p}&quot;</span>
+                        <button onClick={() => { navigator.clipboard.writeText(p); onToast('Copied', 'success') }} className="text-2xs text-text-dim hover:text-text-primary shrink-0">Copy</button>
+                      </div>
+                    ))}
+                  </Card>
+                ) : null}
+              </div>
+
+              {/* PRODUCT PAGES */}
+              <div>
+                <h3 className="text-lg font-black mb-3">Product Pages</h3>
+                <Card>
+                  <div className="text-2xs text-text-dim mb-3">Amazon, Shopify, or any product page URL</div>
+                  <div className="space-y-1.5 mb-3">
+                    {ownProductUrls.map((url, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-blue flex-1 truncate">{url}</span>
+                        <button onClick={() => saveOwnUrls(ownProductUrls.filter((_, idx) => idx !== i))} className="text-2xs text-red shrink-0">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input type="url" placeholder="https://amazon.com/dp/... or product page URL" value={newOwnUrl} onChange={e => setNewOwnUrl(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
+                    <Button size="sm" disabled={!newOwnUrl.trim()} onClick={() => { saveOwnUrls([...ownProductUrls, newOwnUrl.trim()]); setNewOwnUrl(''); onToast('Added', 'success') }}>Add</Button>
+                  </div>
+                </Card>
+              </div>
+
+            </div>
+            {/* END LEFT COLUMN */}
+
+            {/* RIGHT COLUMN - Reference */}
+            <div className="space-y-4">
+              <Card>
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Brand Voice</div>
+                <p className="text-sm text-text-secondary leading-relaxed">{research.brandVoice}</p>
+              </Card>
+              <Card>
+                <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">Key Phrases</div>
+                <div className="flex flex-wrap gap-1.5">{research.keyPhrases?.map((p, i) => <span key={i} className="text-2xs bg-green-light text-green px-2 py-0.5 rounded">{p}</span>)}</div>
+              </Card>
+              <Card>
+                <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Avoid</div>
+                <div className="flex flex-wrap gap-1.5">{research.avoidPhrases?.map((p, i) => <span key={i} className="text-2xs bg-red-light text-red px-2 py-0.5 rounded">{p}</span>)}</div>
+              </Card>
+              <Card>
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Value Props</div>
+                <ul className="space-y-1 list-disc list-inside">{research.valueProps?.map((v, i) => <li key={i} className="text-xs text-text-secondary">{v}</li>)}</ul>
+              </Card>
+              <Card>
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Objections</div>
+                <ul className="space-y-1 list-disc list-inside">{research.objections?.map((o, i) => <li key={i} className="text-xs text-text-secondary">{o}</li>)}</ul>
+              </Card>
+              <Card>
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Search Keywords</div>
+                <div className="flex flex-wrap gap-1.5">{research.searchKeywords?.map((k, i) => <span key={i} className="text-2xs bg-blue-light text-blue px-2 py-0.5 rounded">{k}</span>)}</div>
+              </Card>
+              <Card>
+                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Subreddits</div>
+                <div className="flex flex-wrap gap-1.5">{research.subreddits?.map((s, i) => <span key={i} className="text-2xs bg-elevated border border-border px-2 py-0.5 rounded">r/{s}</span>)}</div>
+              </Card>
+            </div>
+            {/* END RIGHT COLUMN */}
+
+          </div>
+          )}
+
+          {/* COMPETITOR SECTION - shown in both views */}
+          <div id="competitor-analysis">
+            <h3 className="text-lg font-black mb-4">Competitor Analysis</h3>
             <Card className="mb-4">
               <div className="text-sm font-bold mb-2">Your Product URLs</div>
               <div className="text-2xs text-text-dim mb-3">Add your Amazon product pages to track and analyze customer reviews</div>
@@ -401,393 +609,6 @@ export default function BrandResearchView({ brand, onToast, onBrandUpdate, onCre
               </Card>
             )}
           </div>
-          )}
-
-          {/* CUSTOMER REVIEWS UPLOAD */}
-          {initialSection !== 'competitor-analysis' && (
-          <div>
-            <h3 className="text-lg font-black mb-4">Customer Reviews</h3>
-            <Card className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <div className="text-sm font-bold">Upload Client Reviews</div>
-                  <div className="text-2xs text-text-dim">CSV, Excel, or plain text. Reviews inform UGC scripts, headlines, and all copy generation.</div>
-                </div>
-                {storedReviewCount > 0 && (
-                  <span className="text-2xs bg-green/10 text-green px-2 py-1 rounded font-bold">{storedReviewCount} reviews stored</span>
-                )}
-              </div>
-
-              <input ref={reviewFileRef} type="file" accept=".csv,.tsv,.txt,.xlsx" style={{ display: 'none' }}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0]
-                  if (!file || !brand?.id) return
-                  setUploadingReviews(true)
-                  onToast(`Parsing ${file.name}...`, 'info')
-                  try {
-                    const formData = new FormData()
-                    formData.append('brandId', brand.id)
-                    formData.append('file', file)
-                    const res = await fetch('/api/reviews', { method: 'POST', body: formData })
-                    const data = await res.json()
-                    if (data.error) throw new Error(data.error)
-                    setStoredReviewCount(data.total || 0)
-                    if (data.analysis) setReviewUploadAnalysis(data.analysis)
-                    onToast(`${data.count} reviews uploaded (${data.total} total)`, 'success')
-                  } catch (err: unknown) { onToast(`Upload failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
-                  setUploadingReviews(false)
-                  if (reviewFileRef.current) reviewFileRef.current.value = ''
-                }} />
-
-              <div className="flex gap-2 mb-3">
-                <Button size="sm" onClick={() => reviewFileRef.current?.click()} disabled={uploadingReviews}>
-                  {uploadingReviews ? <><LoadingSpinner size={14} /> Uploading...</> : 'Upload CSV / Text File'}
-                </Button>
-                {storedReviewCount > 0 && (
-                  <Button size="sm" variant="ghost" onClick={async () => {
-                    if (!brand?.id || !confirm('Clear all stored reviews?')) return
-                    await fetch('/api/reviews', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId: brand.id }) })
-                    setStoredReviewCount(0); setReviewUploadAnalysis(null)
-                    onToast('Reviews cleared', 'info')
-                  }}>Clear All</Button>
-                )}
-              </div>
-
-              {/* Paste reviews directly */}
-              <div className="mb-3">
-                <textarea
-                  value={pastedReviewText}
-                  onChange={e => setPastedReviewText(e.target.value)}
-                  placeholder="Or paste reviews here (one per line or separated by blank lines)..."
-                  className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none resize-y min-h-[60px]"
-                  rows={3}
-                />
-                {pastedReviewText.trim() && (
-                  <Button size="sm" className="mt-2" disabled={uploadingReviews} onClick={async () => {
-                    if (!brand?.id || !pastedReviewText.trim()) return
-                    setUploadingReviews(true)
-                    try {
-                      const formData = new FormData()
-                      formData.append('brandId', brand.id)
-                      formData.append('text', pastedReviewText)
-                      const res = await fetch('/api/reviews', { method: 'POST', body: formData })
-                      const data = await res.json()
-                      if (data.error) throw new Error(data.error)
-                      setStoredReviewCount(data.total || 0)
-                      if (data.analysis) setReviewUploadAnalysis(data.analysis)
-                      setPastedReviewText('')
-                      onToast(`${data.count} reviews added (${data.total} total)`, 'success')
-                    } catch (err: unknown) { onToast(`Failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
-                    setUploadingReviews(false)
-                  }}>Save Pasted Reviews</Button>
-                )}
-              </div>
-
-              <div className="text-2xs text-text-dim">
-                Accepted formats: CSV (with columns like review, rating, source), plain text (one review per line), TSV. Reviews are analyzed by Claude and used to inform all copy generation.
-              </div>
-            </Card>
-
-            {/* Review analysis results */}
-            {reviewUploadAnalysis && (
-              <div className="space-y-3 mb-6">
-                {reviewUploadAnalysis.top_phrases?.length ? (
-                  <Card>
-                    <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Top Customer Phrases (use in ad copy)</div>
-                    <div className="space-y-1">
-                      {reviewUploadAnalysis.top_phrases.map((p, i) => (
-                        <div key={i} className="flex items-center justify-between bg-page border border-border rounded px-3 py-2">
-                          <span className="text-sm italic text-text-secondary">&quot;{p}&quot;</span>
-                          <button onClick={() => { navigator.clipboard.writeText(p); onToast('Phrase copied', 'success') }}
-                            className="text-2xs text-text-dim hover:text-text-primary shrink-0">Copy</button>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                ) : null}
-                <div className="grid grid-cols-2 gap-3">
-                  {reviewUploadAnalysis.praise?.length ? (
-                    <Card>
-                      <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">What They Love</div>
-                      <ul className="space-y-1 list-disc list-inside">
-                        {reviewUploadAnalysis.praise.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
-                      </ul>
-                    </Card>
-                  ) : null}
-                  {reviewUploadAnalysis.pain_points?.length ? (
-                    <Card>
-                      <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Pain Points</div>
-                      <ul className="space-y-1 list-disc list-inside">
-                        {reviewUploadAnalysis.pain_points.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
-                      </ul>
-                    </Card>
-                  ) : null}
-                </div>
-                {reviewUploadAnalysis.themes?.length ? (
-                  <Card>
-                    <div className="text-xs font-bold text-blue uppercase tracking-wider mb-2">Recurring Themes</div>
-                    <div className="flex flex-wrap gap-2">
-                      {reviewUploadAnalysis.themes.map((t, i) => <span key={i} className="text-2xs bg-blue-light text-blue px-2 py-0.5 rounded">{t}</span>)}
-                    </div>
-                  </Card>
-                ) : null}
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* SUMMARY */}
-          <Card title="Executive Summary">
-            <p className="text-sm text-text-secondary leading-relaxed mb-3">{research.summary}</p>
-            <div className="flex gap-2 flex-wrap">
-              <Pill variant="blue">{research.industry}</Pill>
-              <Pill variant="gray">{research.productCategory}</Pill>
-              <Pill variant="green">{research.priceRange}</Pill>
-              <Pill variant="gray">{research.targetDemo}</Pill>
-            </div>
-          </Card>
-
-          {/* BRAND VOICE */}
-          <Card title="Brand Voice">
-            <p className="text-sm text-text-secondary leading-relaxed">{research.brandVoice}</p>
-          </Card>
-
-          {/* KEY PHRASES / AVOID */}
-          <div className="flex gap-4">
-            <Card title="Key Phrases" className="flex-1">
-              <div className="flex flex-wrap gap-1.5">
-                {research.keyPhrases?.map((p, i) => <span key={i} className="text-2xs bg-green-light text-green px-2 py-0.5 rounded">{p}</span>)}
-              </div>
-            </Card>
-            <Card title="Avoid" className="flex-1">
-              <div className="flex flex-wrap gap-1.5">
-                {research.avoidPhrases?.map((p, i) => <span key={i} className="text-2xs bg-red-light text-red px-2 py-0.5 rounded">{p}</span>)}
-              </div>
-            </Card>
-          </div>
-
-          {/* TARGET PERSONAS - hide when in competitor research mode */}
-          {initialSection !== 'competitor-analysis' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-black">Target Personas</h3>
-              <Button variant="ghost" size="sm" onClick={() => setShowAddPersona(!showAddPersona)}>
-                {showAddPersona ? 'Cancel' : '+ Add Persona'}
-              </Button>
-            </div>
-            {showAddPersona && (
-              <Card className="mb-4">
-                <div className="space-y-2">
-                  <input type="text" placeholder="Persona name (e.g. Runners, 25-40)" value={newPersonaName} onChange={e => setNewPersonaName(e.target.value)} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" autoFocus />
-                  <input type="text" placeholder="Description" value={newPersonaDesc} onChange={e => setNewPersonaDesc(e.target.value)} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
-                  <input type="text" placeholder="Ad hook" value={newPersonaHook} onChange={e => setNewPersonaHook(e.target.value)} className="w-full px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
-                  <Button size="sm" className="w-full justify-center" onClick={handleAddPersona} disabled={!newPersonaName.trim()}>Save Persona</Button>
-                </div>
-              </Card>
-            )}
-            <div className="space-y-4">
-              {research.personas?.map((p, i) => (
-                <Card key={i}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded">P{i + 1}</span>
-                    <span className="text-sm font-bold">{p.name}</span>
-                  </div>
-                  <p className="text-xs text-text-dim mb-3">{p.description}</p>
-                  {p.painPoints?.length > 0 && (
-                    <div className="mb-2">
-                      <span className="text-2xs font-bold text-text-muted uppercase tracking-wider">Pain Points</span>
-                      <ul className="mt-1 space-y-0.5 list-disc list-inside">
-                        {p.painPoints.map((pp, j) => <li key={j} className="text-xs text-text-dim">{pp}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {p.motivators?.length > 0 && (
-                    <div className="mb-2">
-                      <span className="text-2xs font-bold text-text-muted uppercase tracking-wider">Motivators</span>
-                      <ul className="mt-1 space-y-0.5 list-disc list-inside">
-                        {p.motivators.map((m, j) => <li key={j} className="text-xs text-text-dim">{m}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {p.hook && (
-                    <div className="bg-fulton-light border border-fulton/20 rounded px-3 py-2 mt-2">
-                      <span className="text-2xs font-bold text-fulton">Hook: </span>
-                      <span className="text-xs text-text-secondary">{p.hook}</span>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-
-            {/* Generate Actions */}
-            {research.personas?.length > 0 && (
-              <div className="flex gap-2 mt-4">
-                <Button onClick={generateUGCScripts} disabled={generatingScripts} variant="secondary" size="sm" className="flex-1 justify-center">
-                  {generatingScripts ? <><LoadingSpinner size={14} /> Generating...</> : '🎬 Generate UGC Scripts'}
-                </Button>
-                <Button onClick={generateHeadlines} disabled={generatingHeadlines} variant="secondary" size="sm" className="flex-1 justify-center">
-                  {generatingHeadlines ? <><LoadingSpinner size={14} /> Generating...</> : '📝 Generate Ad Headlines'}
-                </Button>
-              </div>
-            )}
-          </div>
-          )}
-
-          {/* COMPETITOR ANALYSIS */}
-          <div id="competitor-analysis">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-black">Competitor Analysis</h3>
-              <Button onClick={runCompetitorAnalysis} disabled={researchingCompetitors}>
-                {researchingCompetitors ? <><LoadingSpinner size={14} /> Analyzing...</> : 'Run Competitor Analysis'}
-              </Button>
-            </div>
-
-            {/* Known competitors */}
-            <Card className="mb-4">
-              <div className="text-sm font-bold mb-2">Known Competitors</div>
-              <div className="flex flex-wrap gap-2">
-                {research.competitors?.map((c, i) => (
-                  <span key={i} className="text-sm font-semibold bg-elevated border border-border px-3 py-1.5 rounded">{c}</span>
-                ))}
-              </div>
-            </Card>
-
-            {/* Competitor Amazon URLs */}
-            {!isClient && (
-              <Card className="mb-4">
-                <div className="text-sm font-bold mb-1">Track Competitor Products on Amazon</div>
-                <div className="text-2xs text-text-dim mb-3">Paste competitor Amazon product URLs to mine their customer reviews.</div>
-                <div className="flex gap-2 mb-3">
-                  <input type="url" placeholder="https://amazon.com/dp/B08XYZ..." value={newCompetitorUrl} onChange={e => setNewCompetitorUrl(e.target.value)}
-                    className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none" />
-                  <Button disabled={!newCompetitorUrl.trim() || savingUrls} onClick={async () => {
-                    if (!newCompetitorUrl.trim()) return
-                    const urls = [...competitorUrls, newCompetitorUrl.trim()]
-                    setNewCompetitorUrl('')
-                    await saveCompetitorUrls(urls)
-                  }}>{savingUrls ? 'Saving...' : 'Add + Save'}</Button>
-                </div>
-                {competitorUrls.length > 0 && (
-                  <div className="space-y-1.5">
-                    {competitorUrls.map((url, i) => (
-                      <div key={i} className="flex items-center gap-2 bg-page border border-border rounded px-3 py-1.5">
-                        <span className="text-xs text-text-secondary truncate flex-1">{url}</span>
-                        <button onClick={async () => { await saveCompetitorUrls(competitorUrls.filter((_, idx) => idx !== i)) }} className="text-text-dim hover:text-red text-xs px-1 shrink-0">remove</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-            )}
-
-            {researchingCompetitors && (
-              <LoadingState size="md" title="Mining Reddit for competitor discussions..." subtitle="Claude is analyzing weaknesses, complaints, and ad opportunities" />
-            )}
-
-            {/* Competitor deep analysis results */}
-            {competitorInsights.length > 0 && !researchingCompetitors && (
-              <div className="space-y-4">
-                {competitorInsights.map((c, i) => (
-                  <Card key={i}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-2xs font-bold bg-red-light text-red px-2 py-0.5 rounded">vs</span>
-                      <span className="text-sm font-bold">{c.name}</span>
-                    </div>
-                    <p className="text-sm text-text-dim mb-3">{c.positioning}</p>
-
-                    {c.weaknesses?.length > 0 && (
-                      <div className="mb-4">
-                        <div className="text-xs font-bold text-red uppercase tracking-wider mb-2">Their Weaknesses</div>
-                        <ul className="space-y-1 list-disc list-inside">
-                          {c.weaknesses.map((w, j) => <li key={j} className="text-sm text-text-secondary">{w}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                    {c.customerComplaints?.length > 0 && (
-                      <div className="mb-4">
-                        <div className="text-xs font-bold text-amber uppercase tracking-wider mb-2">Customer Complaints</div>
-                        <ul className="space-y-1 list-disc list-inside">
-                          {c.customerComplaints.map((cc, j) => <li key={j} className="text-sm text-text-secondary italic">{cc}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                    {c.adAngles?.length > 0 && (
-                      <div className="mb-4">
-                        <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Ad Angles Against Them</div>
-                        <ul className="space-y-1 list-disc list-inside">
-                          {c.adAngles.map((a, j) => <li key={j} className="text-sm text-text-secondary">{a}</li>)}
-                        </ul>
-                      </div>
-                    )}
-
-                    {c.opportunities?.length > 0 && (
-                      <div>
-                        <div className="text-xs font-bold text-green uppercase tracking-wider mb-2">Opportunities</div>
-                        <ul className="space-y-1 list-disc list-inside">
-                          {c.opportunities.map((o, j) => <li key={j} className="text-sm text-text-secondary">{o}</li>)}
-                        </ul>
-                      </div>
-                    )}
-                  </Card>
-                ))}
-              </div>
-            )}
-
-            {competitorInsights.length === 0 && !researchingCompetitors && (
-              <Card>
-                <div className="text-center py-8">
-                  <div className="text-2xl mb-2">⚔️</div>
-                  <div className="text-sm font-bold mb-1">No competitor analysis yet</div>
-                  <div className="text-xs text-text-dim">Click "Run Competitor Analysis" to mine Reddit for competitor weaknesses, customer complaints, and ad angles</div>
-                </div>
-              </Card>
-            )}
-          </div>
-
-
-          {/* VALUE PROPS - hide in competitor mode */}
-          {initialSection !== 'competitor-analysis' && (<>
-          {/* VALUE PROPS */}
-          <Card title="Value Propositions">
-            <ul className="space-y-1.5 list-disc list-inside">
-              {research.valueProps?.map((v, i) => <li key={i} className="text-xs text-text-secondary">{v}</li>)}
-            </ul>
-          </Card>
-
-          {/* PAIN POINTS & MOTIVATORS */}
-          <Card title="Customer Pain Points">
-            <ul className="space-y-1.5 list-disc list-inside">
-              {research.painPoints?.map((p, i) => <li key={i} className="text-xs text-text-secondary">{p}</li>)}
-            </ul>
-          </Card>
-
-          <Card title="Purchase Motivators">
-            <ul className="space-y-1.5 list-disc list-inside">
-              {research.motivators?.map((m, i) => <li key={i} className="text-xs text-text-secondary">{m}</li>)}
-            </ul>
-          </Card>
-
-          <Card title="Common Objections">
-            <ul className="space-y-1.5 list-disc list-inside">
-              {research.objections?.map((o, i) => <li key={i} className="text-xs text-text-secondary">{o}</li>)}
-            </ul>
-          </Card>
-
-          {/* LISTENING CONFIG */}
-          <Card title="Search Keywords" subtitle="Used by HyperListening for signal scanning">
-            <div className="flex flex-wrap gap-1.5">
-              {research.searchKeywords?.map((k, i) => <span key={i} className="text-2xs bg-blue-light text-blue px-2 py-0.5 rounded">{k}</span>)}
-            </div>
-          </Card>
-
-          <Card title="Tracked Subreddits">
-            <div className="flex flex-wrap gap-1.5">
-              {research.subreddits?.map((s, i) => <span key={i} className="text-2xs bg-elevated border border-border px-2 py-0.5 rounded">r/{s}</span>)}
-            </div>
-          </Card>
-          </>)}
         </div>
       )}
 
