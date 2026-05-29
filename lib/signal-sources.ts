@@ -211,60 +211,34 @@ export async function getYouTubeComments(videoId: string): Promise<SocialSignal[
 
 // ── Google Trends (enhanced - Glimpse-like) ─────────────────────────────
 export async function getGoogleTrendsDeep(keywords: string[]): Promise<{ keyword: string; trending: boolean; suggestions: string[]; relatedQueries: string[]; risingTerms: string[] }[]> {
-  const results = []
-  for (const keyword of keywords.slice(0, 10)) {
+  // Fetch daily trends RSS once (shared across all keywords)
+  let dailyTrendXml = ''
+  try {
+    const trendRes = await fetch('https://trends.google.com/trends/trendingsearches/daily/rss?geo=US', { signal: AbortSignal.timeout(3000) })
+    if (trendRes.ok) dailyTrendXml = (await trendRes.text()).toLowerCase()
+  } catch { /* silent */ }
+
+  // Process keywords in parallel, max 5
+  const processKeyword = async (keyword: string) => {
     try {
-      // Get autocomplete suggestions
-      const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(keyword)}`
-      const res = await fetch(url, { signal: AbortSignal.timeout(3000) })
-      const suggestions: string[] = []
-      if (res.ok) {
-        const data = await res.json()
-        suggestions.push(...(data[1] || []))
-      }
+      // Autocomplete + one intent query in parallel
+      const [mainRes, intentRes] = await Promise.allSettled([
+        fetch(`https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(keyword)}`, { signal: AbortSignal.timeout(2000) }),
+        fetch(`https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(`${keyword} vs`)}`, { signal: AbortSignal.timeout(2000) }),
+      ])
 
-      // Get related/rising queries via additional autocomplete patterns
-      const relatedQueries: string[] = []
-      const risingTerms: string[] = []
+      const suggestions = mainRes.status === 'fulfilled' && mainRes.value.ok ? (await mainRes.value.json())[1] || [] : []
+      const relatedQueries = intentRes.status === 'fulfilled' && intentRes.value.ok ? ((await intentRes.value.json())[1] || []).slice(0, 4) : []
+      const isTrending = suggestions.length > 3 || dailyTrendXml.includes(keyword.toLowerCase())
+      const risingTerms = isTrending && dailyTrendXml.includes(keyword.toLowerCase()) ? [`${keyword} (trending on Google)`] : []
 
-      // Search for "[keyword] for", "[keyword] vs", "[keyword] best" to find intent
-      const intentPrefixes = [`${keyword} for`, `${keyword} vs`, `${keyword} best`, `best ${keyword}`, `${keyword} alternative`]
-      for (const prefix of intentPrefixes) {
-        try {
-          const intentRes = await fetch(`https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(prefix)}`, { signal: AbortSignal.timeout(2000) })
-          if (intentRes.ok) {
-            const intentData = await intentRes.json()
-            relatedQueries.push(...(intentData[1] || []).slice(0, 3))
-          }
-        } catch { /* silent */ }
-      }
-
-      // Check trending via Google Trends daily trends RSS
-      let isTrending = suggestions.length > 3
-      try {
-        const trendRes = await fetch(`https://trends.google.com/trends/trendingsearches/daily/rss?geo=US`, { signal: AbortSignal.timeout(3000) })
-        if (trendRes.ok) {
-          const trendXml = await trendRes.text()
-          if (trendXml.toLowerCase().includes(keyword.toLowerCase())) {
-            isTrending = true
-            risingTerms.push(`${keyword} (trending on Google)`)
-          }
-        }
-      } catch { /* silent */ }
-
-      // Dedupe
-      const uniqueRelated = [...new Set(relatedQueries)].slice(0, 8)
-      const uniqueRising = [...new Set(risingTerms)].slice(0, 5)
-
-      results.push({
-        keyword,
-        trending: isTrending,
-        suggestions: suggestions.slice(0, 8),
-        relatedQueries: uniqueRelated,
-        risingTerms: uniqueRising,
-      })
-    } catch { /* silent */ }
+      return { keyword, trending: isTrending, suggestions: suggestions.slice(0, 8), relatedQueries, risingTerms }
+    } catch {
+      return { keyword, trending: false, suggestions: [], relatedQueries: [], risingTerms: [] }
+    }
   }
+
+  const results = await Promise.all(keywords.slice(0, 5).map(processKeyword))
   return results
 }
 
