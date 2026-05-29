@@ -255,136 +255,95 @@ export async function POST(req: NextRequest) {
     console.log('APIFY_API_KEY present:', !!process.env.APIFY_API_KEY, '| apifyOn:', apifyOn)
     const allSignals: SocialSignal[] = []
 
-    console.log('=== Deep scan starting ===')
+    console.log('=== Deep scan starting - ALL SOURCES IN PARALLEL ===')
 
-    // ── Reddit via Apify (primary) + direct API (fallback) ──
-    if (apifyOn) {
-      console.log('Reddit via Apify...')
-      for (const keyword of (research.searchKeywords || []).slice(0, 4)) {
-        try {
-          const results = await searchApifyReddit(keyword, 15)
-          allSignals.push(...results)
-          console.log(`Apify Reddit "${keyword}": ${results.length} signals`)
-        } catch { console.log(`Apify Reddit "${keyword}" failed`) }
-      }
-    } else {
-      console.log('Reddit: direct API (may fail on Vercel)...')
-      for (const keyword of (research.searchKeywords || []).slice(0, 4)) {
-        const results = await searchRedditDeep(keyword, undefined, 10)
-        allSignals.push(...results)
-      }
-      for (const sub of (research.subreddits || []).slice(0, 4)) {
-        const results = await searchRedditDeep(research.industry || brand.name, sub, 8)
-        allSignals.push(...results)
-      }
-    }
-
-    // ── HackerNews (usually works from Vercel since it's Algolia) ──
-    console.log('HackerNews...')
-    for (const keyword of (research.searchKeywords || []).slice(0, 3)) {
-      const results = await searchHackerNews(keyword)
-      allSignals.push(...results)
-    }
-
-    // ── YouTube: try direct first, skip if it fails ──
-    console.log('YouTube...')
-    for (const keyword of (research.searchKeywords || []).slice(0, 2)) {
-      try {
-        const { videos, topVideoIds } = await searchYouTubeDeep(keyword)
-        allSignals.push(...videos)
-        for (const vid of topVideoIds.slice(0, 2)) {
-          const comments = await getYouTubeComments(vid)
-          allSignals.push(...comments)
-        }
-      } catch { console.log('YouTube direct failed, skipping') }
-    }
-
-    // ── Google News (free, no API key) ──
-    // Use specific compound queries to avoid generic results
-    console.log('Google News...')
     const topKeyword = (research.searchKeywords || [])[0] || brand.name
-    const newsQuery = `"${brand.name}" ${research.productCategory || research.industry || ''}`
-    const newsPromises = [
-      searchGoogleNews(newsQuery, 5),
-    ]
-    const newsResults = await Promise.allSettled(newsPromises)
-    for (const result of newsResults) {
-      if (result.status === 'fulfilled') allSignals.push(...result.value)
-    }
+    const keywords = (research.searchKeywords || []).slice(0, 3)
 
-    // ── NewsAPI.ai + Currents API ──
-    // Use compound queries with brand + category for relevance
-    console.log('NewsAPI.ai + Currents...')
-    const extraNewsPromises = [
-      searchNewsApiAi(`"${brand.name}" ${research.productCategory || ''}`, 5),
-      searchCurrentsApi(`${brand.name} ${research.productCategory || ''}`, 5),
-    ]
-    const extraNewsResults = await Promise.allSettled(extraNewsPromises)
-    for (const result of extraNewsResults) {
-      if (result.status === 'fulfilled') allSignals.push(...result.value)
-    }
+    // ── RUN EVERYTHING IN PARALLEL ──
+    const allPromises: Promise<SocialSignal[]>[] = []
 
-    // ── Google People Also Ask (free) ──
-    console.log('Google People Also Ask...')
-    const paaData = await getGooglePeopleAlsoAsk(research.productCategory || brand.name)
-    // Convert questions to signals
-    for (const q of paaData.questions) {
-      allSignals.push({
-        id: `paa-${Buffer.from(q).toString('base64').slice(0, 15)}`,
-        source: 'Google PAA',
-        title: q,
-        content: `People are searching: "${q}" - this is a real consumer question about ${research.productCategory || brand.name}`,
-        url: `https://google.com/search?q=${encodeURIComponent(q)}`,
-        score: 30,
-        date: new Date().toISOString(),
-        sentiment: 'neutral' as const,
-        relevance: 0,
-      })
-    }
-
-    // ── Additional Apify sources ──
+    // Reddit via Apify (1 call with top keyword only to save time)
     if (apifyOn) {
-      console.log('=== APIFY - additional scrapers ===')
-      const apifyPromises: Promise<SocialSignal[]>[] = []
+      allPromises.push(searchApifyReddit(topKeyword, 20))
+    }
 
-      // TikTok - top keyword + brand name
-      if (topKeyword) apifyPromises.push(searchApifyTikTok(topKeyword))
-      apifyPromises.push(searchApifyTikTok(brand.name.replace(/\s+/g, '')))
+    // HackerNews
+    for (const keyword of keywords.slice(0, 2)) {
+      allPromises.push(searchHackerNews(keyword))
+    }
 
-      // Instagram - brand name (product-specific, not generic keyword)
-      apifyPromises.push(searchApifyInstagram(brand.name.replace(/\s+/g, '')))
+    // YouTube (1 keyword only)
+    allPromises.push(
+      searchYouTubeDeep(topKeyword).then(r => r.videos).catch(() => [])
+    )
 
-      // Amazon - competitor URLs
-      const competitorUrls: string[] = brand.competitor_urls || []
-      for (const url of competitorUrls.slice(0, 2)) {
-        apifyPromises.push(searchApifyAmazon(url))
-      }
+    // Google News
+    const newsQuery = `"${brand.name}" ${research.productCategory || research.industry || ''}`
+    allPromises.push(searchGoogleNews(newsQuery, 5))
 
-      // Amazon - own product URLs
-      const ownUrls: string[] = brand.own_product_urls || []
-      for (const url of ownUrls.slice(0, 2)) {
-        apifyPromises.push(searchApifyAmazon(url))
-      }
+    // NewsAPI.ai + Currents
+    allPromises.push(searchNewsApiAi(`"${brand.name}" ${research.productCategory || ''}`, 5))
+    allPromises.push(searchCurrentsApi(`${brand.name} ${research.productCategory || ''}`, 5))
 
-      // Trustpilot - brand domain
-      if (brand.url) {
-        apifyPromises.push(searchApifyTrustpilot(brand.url))
-      }
-
-      // Twitter/X - top keyword
-      if (topKeyword) apifyPromises.push(searchApifyTwitter(topKeyword))
-
-      // Run all in parallel
-      const apifyResults = await Promise.allSettled(apifyPromises)
-      for (const result of apifyResults) {
-        if (result.status === 'fulfilled') {
-          allSignals.push(...result.value)
-          console.log(`Apify: got ${result.value.length} signals`)
-        } else {
-          console.error('Apify scraper failed:', result.reason)
-        }
+    // Run all non-Apify sources in parallel
+    const parallelResults = await Promise.allSettled(allPromises)
+    for (const result of parallelResults) {
+      if (result.status === 'fulfilled') {
+        allSignals.push(...result.value)
+        console.log(`Source returned ${result.value.length} signals`)
       }
     }
+    console.log(`Parallel phase done: ${allSignals.length} signals`)
+
+    // ── Phase 2: PAA + Apify (all in parallel) ──
+    const phase2Promises: Promise<SocialSignal[]>[] = []
+
+    // Google PAA
+    phase2Promises.push(
+      getGooglePeopleAlsoAsk(research.productCategory || brand.name).then(paaData =>
+        paaData.questions.map(q => ({
+          id: `paa-${Buffer.from(q).toString('base64').slice(0, 15)}`,
+          source: 'Google PAA' as const,
+          title: q,
+          content: `People are searching: "${q}"`,
+          url: `https://google.com/search?q=${encodeURIComponent(q)}`,
+          score: 30,
+          date: new Date().toISOString(),
+          sentiment: 'neutral' as const,
+          relevance: 0,
+        }))
+      ).catch(() => [])
+    )
+
+    // Apify scrapers (all parallel)
+    if (apifyOn) {
+      console.log('Apify scrapers...')
+
+      // TikTok - brand name only (1 call)
+      phase2Promises.push(searchApifyTikTok(brand.name.replace(/\s+/g, '')))
+
+      // Instagram - brand name (1 call)
+      phase2Promises.push(searchApifyInstagram(brand.name.replace(/\s+/g, '')))
+
+      // Amazon - first competitor URL only
+      const competitorUrls: string[] = brand.competitor_urls || []
+      if (competitorUrls[0]) phase2Promises.push(searchApifyAmazon(competitorUrls[0]))
+
+      // Amazon - first own product URL only
+      const ownUrls: string[] = brand.own_product_urls || []
+      if (ownUrls[0]) phase2Promises.push(searchApifyAmazon(ownUrls[0]))
+
+    }
+
+    // Run phase 2 in parallel
+    const phase2Results = await Promise.allSettled(phase2Promises)
+    for (const result of phase2Results) {
+      if (result.status === 'fulfilled') {
+        allSignals.push(...result.value)
+      }
+    }
+    console.log(`Phase 2 done. Total signals: ${allSignals.length}`)
 
     // ── FRESHNESS FILTER: only keep signals from the last 7 days ──
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
