@@ -12,6 +12,7 @@ import {
   getYouTubeComments,
   getGoogleTrendsDeep,
   getGooglePeopleAlsoAsk,
+  getGoogleDailyTrends,
   searchGoogleNews,
   searchApifyReddit,
   searchApifyTikTok,
@@ -477,6 +478,19 @@ export async function POST(req: NextRequest) {
     console.log('Google Trends...')
     const trends = await getGoogleTrendsDeep(research.searchKeywords || [brand.name])
 
+    // ── Google Daily Trends (free, catches macro trends) ──
+    console.log('Google Daily Trends...')
+    const dailyTrends = await getGoogleDailyTrends()
+    // Only include daily trends relevant to the brand's industry
+    const relevantDailyTrends = dailyTrends.filter(t => {
+      const combined = `${t.title} ${t.content}`.toLowerCase()
+      return (research.searchKeywords || []).some(k => combined.includes(k.toLowerCase())) ||
+        combined.includes((research.industry || '').toLowerCase()) ||
+        combined.includes((research.productCategory || '').toLowerCase())
+    })
+    allSignals.push(...relevantDailyTrends)
+    console.log(`Daily trends: ${dailyTrends.length} total, ${relevantDailyTrends.length} relevant`)
+
     // ── Claude analysis (single reliable pass) ──
     let insights: ListeningInsight[] = []
     try {
@@ -486,8 +500,11 @@ export async function POST(req: NextRequest) {
       ).join('\n\n')
 
       const trendText = trends.map(t =>
-        `"${t.keyword}" - ${t.trending ? 'TRENDING' : 'normal'}`
+        `"${t.keyword}" - ${t.trending ? 'TRENDING' : 'normal'}${t.relatedQueries?.length ? ` | Related: ${t.relatedQueries.slice(0, 4).join(', ')}` : ''}${t.risingTerms?.length ? ` | Rising: ${t.risingTerms.join(', ')}` : ''}`
       ).join('\n')
+      const dailyTrendText = relevantDailyTrends.length > 0
+        ? `\n\nDAILY TRENDING (macro trends relevant to this brand):\n${relevantDailyTrends.map(t => t.title).join('\n')}`
+        : ''
 
       let competitorContext = ''
       if (brand.competitor_research && Array.isArray(brand.competitor_research)) {
@@ -525,7 +542,7 @@ Types: trend, pain_point, competitor, opportunity, language
 Priorities: high (act this week), medium (this month), low (monitor)`,
         messages: [{
           role: 'user',
-          content: `SIGNALS:\n${signalText}\n\nTRENDS:\n${trendText}`,
+          content: `SIGNALS:\n${signalText}\n\nTRENDS:\n${trendText}${dailyTrendText}`,
         }],
       })
 
@@ -556,6 +573,7 @@ Priorities: high (act this week), medium (this month), low (monitor)`,
       'yt comments': uniqueSignals.filter(s => s.source === 'YouTube comment').length,
       news: uniqueSignals.filter(s => s.source.startsWith('News')).length,
       'google paa': uniqueSignals.filter(s => s.source === 'Google PAA').length,
+      'daily trends': uniqueSignals.filter(s => s.source === 'Google Trends (Daily)').length,
       ...(apifyOn ? {
         tiktok: uniqueSignals.filter(s => s.source === 'TikTok').length,
         instagram: uniqueSignals.filter(s => s.source.startsWith('Instagram')).length,

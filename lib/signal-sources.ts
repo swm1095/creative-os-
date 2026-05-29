@@ -209,21 +209,97 @@ export async function getYouTubeComments(videoId: string): Promise<SocialSignal[
   return []
 }
 
-// ── Google Trends (unofficial) ───────────────────────────────────────────
-export async function getGoogleTrendsDeep(keywords: string[]): Promise<{ keyword: string; trending: boolean; suggestions: string[] }[]> {
+// ── Google Trends (enhanced - Glimpse-like) ─────────────────────────────
+export async function getGoogleTrendsDeep(keywords: string[]): Promise<{ keyword: string; trending: boolean; suggestions: string[]; relatedQueries: string[]; risingTerms: string[] }[]> {
   const results = []
   for (const keyword of keywords.slice(0, 10)) {
     try {
+      // Get autocomplete suggestions
       const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(keyword)}`
       const res = await fetch(url, { signal: AbortSignal.timeout(3000) })
+      const suggestions: string[] = []
       if (res.ok) {
         const data = await res.json()
-        const suggestions = data[1] || []
-        results.push({ keyword, trending: suggestions.length > 3, suggestions: suggestions.slice(0, 8) })
+        suggestions.push(...(data[1] || []))
       }
+
+      // Get related/rising queries via additional autocomplete patterns
+      const relatedQueries: string[] = []
+      const risingTerms: string[] = []
+
+      // Search for "[keyword] for", "[keyword] vs", "[keyword] best" to find intent
+      const intentPrefixes = [`${keyword} for`, `${keyword} vs`, `${keyword} best`, `best ${keyword}`, `${keyword} alternative`]
+      for (const prefix of intentPrefixes) {
+        try {
+          const intentRes = await fetch(`https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(prefix)}`, { signal: AbortSignal.timeout(2000) })
+          if (intentRes.ok) {
+            const intentData = await intentRes.json()
+            relatedQueries.push(...(intentData[1] || []).slice(0, 3))
+          }
+        } catch { /* silent */ }
+      }
+
+      // Check trending via Google Trends daily trends RSS
+      let isTrending = suggestions.length > 3
+      try {
+        const trendRes = await fetch(`https://trends.google.com/trends/trendingsearches/daily/rss?geo=US`, { signal: AbortSignal.timeout(3000) })
+        if (trendRes.ok) {
+          const trendXml = await trendRes.text()
+          if (trendXml.toLowerCase().includes(keyword.toLowerCase())) {
+            isTrending = true
+            risingTerms.push(`${keyword} (trending on Google)`)
+          }
+        }
+      } catch { /* silent */ }
+
+      // Dedupe
+      const uniqueRelated = [...new Set(relatedQueries)].slice(0, 8)
+      const uniqueRising = [...new Set(risingTerms)].slice(0, 5)
+
+      results.push({
+        keyword,
+        trending: isTrending,
+        suggestions: suggestions.slice(0, 8),
+        relatedQueries: uniqueRelated,
+        risingTerms: uniqueRising,
+      })
     } catch { /* silent */ }
   }
   return results
+}
+
+// ── Google Trending Searches (free, daily) ───────────────────────────────
+export async function getGoogleDailyTrends(): Promise<SocialSignal[]> {
+  try {
+    const res = await fetch('https://trends.google.com/trends/trendingsearches/daily/rss?geo=US', { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return []
+    const xml = await res.text()
+
+    const items: SocialSignal[] = []
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g
+    let match
+    while ((match = itemRegex.exec(xml)) !== null && items.length < 15) {
+      const itemXml = match[1]
+      const title = itemXml.match(/<title>([\s\S]*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1') || ''
+      const traffic = itemXml.match(/<ht:approx_traffic>([\s\S]*?)<\/ht:approx_traffic>/)?.[1] || ''
+      const desc = itemXml.match(/<description>([\s\S]*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')?.replace(/<[^>]*>/g, '') || ''
+      const link = itemXml.match(/<link>([\s\S]*?)<\/link>/)?.[1] || ''
+      const pubDate = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1] || ''
+
+      items.push({
+        id: `gtrend-${Buffer.from(title).toString('base64').slice(0, 15)}`,
+        source: 'Google Trends (Daily)',
+        title: `${title} (${traffic} searches)`,
+        content: desc.slice(0, 500),
+        url: link,
+        score: parseInt(traffic.replace(/[^0-9]/g, '')) || 50,
+        date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+        sentiment: 'neutral' as const,
+        relevance: 0,
+      })
+    }
+    return items
+  } catch { return [] }
 }
 
 // ── Apify integration ─────────────────────────────────────────────────────
