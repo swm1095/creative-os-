@@ -304,11 +304,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Google News (free, no API key) ──
+    // Use specific compound queries to avoid generic results
     console.log('Google News...')
     const topKeyword = (research.searchKeywords || [])[0] || brand.name
+    const newsQuery = `"${brand.name}" ${research.productCategory || research.industry || ''}`
     const newsPromises = [
-      searchGoogleNews(brand.name),
-      searchGoogleNews(research.productCategory || research.industry || ''),
+      searchGoogleNews(newsQuery, 5),
     ]
     const newsResults = await Promise.allSettled(newsPromises)
     for (const result of newsResults) {
@@ -316,12 +317,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── NewsAPI.ai + Currents API ──
+    // Use compound queries with brand + category for relevance
     console.log('NewsAPI.ai + Currents...')
     const extraNewsPromises = [
-      searchNewsApiAi(brand.name),
-      searchNewsApiAi(research.productCategory || research.industry || ''),
-      searchCurrentsApi(brand.name),
-      searchCurrentsApi(research.productCategory || ''),
+      searchNewsApiAi(`"${brand.name}" ${research.productCategory || ''}`, 5),
+      searchCurrentsApi(`${brand.name} ${research.productCategory || ''}`, 5),
     ]
     const extraNewsResults = await Promise.allSettled(extraNewsPromises)
     for (const result of extraNewsResults) {
@@ -439,11 +439,17 @@ export async function POST(req: NextRequest) {
       // Persona-relevant terms
       if (personas.some(p => combined.includes(p))) relevanceScore += 1
 
-      // Brand name mention
-      if (combined.includes(brand.name.toLowerCase())) relevanceScore += 3
+      // Brand name mention (exact match, not partial)
+      const brandLower = brand.name.toLowerCase()
+      if (combined.includes(brandLower) && (
+        combined.includes(` ${brandLower} `) || combined.includes(`${brandLower} `) || combined.startsWith(brandLower)
+      )) relevanceScore += 3
 
-      // Minimum threshold: must score at least 2 to be included
-      return relevanceScore >= 2
+      // News sources need higher threshold (too much noise otherwise)
+      const isNews = source.startsWith('news') || source.includes('currents') || source.includes('newsapi')
+      const threshold = isNews ? 4 : 2
+
+      return relevanceScore >= threshold
     })
     console.log(`Relevance filter: ${freshSignals.length} -> ${filteredSignals.length}`)
 
