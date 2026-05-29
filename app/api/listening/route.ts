@@ -492,6 +492,8 @@ CRITICAL RULES:
 - Quote real customer language verbatim - these become ad copy
 - Every insight must be actionable for a creative team THIS WEEK
 - Never use emdashes. Use hyphens or commas.
+- IMPORTANT: Even if signals are limited (mostly TikTok or trends), you MUST generate at least 4-6 insights by combining signal data with the brand research context above. Use trending keywords + personas + pain points to identify opportunities.
+- If you see trending search terms, connect them to specific ad angles for this brand.
 ${CONTENT_FILTER}
 
 Return ONLY valid JSON (no markdown, no text before or after):

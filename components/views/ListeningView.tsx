@@ -392,8 +392,9 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           </div>
 
           {/* Insights */}
-          {insights.length > 0 && (
-            <div className="mb-6">
+          <div className="mb-6">
+            {insights.length > 0 ? (
+            <>
               <SectionHeader title="Actionable Insights" subtitle={`${insights.length} insights extracted by Claude`} />
               <div className="space-y-3">
                 {insights.map((insight, i) => (
@@ -448,8 +449,24 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                   </Card>
                 ))}
               </div>
-            </div>
-          )}
+            </>
+            ) : hasRun ? (
+              <Card className="mb-4">
+                <div className="text-center py-6">
+                  <div className="text-2xl mb-2">🔍</div>
+                  <div className="text-sm font-bold mb-1">No actionable insights found</div>
+                  <div className="text-xs text-text-dim mb-3">Claude couldn't extract strong insights from the current signals. This usually means:</div>
+                  <ul className="text-xs text-text-dim space-y-1 text-left max-w-md mx-auto">
+                    <li>- Reddit and YouTube returned 0 signals (blocked on Vercel)</li>
+                    <li>- The signals found weren't specific enough to this brand's product category</li>
+                    <li>- Try adding more specific search keywords in Brand Research</li>
+                    <li>- Try adding competitor product URLs for Amazon review mining</li>
+                  </ul>
+                  <Button size="sm" className="mt-4" onClick={runListening} disabled={loading}>Rescan</Button>
+                </div>
+              </Card>
+            ) : null}
+          </div>
 
           {/* Trends */}
           {trends.length > 0 && (
