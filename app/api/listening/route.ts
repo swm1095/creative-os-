@@ -256,51 +256,46 @@ export async function POST(req: NextRequest) {
 
     console.log('=== Deep scan starting ===')
 
-    // ── Reddit: keyword search + subreddit top + comments ──
-    console.log('Reddit: keyword search...')
-    for (const keyword of (research.searchKeywords || []).slice(0, 4)) {
-      const results = await searchRedditDeep(keyword, undefined, 10)
-      allSignals.push(...results)
-    }
-
-    console.log('Reddit: subreddit search...')
-    for (const sub of (research.subreddits || []).slice(0, 4)) {
-      const keywordResults = await searchRedditDeep(research.industry || brand.name, sub, 8)
-      allSignals.push(...keywordResults)
-      // Also get top of month from the subreddit
-      const topResults = await getSubredditTop(sub, 8)
-      allSignals.push(...topResults)
-    }
-
-    // Pull comments from high-scoring posts
-    console.log('Reddit: comment mining...')
-    const topPosts = allSignals
-      .filter(s => s.source.startsWith('r/') && !s.source.includes('comment') && (s.score || 0) > 10)
-      .sort((a, b) => (b.score || 0) - (a.score || 0))
-      .slice(0, 8)
-    for (const post of topPosts) {
-      if (post.url) {
-        const comments = await getRedditCommentsDeep(post.url, 10)
-        allSignals.push(...comments)
+    // ── Reddit via Apify (primary) + direct API (fallback) ──
+    if (apifyOn) {
+      console.log('Reddit via Apify...')
+      for (const keyword of (research.searchKeywords || []).slice(0, 4)) {
+        try {
+          const results = await searchApifyReddit(keyword, 15)
+          allSignals.push(...results)
+          console.log(`Apify Reddit "${keyword}": ${results.length} signals`)
+        } catch { console.log(`Apify Reddit "${keyword}" failed`) }
+      }
+    } else {
+      console.log('Reddit: direct API (may fail on Vercel)...')
+      for (const keyword of (research.searchKeywords || []).slice(0, 4)) {
+        const results = await searchRedditDeep(keyword, undefined, 10)
+        allSignals.push(...results)
+      }
+      for (const sub of (research.subreddits || []).slice(0, 4)) {
+        const results = await searchRedditDeep(research.industry || brand.name, sub, 8)
+        allSignals.push(...results)
       }
     }
 
-    // ── HackerNews ──
+    // ── HackerNews (usually works from Vercel since it's Algolia) ──
     console.log('HackerNews...')
     for (const keyword of (research.searchKeywords || []).slice(0, 3)) {
       const results = await searchHackerNews(keyword)
       allSignals.push(...results)
     }
 
-    // ── YouTube: videos + comments from top ones ──
-    console.log('YouTube: videos + comments...')
-    for (const keyword of (research.searchKeywords || []).slice(0, 3)) {
-      const { videos, topVideoIds } = await searchYouTubeDeep(keyword)
-      allSignals.push(...videos)
-      for (const vid of topVideoIds) {
-        const comments = await getYouTubeComments(vid)
-        allSignals.push(...comments)
-      }
+    // ── YouTube: try direct first, skip if it fails ──
+    console.log('YouTube...')
+    for (const keyword of (research.searchKeywords || []).slice(0, 2)) {
+      try {
+        const { videos, topVideoIds } = await searchYouTubeDeep(keyword)
+        allSignals.push(...videos)
+        for (const vid of topVideoIds.slice(0, 2)) {
+          const comments = await getYouTubeComments(vid)
+          allSignals.push(...comments)
+        }
+      } catch { console.log('YouTube direct failed, skipping') }
     }
 
     // ── Google News (free, no API key) ──
@@ -346,19 +341,16 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // ── Apify sources (flips on when APIFY_API_KEY set) ──
+    // ── Additional Apify sources ──
     if (apifyOn) {
-      console.log('=== APIFY ENABLED - running scrapers in parallel ===')
+      console.log('=== APIFY - additional scrapers ===')
       const apifyPromises: Promise<SocialSignal[]>[] = []
 
-      // TikTok - top keyword
+      // TikTok - top keyword + brand name
       if (topKeyword) apifyPromises.push(searchApifyTikTok(topKeyword))
+      apifyPromises.push(searchApifyTikTok(brand.name.replace(/\s+/g, '')))
 
-      // Reddit - top keyword
-      if (topKeyword) apifyPromises.push(searchApifyReddit(topKeyword))
-
-      // Instagram - top keyword + brand name
-      if (topKeyword) apifyPromises.push(searchApifyInstagram(topKeyword))
+      // Instagram - brand name (product-specific, not generic keyword)
       apifyPromises.push(searchApifyInstagram(brand.name.replace(/\s+/g, '')))
 
       // Amazon - competitor URLs
