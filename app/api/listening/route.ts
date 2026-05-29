@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
     console.log('=== Deep scan starting - ALL SOURCES IN PARALLEL ===')
 
     const topKeyword = (research.searchKeywords || [])[0] || brand.name
-    const keywords = (research.searchKeywords || []).slice(0, 3)
+    const keywords = (research.searchKeywords || []).slice(0, 8)
 
     // ── RUN EVERYTHING IN PARALLEL ──
     const allPromises: Promise<SocialSignal[]>[] = []
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
     }
 
     // HackerNews
-    for (const keyword of keywords.slice(0, 2)) {
+    for (const keyword of keywords.slice(0, 4)) {
       allPromises.push(searchHackerNews(keyword))
     }
 

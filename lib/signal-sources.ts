@@ -238,7 +238,7 @@ export async function getGoogleTrendsDeep(keywords: string[]): Promise<{ keyword
     }
   }
 
-  const results = await Promise.all(keywords.slice(0, 5).map(processKeyword))
+  const results = await Promise.all(keywords.slice(0, 10).map(processKeyword))
   return results
 }
 
