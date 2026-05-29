@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/scan-all",
-      "schedule": "0 6 * * *"
+      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/health-check?morning=true",

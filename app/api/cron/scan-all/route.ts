@@ -25,33 +25,22 @@ export async function GET(req: NextRequest) {
 
     const scannedBrands: string[] = []
 
+    // Scan every brand with research completed (daily at 5 AM ET)
     for (const brand of brands) {
-      // Skip manual brands
-      if (!brand.scan_cadence || brand.scan_cadence === 'manual') continue
-
-      const lastScanned = brand.last_scanned_at ? new Date(brand.last_scanned_at) : null
-      const hoursSinceLastScan = lastScanned
-        ? (now.getTime() - lastScanned.getTime()) / (1000 * 60 * 60)
-        : Infinity
-
-      // Check if scan is due
-      const scanDue =
-        (brand.scan_cadence === 'daily' && hoursSinceLastScan >= 23) ||
-        (brand.scan_cadence === 'weekly' && hoursSinceLastScan >= 167)
-
-      if (!scanDue) continue
-
-      // Trigger scan via the listening endpoint
       try {
+        console.log(`Scanning ${brand.name}...`)
         const listeningUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://creative-os-topaz.vercel.app'}/api/listening`
-        await fetch(listeningUrl, {
+        // Fire and don't wait - each scan runs independently
+        fetch(listeningUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ brandId: brand.id }),
-        })
+        }).catch(e => console.error(`Scan ${brand.name} failed:`, e))
         scannedBrands.push(brand.name)
+        // Stagger by 5 seconds to avoid rate limits
+        await new Promise(r => setTimeout(r, 5000))
       } catch (e) {
-        console.error(`Failed to scan ${brand.name}:`, e)
+        console.error(`Failed to start scan for ${brand.name}:`, e)
       }
     }
 
