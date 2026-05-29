@@ -316,6 +316,67 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
         ) : undefined}
       />
 
+      {/* Keyword editor */}
+      {!isClient && brand?.research && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xs font-bold uppercase tracking-wider text-text-muted">Keywords</span>
+            <span className="text-2xs text-text-dim">({brand.research.searchKeywords?.length || 0} tracked)</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {(brand.research.searchKeywords || []).map((k, i) => (
+              <span key={i} className="text-2xs bg-blue-light text-blue px-2 py-1 rounded flex items-center gap-1.5">
+                {k}
+                <button onClick={() => {
+                  if (!brand.research) return
+                  const updated = (brand.research.searchKeywords || []).filter((_, idx) => idx !== i)
+                  if (onBrandUpdate) onBrandUpdate(brand.id, { research: { ...brand.research, searchKeywords: updated } })
+                  onToast('Keyword removed', 'info')
+                }} className="text-blue/60 hover:text-blue">x</button>
+              </span>
+            ))}
+            <form onSubmit={e => {
+              e.preventDefault()
+              const input = (e.target as HTMLFormElement).elements.namedItem('keyword') as HTMLInputElement
+              const val = input.value.trim()
+              if (!val || !brand.research) return
+              const updated = [...(brand.research.searchKeywords || []), val]
+              if (onBrandUpdate) onBrandUpdate(brand.id, { research: { ...brand.research, searchKeywords: updated } })
+              input.value = ''
+              onToast('Keyword added', 'success')
+            }} className="flex gap-1">
+              <input name="keyword" type="text" placeholder="+ Add keyword" className="px-2 py-0.5 bg-page border border-border rounded text-2xs text-text-primary focus:border-blue focus:outline-none w-28" />
+            </form>
+          </div>
+          {/* Subreddits */}
+          <div className="flex flex-wrap gap-1.5">
+            {(brand.research.subreddits || []).map((s, i) => (
+              <span key={i} className="text-2xs bg-elevated border border-border px-2 py-1 rounded flex items-center gap-1.5">
+                r/{s}
+                <button onClick={() => {
+                  if (!brand.research) return
+                  const updated = (brand.research.subreddits || []).filter((_, idx) => idx !== i)
+                  if (onBrandUpdate) onBrandUpdate(brand.id, { research: { ...brand.research, subreddits: updated } })
+                  onToast('Subreddit removed', 'info')
+                }} className="text-text-dim hover:text-red">x</button>
+              </span>
+            ))}
+            <form onSubmit={e => {
+              e.preventDefault()
+              const input = (e.target as HTMLFormElement).elements.namedItem('subreddit') as HTMLInputElement
+              const val = input.value.trim().replace('r/', '')
+              if (!val || !brand.research) return
+              const updated = [...(brand.research.subreddits || []), val]
+              if (onBrandUpdate) onBrandUpdate(brand.id, { research: { ...brand.research, subreddits: updated } })
+              input.value = ''
+              onToast('Subreddit added', 'success')
+            }} className="flex gap-1">
+              <input name="subreddit" type="text" placeholder="+ Add subreddit" className="px-2 py-0.5 bg-page border border-border rounded text-2xs text-text-primary focus:border-blue focus:outline-none w-28" />
+            </form>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <LoadingState
           size="lg"
