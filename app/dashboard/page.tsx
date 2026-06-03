@@ -308,7 +308,6 @@ export default function DashboardPage() {
                   )}
                   <div className="flex-1">
                     <div className="text-sm font-bold">{b.name}</div>
-                    <div className="text-2xs text-text-dim">{b.url || 'No website'}</div>
                   </div>
                   {activeBrand?.id === b.id && <span className="text-2xs font-bold text-fulton">Active</span>}
                 </button>
