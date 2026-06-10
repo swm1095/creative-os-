@@ -83,6 +83,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [savingScript, setSavingScript] = useState(false)
   const [scriptFeedback, setScriptFeedback] = useState('')
   const [refiningScript, setRefiningScript] = useState(false)
+  const [scriptFeedbackHistory, setScriptFeedbackHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([])
   const [generatingVideoPrompt, setGeneratingVideoPrompt] = useState<string | null>(null)
   const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
   const [showVideoModal, setShowVideoModal] = useState(false)
@@ -695,24 +696,36 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
               </div>
             )}
 
-            {/* Feedback / Refine */}
-            <div className="pt-2 border-t border-border">
-              <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-2">Refine Script</div>
+            {/* Feedback Chat */}
+            <div className="bg-elevated border border-fulton/20 rounded-lg p-4">
+              <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-1">Edit with Feedback</div>
+              <div className="text-2xs text-text-dim mb-3">Tell Claude what to change instead of rewriting. You can also edit the text directly above.</div>
+              {scriptFeedbackHistory.length > 0 && (
+                <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                  {scriptFeedbackHistory.map((msg, i) => (
+                    <div key={i} className={`text-xs px-3 py-1.5 rounded ${msg.role === 'user' ? 'bg-blue/10 text-blue ml-8' : 'bg-fulton/10 text-fulton mr-8'}`}>
+                      {msg.text}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={scriptFeedback}
                   onChange={e => setScriptFeedback(e.target.value)}
-                  placeholder="e.g. Make it more casual, focus on price, shorter hooks..."
-                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  placeholder="e.g. Make hooks punchier, more conversational body, add urgency to CTA..."
+                  className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
                   onKeyDown={e => { if (e.key === 'Enter' && scriptFeedback.trim()) document.getElementById('refine-btn')?.click() }}
                 />
                 <Button
                   id="refine-btn"
-                  size="sm"
                   disabled={!scriptFeedback.trim() || refiningScript}
                   onClick={async () => {
                     if (!brand?.id || !scriptFeedback.trim()) return
+                    const feedback = scriptFeedback.trim()
+                    setScriptFeedbackHistory(prev => [...prev, { role: 'user', text: feedback }])
+                    setScriptFeedback('')
                     setRefiningScript(true)
                     try {
                       const currentScript = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}\n\nCTA:\n${editableCta}`
@@ -723,7 +736,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                           brandId: brand.id,
                           insight: {
                             title: ugcInsightTitle,
-                            summary: `REFINE THIS EXISTING SCRIPT:\n${currentScript}\n\nFEEDBACK:\n${scriptFeedback}\n\nKeep the same structure (4 hooks + body + CTA) but apply the feedback. Do NOT start from scratch.`,
+                            summary: `REFINE THIS EXISTING SCRIPT:\n${currentScript}\n\nFEEDBACK:\n${feedback}\n\nKeep the same structure (4 hooks + body + CTA) but apply the feedback. Do NOT start from scratch.`,
                           },
                         }),
                       })
@@ -732,8 +745,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                       setEditableHooks(data.hooks?.map((h: { hook: string }) => h.hook) || [])
                       setEditableBody(data.body || '')
                       setEditableCta(data.cta || '')
-                      setScriptFeedback('')
-                      onToast('Script refined', 'success')
+                      setScriptFeedbackHistory(prev => [...prev, { role: 'ai', text: 'Script updated with your feedback' }])
                     } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
                     setRefiningScript(false)
                   }}

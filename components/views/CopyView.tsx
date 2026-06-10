@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { CopyVariant, Brand } from '@/lib/types'
 import { DEFAULT_PERSONAS, PLATFORMS, TONES } from '@/lib/constants'
 import Button from '@/components/ui/Button'
@@ -56,9 +56,11 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
   // Static headlines
   const [headlines, setHeadlines] = useState<{ persona: string; headlines: string[] }[]>([])
 
-  // Feedback
+  // Feedback thread
   const [copyFeedback, setCopyFeedback] = useState('')
   const [refining, setRefining] = useState(false)
+  const [feedbackHistory, setFeedbackHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([])
+  const feedbackRef = useRef<HTMLInputElement>(null)
 
   // Products
   interface ProductProfile { id: string; name: string; url: string; price: string; description: string; features: string[]; usps: string[]; targetUseCase: string }
@@ -75,30 +77,31 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
 
   const handleRefine = async () => {
     if (!copyFeedback.trim() || !brandId) return
+    const feedback = copyFeedback.trim()
+    setFeedbackHistory(prev => [...prev, { role: 'user', text: feedback }])
+    setCopyFeedback('')
     setRefining(true)
 
     if (contentType === 'ugc-script' && ugcScripts) {
       const currentScript = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number}: "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
       try {
         const res = await fetch('/api/ugc-script', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brandId, insight: { title: 'Refine script', summary: `REFINE THIS SCRIPT:\n${currentScript}\n\nFEEDBACK: ${copyFeedback}\n\nKeep same structure, apply feedback.` } }) })
+          body: JSON.stringify({ brandId, insight: { title: 'Refine script', summary: `REFINE THIS SCRIPT:\n${currentScript}\n\nFEEDBACK: ${feedback}\n\nKeep same structure, apply feedback.` } }) })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
         setUgcScripts(data)
-        setCopyFeedback('')
-        onToast('Script refined', 'success')
+        setFeedbackHistory(prev => [...prev, { role: 'ai', text: 'Script updated with your feedback' }])
       } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     } else if (contentType === 'ad-copy' && variants.length > 0) {
       const current = variants.map((v, i) => `Variant ${i + 1}: ${v.headline} | ${v.body} | ${v.cta}`).join('\n')
       try {
         const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ persona, tone, platform, brandId, contentType,
-            prompt: `REFINE THESE EXISTING VARIANTS:\n${current}\n\nFEEDBACK: ${copyFeedback}\n\nApply the feedback to improve all variants. Keep the same structure.` }) })
+            prompt: `REFINE THESE EXISTING VARIANTS:\n${current}\n\nFEEDBACK: ${feedback}\n\nApply the feedback to improve all variants. Keep the same structure.` }) })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
         setVariants(data.variants || [])
-        setCopyFeedback('')
-        onToast('Copy refined', 'success')
+        setFeedbackHistory(prev => [...prev, { role: 'ai', text: 'Ad copy updated with your feedback' }])
       } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     } else if (contentType === 'static-headlines' && headlines.length > 0) {
       const current = headlines.map(g => `${g.persona}: ${g.headlines.join(', ')}`).join('\n')
@@ -106,7 +109,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
         const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'generate-copy', brandName: brand?.name, brandResearch: brand?.research,
             persona: brandPersonas.map(p => p.name).join(', '),
-            angle: `REFINE THESE HEADLINES:\n${current}\n\nFEEDBACK: ${copyFeedback}`, referenceAnalysis: null }) })
+            angle: `REFINE THESE HEADLINES:\n${current}\n\nFEEDBACK: ${feedback}`, referenceAnalysis: null }) })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
         const allHeadlines = [...(data.copy?.hooks || []), ...(data.copy?.subheadlines || [])]
@@ -114,11 +117,11 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
           persona: p.name, headlines: allHeadlines.slice(i * 2, i * 2 + 3).length > 0 ? allHeadlines.slice(i * 2, i * 2 + 3) : [allHeadlines[i % allHeadlines.length] || ''],
         }))
         setHeadlines(perPersona)
-        setCopyFeedback('')
-        onToast('Headlines refined', 'success')
+        setFeedbackHistory(prev => [...prev, { role: 'ai', text: 'Headlines updated with your feedback' }])
       } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
     }
     setRefining(false)
+    setTimeout(() => feedbackRef.current?.focus(), 100)
   }
 
   // Pre-fill from HyperListening
@@ -415,18 +418,29 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
               }}>Copy All</Button>
             </div>
 
-            {/* Refine */}
-            <div className="pt-3 border-t border-border">
+            {/* Feedback Chat */}
+            <Card className="bg-elevated border-fulton/20">
+              <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-2">Edit with Feedback</div>
+              <div className="text-2xs text-text-dim mb-3">Tell Claude what to change. Your edits above are preserved.</div>
+              {feedbackHistory.length > 0 && (
+                <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                  {feedbackHistory.map((msg, i) => (
+                    <div key={i} className={`text-xs px-3 py-1.5 rounded ${msg.role === 'user' ? 'bg-blue/10 text-blue ml-8' : 'bg-fulton/10 text-fulton mr-8'}`}>
+                      {msg.text}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
-                <input type="text" value={copyFeedback} onChange={e => setCopyFeedback(e.target.value)}
-                  placeholder="Refine: e.g. more casual, shorter hooks, focus on price..."
-                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter' && copyFeedback.trim()) { handleRefine() } }} />
-                <Button size="sm" disabled={!copyFeedback.trim() || refining} onClick={handleRefine}>
+                <input ref={feedbackRef} type="text" value={copyFeedback} onChange={e => setCopyFeedback(e.target.value)}
+                  placeholder="e.g. Make it more casual, focus on price, shorter hooks..."
+                  className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter' && copyFeedback.trim()) handleRefine() }} />
+                <Button disabled={!copyFeedback.trim() || refining} onClick={handleRefine}>
                   {refining ? <><LoadingSpinner size={14} /> Refining...</> : 'Refine'}
                 </Button>
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
