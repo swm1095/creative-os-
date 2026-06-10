@@ -56,6 +56,10 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
   // Static headlines
   const [headlines, setHeadlines] = useState<{ persona: string; headlines: string[] }[]>([])
 
+  // Feedback
+  const [copyFeedback, setCopyFeedback] = useState('')
+  const [refining, setRefining] = useState(false)
+
   // Products
   interface ProductProfile { id: string; name: string; url: string; price: string; description: string; features: string[]; usps: string[]; targetUseCase: string }
   const products: ProductProfile[] = (brand as Brand & { products?: ProductProfile[] })?.products || []
@@ -68,6 +72,54 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
     const personas = brand?.research?.personas
     if (personas?.length) setPersona(personas[0].name)
   }, [brand?.id])
+
+  const handleRefine = async () => {
+    if (!copyFeedback.trim() || !brandId) return
+    setRefining(true)
+
+    if (contentType === 'ugc-script' && ugcScripts) {
+      const currentScript = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number}: "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}\n\nCTA:\n${ugcScripts.cta}`
+      try {
+        const res = await fetch('/api/ugc-script', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ brandId, insight: { title: 'Refine script', summary: `REFINE THIS SCRIPT:\n${currentScript}\n\nFEEDBACK: ${copyFeedback}\n\nKeep same structure, apply feedback.` } }) })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        setUgcScripts(data)
+        setCopyFeedback('')
+        onToast('Script refined', 'success')
+      } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+    } else if (contentType === 'ad-copy' && variants.length > 0) {
+      const current = variants.map((v, i) => `Variant ${i + 1}: ${v.headline} | ${v.body} | ${v.cta}`).join('\n')
+      try {
+        const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ persona, tone, platform, brandId, contentType,
+            prompt: `REFINE THESE EXISTING VARIANTS:\n${current}\n\nFEEDBACK: ${copyFeedback}\n\nApply the feedback to improve all variants. Keep the same structure.` }) })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        setVariants(data.variants || [])
+        setCopyFeedback('')
+        onToast('Copy refined', 'success')
+      } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+    } else if (contentType === 'static-headlines' && headlines.length > 0) {
+      const current = headlines.map(g => `${g.persona}: ${g.headlines.join(', ')}`).join('\n')
+      try {
+        const res = await fetch('/api/design', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'generate-copy', brandName: brand?.name, brandResearch: brand?.research,
+            persona: brandPersonas.map(p => p.name).join(', '),
+            angle: `REFINE THESE HEADLINES:\n${current}\n\nFEEDBACK: ${copyFeedback}`, referenceAnalysis: null }) })
+        const data = await res.json()
+        if (data.error) throw new Error(data.error)
+        const allHeadlines = [...(data.copy?.hooks || []), ...(data.copy?.subheadlines || [])]
+        const perPersona = brandPersonas.map((p, i) => ({
+          persona: p.name, headlines: allHeadlines.slice(i * 2, i * 2 + 3).length > 0 ? allHeadlines.slice(i * 2, i * 2 + 3) : [allHeadlines[i % allHeadlines.length] || ''],
+        }))
+        setHeadlines(perPersona)
+        setCopyFeedback('')
+        onToast('Headlines refined', 'success')
+      } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+    }
+    setRefining(false)
+  }
 
   // Pre-fill from HyperListening
   useEffect(() => {
@@ -362,6 +414,19 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                 onToast('All scripts copied', 'success')
               }}>Copy All</Button>
             </div>
+
+            {/* Refine */}
+            <div className="pt-3 border-t border-border">
+              <div className="flex gap-2">
+                <input type="text" value={copyFeedback} onChange={e => setCopyFeedback(e.target.value)}
+                  placeholder="Refine: e.g. more casual, shorter hooks, focus on price..."
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter' && copyFeedback.trim()) { handleRefine() } }} />
+                <Button size="sm" disabled={!copyFeedback.trim() || refining} onClick={handleRefine}>
+                  {refining ? <><LoadingSpinner size={14} /> Refining...</> : 'Refine'}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -398,6 +463,17 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                 onToast('All headlines copied', 'success')
               }}>Copy All</Button>
             </div>
+            <div className="pt-3 border-t border-border">
+              <div className="flex gap-2">
+                <input type="text" value={copyFeedback} onChange={e => setCopyFeedback(e.target.value)}
+                  placeholder="Refine: e.g. punchier, different angle, more urgency..."
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter' && copyFeedback.trim()) { handleRefine() } }} />
+                <Button size="sm" disabled={!copyFeedback.trim() || refining} onClick={handleRefine}>
+                  {refining ? <><LoadingSpinner size={14} /> Refining...</> : 'Refine'}
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -431,6 +507,17 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                 navigator.clipboard.writeText(all)
                 onToast('All variants copied', 'success')
               }}>Copy All</Button>
+            </div>
+            <div className="pt-3 border-t border-border">
+              <div className="flex gap-2">
+                <input type="text" value={copyFeedback} onChange={e => setCopyFeedback(e.target.value)}
+                  placeholder="Refine: e.g. different tone, shorter, more direct..."
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter' && copyFeedback.trim()) { handleRefine() } }} />
+                <Button size="sm" disabled={!copyFeedback.trim() || refining} onClick={handleRefine}>
+                  {refining ? <><LoadingSpinner size={14} /> Refining...</> : 'Refine'}
+                </Button>
+              </div>
             </div>
           </div>
         )}

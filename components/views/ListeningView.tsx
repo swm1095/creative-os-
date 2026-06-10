@@ -81,6 +81,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [editableBody, setEditableBody] = useState('')
   const [editableCta, setEditableCta] = useState('')
   const [savingScript, setSavingScript] = useState(false)
+  const [scriptFeedback, setScriptFeedback] = useState('')
+  const [refiningScript, setRefiningScript] = useState(false)
   const [generatingVideoPrompt, setGeneratingVideoPrompt] = useState<string | null>(null)
   const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
   const [showVideoModal, setShowVideoModal] = useState(false)
@@ -692,6 +694,54 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                 <div className="text-xs text-text-dim">{ugcScripts.scene_notes}</div>
               </div>
             )}
+
+            {/* Feedback / Refine */}
+            <div className="pt-2 border-t border-border">
+              <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-2">Refine Script</div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={scriptFeedback}
+                  onChange={e => setScriptFeedback(e.target.value)}
+                  placeholder="e.g. Make it more casual, focus on price, shorter hooks..."
+                  className="flex-1 px-3 py-2 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
+                  onKeyDown={e => { if (e.key === 'Enter' && scriptFeedback.trim()) document.getElementById('refine-btn')?.click() }}
+                />
+                <Button
+                  id="refine-btn"
+                  size="sm"
+                  disabled={!scriptFeedback.trim() || refiningScript}
+                  onClick={async () => {
+                    if (!brand?.id || !scriptFeedback.trim()) return
+                    setRefiningScript(true)
+                    try {
+                      const currentScript = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}\n\nCTA:\n${editableCta}`
+                      const res = await fetch('/api/ugc-script', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          brandId: brand.id,
+                          insight: {
+                            title: ugcInsightTitle,
+                            summary: `REFINE THIS EXISTING SCRIPT:\n${currentScript}\n\nFEEDBACK:\n${scriptFeedback}\n\nKeep the same structure (4 hooks + body + CTA) but apply the feedback. Do NOT start from scratch.`,
+                          },
+                        }),
+                      })
+                      const data = await res.json()
+                      if (data.error) throw new Error(data.error)
+                      setEditableHooks(data.hooks?.map((h: { hook: string }) => h.hook) || [])
+                      setEditableBody(data.body || '')
+                      setEditableCta(data.cta || '')
+                      setScriptFeedback('')
+                      onToast('Script refined', 'success')
+                    } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+                    setRefiningScript(false)
+                  }}
+                >
+                  {refiningScript ? <><LoadingSpinner size={14} /> Refining...</> : 'Refine'}
+                </Button>
+              </div>
+            </div>
 
             {/* Bottom actions */}
             <div className="flex gap-2 pt-2">
