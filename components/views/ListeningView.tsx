@@ -606,18 +606,18 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       >
         {ugcScripts ? (
           <div className="space-y-4">
-            {/* SAVE BANNER - prominent at top */}
+            {/* SAVE BANNER */}
             <div className="bg-fulton/10 border border-fulton/30 rounded-lg p-4 flex items-center justify-between">
               <div>
                 <div className="text-sm font-bold text-fulton">Save this script to {brand?.name}</div>
-                <div className="text-2xs text-text-dim">Edit below, then save to your brand's Insights folder</div>
+                <div className="text-2xs text-text-dim">Edit text directly + use feedback inputs to refine with AI</div>
               </div>
               <Button
                 disabled={savingScript}
                 onClick={async () => {
                   if (!brand?.id) return
                   setSavingScript(true)
-                  const fullScript = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}\n\nCTA:\n${editableCta}`
+                  const fullScript = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}${editableCta ? `\n\n${editableCta}` : ''}`
                   try {
                     await fetch('/api/insights', {
                       method: 'POST',
@@ -633,141 +633,86 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
               </Button>
             </div>
 
-            {/* Hook Options - editable */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">Hook Options (pick one)</div>
-                <span className="text-2xs text-text-dim">0-3 sec</span>
-              </div>
-              <div className="space-y-2">
-                {ugcScripts.hooks.map((h, i) => (
-                  <div key={i} className="bg-page border border-border rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded shrink-0 mt-0.5">P{h.persona_number}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-2xs text-text-dim mb-1">{h.persona}</div>
-                        <textarea
-                          value={editableHooks[i] || ''}
-                          onChange={e => { const next = [...editableHooks]; next[i] = e.target.value; setEditableHooks(next) }}
-                          className="w-full text-sm text-text-secondary leading-relaxed italic bg-transparent border border-border rounded p-2 focus:border-fulton focus:outline-none resize-y min-h-[40px]"
-                          rows={2}
-                        />
-                      </div>
-                      <button onClick={() => { navigator.clipboard.writeText(`${editableHooks[i]}\n\n${editableBody}\n\n${editableCta}`); onToast(`P${h.persona_number} full script copied`, 'success') }}
-                        className="text-2xs text-text-dim hover:text-text-primary shrink-0">Copy Full</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Shared Body - editable */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">Body (shared for all hooks)</div>
-                <span className="text-2xs text-text-dim">3-20 sec</span>
-              </div>
-              <textarea
-                value={editableBody}
-                onChange={e => setEditableBody(e.target.value)}
-                className="w-full bg-fulton-light border border-fulton/20 rounded-lg p-4 text-sm text-text-secondary leading-relaxed focus:border-fulton focus:outline-none resize-y min-h-[80px]"
-                rows={4}
-              />
-            </div>
-
-            {/* Shared CTA - editable */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-xs font-bold text-text-muted uppercase tracking-wider">CTA</div>
-                <span className="text-2xs text-text-dim">20-25 sec</span>
-              </div>
-              <textarea
-                value={editableCta}
-                onChange={e => setEditableCta(e.target.value)}
-                className="w-full bg-page border border-border rounded-lg p-4 text-sm text-text-secondary leading-relaxed focus:border-fulton focus:outline-none resize-y min-h-[40px]"
-                rows={2}
-              />
-            </div>
-
-            {ugcScripts.scene_notes && (
-              <div className="bg-elevated border border-border rounded-lg p-4">
-                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Scene Notes</div>
-                <div className="text-xs text-text-dim">{ugcScripts.scene_notes}</div>
-              </div>
-            )}
-
-            {/* Feedback Chat */}
-            <div className="bg-elevated border border-fulton/20 rounded-lg p-4">
-              <div className="text-xs font-bold text-fulton uppercase tracking-wider mb-1">Edit with Feedback</div>
-              <div className="text-2xs text-text-dim mb-3">Tell Claude what to change instead of rewriting. You can also edit the text directly above.</div>
-              {scriptFeedbackHistory.length > 0 && (
-                <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
-                  {scriptFeedbackHistory.map((msg, i) => (
-                    <div key={i} className={`text-xs px-3 py-1.5 rounded ${msg.role === 'user' ? 'bg-blue/10 text-blue ml-8' : 'bg-fulton/10 text-fulton mr-8'}`}>
-                      {msg.text}
-                    </div>
-                  ))}
+            {/* Each hook with its own feedback */}
+            {ugcScripts.hooks.map((h, i) => (
+              <div key={i} className="bg-page border border-border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded">P{h.persona_number}</span>
+                  <span className="text-2xs text-text-dim">{h.persona}</span>
+                  <span className="text-2xs text-text-dim ml-auto">Hook {i + 1}</span>
                 </div>
-              )}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={scriptFeedback}
-                  onChange={e => setScriptFeedback(e.target.value)}
-                  placeholder="e.g. Make hooks punchier, more conversational body, add urgency to CTA..."
-                  className="flex-1 px-3 py-2.5 bg-page border border-border rounded text-sm text-text-primary focus:border-fulton focus:outline-none"
-                  onKeyDown={e => { if (e.key === 'Enter' && scriptFeedback.trim()) document.getElementById('refine-btn')?.click() }}
+                <textarea
+                  value={editableHooks[i] || ''}
+                  onChange={e => { const next = [...editableHooks]; next[i] = e.target.value; setEditableHooks(next) }}
+                  className="w-full text-sm text-text-secondary leading-relaxed italic bg-transparent border border-border rounded p-2 focus:border-fulton focus:outline-none resize-y min-h-[40px] mb-2"
+                  rows={2}
                 />
-                <Button
-                  id="refine-btn"
-                  disabled={!scriptFeedback.trim() || refiningScript}
-                  onClick={async () => {
-                    if (!brand?.id || !scriptFeedback.trim()) return
-                    const feedback = scriptFeedback.trim()
-                    setScriptFeedbackHistory(prev => [...prev, { role: 'user', text: feedback }])
-                    setScriptFeedback('')
-                    setRefiningScript(true)
+                <div className="flex gap-1.5">
+                  <input type="text" placeholder={`Refine hook ${i + 1}: e.g. more punchy, different opening...`}
+                    className="flex-1 px-2.5 py-1.5 bg-elevated border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                    onKeyDown={async e => {
+                      if (e.key !== 'Enter') return
+                      const input = e.target as HTMLInputElement
+                      const feedback = input.value.trim()
+                      if (!feedback || !brand?.id) return
+                      input.value = ''; input.disabled = true
+                      try {
+                        const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ persona: h.persona, tone: 'Empathetic', platform: 'TikTok', brandId: brand.id, contentType: 'ugc-hook',
+                            prompt: `REFINE THIS SINGLE UGC HOOK:\n"${editableHooks[i] || h.hook}"\n\nFEEDBACK: ${feedback}\n\nReturn ONLY the refined hook text.` }) })
+                        const data = await res.json()
+                        if (data.variants?.[0]?.headline) { const next = [...editableHooks]; next[i] = data.variants[0].headline; setEditableHooks(next); onToast(`Hook ${i + 1} refined`, 'success') }
+                      } catch { onToast('Refine failed', 'error') }
+                      input.disabled = false
+                    }} />
+                  <button onClick={() => { navigator.clipboard.writeText(editableHooks[i] || h.hook); onToast('Hook copied', 'success') }}
+                    className="text-2xs text-text-dim hover:text-text-primary px-2 shrink-0">Copy</button>
+                </div>
+              </div>
+            ))}
+
+            {/* Body + CTA merged with feedback */}
+            <div className="bg-page border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Body + CTA</span>
+                <span className="text-2xs text-text-dim">3-25 seconds</span>
+              </div>
+              <textarea
+                value={`${editableBody}${editableCta ? `\n\n${editableCta}` : ''}`}
+                onChange={e => { setEditableBody(e.target.value); setEditableCta('') }}
+                className="w-full text-sm text-text-secondary leading-relaxed bg-transparent border border-border rounded p-3 focus:border-fulton focus:outline-none resize-y min-h-[100px] mb-2"
+                rows={5}
+              />
+              <div className="flex gap-1.5">
+                <input type="text" placeholder="Refine body: e.g. more conversational, add social proof..."
+                  className="flex-1 px-2.5 py-1.5 bg-elevated border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                  onKeyDown={async e => {
+                    if (e.key !== 'Enter') return
+                    const input = e.target as HTMLInputElement
+                    const feedback = input.value.trim()
+                    if (!feedback || !brand?.id) return
+                    input.value = ''; input.disabled = true
                     try {
-                      const currentScript = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}\n\nCTA:\n${editableCta}`
-                      const res = await fetch('/api/ugc-script', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          brandId: brand.id,
-                          insight: {
-                            title: ugcInsightTitle,
-                            summary: `REFINE THIS EXISTING SCRIPT:\n${currentScript}\n\nFEEDBACK:\n${feedback}\n\nKeep the same structure (4 hooks + body + CTA) but apply the feedback. Do NOT start from scratch.`,
-                          },
-                        }),
-                      })
+                      const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ persona: 'general', tone: 'Empathetic', platform: 'TikTok', brandId: brand.id, contentType: 'ugc-body',
+                          prompt: `REFINE THIS UGC BODY:\n"${editableBody}${editableCta ? `\n\n${editableCta}` : ''}"\n\nFEEDBACK: ${feedback}\n\nReturn ONLY the refined body text.` }) })
                       const data = await res.json()
-                      if (data.error) throw new Error(data.error)
-                      setEditableHooks(data.hooks?.map((h: { hook: string }) => h.hook) || [])
-                      setEditableBody(data.body || '')
-                      setEditableCta(data.cta || '')
-                      setScriptFeedbackHistory(prev => [...prev, { role: 'ai', text: 'Script updated with your feedback' }])
-                    } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
-                    setRefiningScript(false)
-                  }}
-                >
-                  {refiningScript ? <><LoadingSpinner size={14} /> Refining...</> : 'Refine'}
-                </Button>
+                      if (data.variants?.[0]?.body) { setEditableBody(data.variants[0].body); setEditableCta(''); onToast('Body refined', 'success') }
+                    } catch { onToast('Refine failed', 'error') }
+                    input.disabled = false
+                  }} />
+                <button onClick={() => { navigator.clipboard.writeText(`${editableBody}${editableCta ? `\n\n${editableCta}` : ''}`); onToast('Body copied', 'success') }}
+                  className="text-2xs text-text-dim hover:text-text-primary px-2 shrink-0">Copy</button>
               </div>
             </div>
 
-            {/* Bottom actions */}
-            <div className="flex gap-2 pt-2">
-              <Button
-                variant="secondary"
-                className="flex-1 justify-center"
-                onClick={() => {
-                  const all = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}\n\nCTA:\n${editableCta}`
-                  navigator.clipboard.writeText(all)
-                  onToast('All scripts copied', 'success')
-                }}
-              >
-                Copy All
-              </Button>
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1 justify-center" onClick={() => {
+                const all = `HOOKS:\n${ugcScripts.hooks.map((h, i) => `P${h.persona_number} (${h.persona}): "${editableHooks[i] || h.hook}"`).join('\n')}\n\nBODY:\n${editableBody}${editableCta ? `\n\n${editableCta}` : ''}`
+                navigator.clipboard.writeText(all)
+                onToast('All scripts copied', 'success')
+              }}>Copy All</Button>
             </div>
           </div>
         ) : (
