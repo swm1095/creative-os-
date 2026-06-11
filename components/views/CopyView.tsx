@@ -375,117 +375,58 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
         {/* UGC Script Output */}
         {contentType === 'ugc-script' && ugcScripts && !generating && (
           <div className="space-y-3">
-            {/* Each hook with its own feedback */}
             {ugcScripts.hooks.map((h, i) => (
-              <Card key={i} className="relative">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded">P{h.persona_number}</span>
-                  <span className="text-2xs text-text-dim">{h.persona}</span>
-                  <span className="text-2xs text-text-dim ml-auto">Hook {i + 1}</span>
-                </div>
-                <textarea
-                  value={h.hook}
-                  onChange={e => {
-                    if (!ugcScripts) return
-                    const updated = { ...ugcScripts, hooks: ugcScripts.hooks.map((hk, idx) => idx === i ? { ...hk, hook: e.target.value } : hk) }
-                    setUgcScripts(updated)
-                  }}
-                  className="w-full text-sm text-text-secondary leading-relaxed italic bg-page border border-border rounded p-3 focus:border-fulton focus:outline-none resize-y min-h-[50px] mb-2"
-                  rows={2}
-                />
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    placeholder={`Refine this hook: e.g. more punchy, different angle...`}
-                    className="flex-1 px-2.5 py-1.5 bg-elevated border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
-                    onKeyDown={async e => {
-                      if (e.key !== 'Enter') return
-                      const input = e.target as HTMLInputElement
-                      const feedback = input.value.trim()
-                      if (!feedback || !brandId) return
-                      input.value = ''
-                      input.disabled = true
-                      try {
-                        const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ persona: h.persona, tone, platform, brandId, contentType: 'ugc-hook',
-                            prompt: `REFINE THIS SINGLE UGC HOOK (do NOT change anything else):\n"${h.hook}"\n\nFEEDBACK: ${feedback}\n\nReturn ONLY the refined hook text, nothing else. Keep it the same length and style.` }) })
-                        const data = await res.json()
-                        if (data.variants?.[0]?.headline) {
-                          const updated = { ...ugcScripts, hooks: ugcScripts.hooks.map((hk, idx) => idx === i ? { ...hk, hook: data.variants[0].headline } : hk) }
-                          setUgcScripts(updated)
-                          onToast(`Hook ${i + 1} refined`, 'success')
-                        }
-                      } catch { onToast('Refine failed', 'error') }
-                      input.disabled = false
-                    }}
-                  />
+              <Card key={i}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded">P{h.persona_number}</span>
+                    <span className="text-2xs text-text-dim">{h.persona}</span>
+                  </div>
                   <button onClick={() => { navigator.clipboard.writeText(h.hook); onToast('Hook copied', 'success') }}
-                    className="text-2xs text-text-dim hover:text-text-primary px-2 shrink-0">Copy</button>
+                    className="text-2xs text-blue hover:underline">Copy Hook</button>
+                </div>
+                <textarea value={h.hook} onChange={e => {
+                  const updated = { ...ugcScripts, hooks: ugcScripts.hooks.map((hk, idx) => idx === i ? { ...hk, hook: e.target.value } : hk) }
+                  setUgcScripts(updated)
+                }} className="w-full text-sm text-text-secondary leading-relaxed italic bg-page border border-border rounded p-3 focus:border-fulton focus:outline-none resize-y min-h-[50px] mb-2" rows={2} />
+                <div className="bg-elevated rounded-lg p-3">
+                  <div className="text-2xs text-text-dim mb-1.5">Refine this hook with AI</div>
+                  <RefineInput text={h.hook} onRefined={refined => {
+                    const updated = { ...ugcScripts, hooks: ugcScripts.hooks.map((hk, idx) => idx === i ? { ...hk, hook: refined } : hk) }
+                    setUgcScripts(updated)
+                  }} onToast={onToast} />
                 </div>
               </Card>
             ))}
 
-            {/* Body with feedback */}
             <Card>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Body + CTA</span>
-                <span className="text-2xs text-text-dim">3-25 seconds</span>
+                <button onClick={() => { navigator.clipboard.writeText(`${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`); onToast('Body copied', 'success') }}
+                  className="text-2xs text-blue hover:underline">Copy Body</button>
               </div>
-              <textarea
-                value={`${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`}
-                onChange={e => {
-                  if (!ugcScripts) return
-                  setUgcScripts({ ...ugcScripts, body: e.target.value, cta: '' })
-                }}
-                className="w-full text-sm text-text-secondary leading-relaxed bg-page border border-border rounded p-3 focus:border-fulton focus:outline-none resize-y min-h-[100px] mb-2"
-                rows={5}
-              />
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  placeholder="Refine body: e.g. more conversational, add social proof, shorter..."
-                  className="flex-1 px-2.5 py-1.5 bg-elevated border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
-                  onKeyDown={async e => {
-                    if (e.key !== 'Enter') return
-                    const input = e.target as HTMLInputElement
-                    const feedback = input.value.trim()
-                    if (!feedback || !brandId) return
-                    input.value = ''
-                    input.disabled = true
-                    try {
-                      const currentBody = `${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`
-                      const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ persona: persona, tone, platform, brandId, contentType: 'ugc-body',
-                          prompt: `REFINE THIS UGC SCRIPT BODY (do NOT change the hooks):\n"${currentBody}"\n\nFEEDBACK: ${feedback}\n\nReturn ONLY the refined body text with CTA at the end. Nothing else.` }) })
-                      const data = await res.json()
-                      if (data.variants?.[0]?.body) {
-                        setUgcScripts({ ...ugcScripts, body: data.variants[0].body, cta: '' })
-                        onToast('Body refined', 'success')
-                      }
-                    } catch { onToast('Refine failed', 'error') }
-                    input.disabled = false
-                  }}
-                />
-                <button onClick={() => { navigator.clipboard.writeText(`${ugcScripts.body}\n\n${ugcScripts.cta}`); onToast('Body copied', 'success') }}
-                  className="text-2xs text-text-dim hover:text-text-primary px-2 shrink-0">Copy</button>
+              <textarea value={`${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`}
+                onChange={e => setUgcScripts({ ...ugcScripts, body: e.target.value, cta: '' })}
+                className="w-full text-sm text-text-secondary leading-relaxed bg-page border border-border rounded p-3 focus:border-fulton focus:outline-none resize-y min-h-[100px] mb-2" rows={5} />
+              <div className="bg-elevated rounded-lg p-3">
+                <div className="text-2xs text-text-dim mb-1.5">Refine body with AI</div>
+                <RefineInput text={`${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`}
+                  onRefined={refined => setUgcScripts({ ...ugcScripts, body: refined, cta: '' })} onToast={onToast} />
               </div>
             </Card>
 
-            {/* Action buttons */}
             <div className="flex gap-2">
               <Button className="flex-1 justify-center" onClick={async () => {
                 if (!brandId) return
                 const fullScript = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`
-                try {
-                  await fetch('/api/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ brandId, title: 'UGC Script', detail: fullScript, insight_type: 'ugc-script', priority: 'high' }) })
-                  onToast('Script saved to Insights', 'success')
+                try { await fetch('/api/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ brandId, title: 'UGC Script', detail: fullScript, insight_type: 'ugc-script', priority: 'high' }) })
+                  onToast('Script saved', 'success')
                 } catch { onToast('Save failed', 'error') }
               }}>Save to Brand</Button>
               <Button variant="secondary" className="flex-1 justify-center" onClick={() => {
                 const all = `HOOKS:\n${ugcScripts.hooks.map(h => `P${h.persona_number} (${h.persona}): "${h.hook}"`).join('\n')}\n\nBODY:\n${ugcScripts.body}${ugcScripts.cta ? `\n\n${ugcScripts.cta}` : ''}`
-                navigator.clipboard.writeText(all)
-                onToast('All scripts copied', 'success')
+                navigator.clipboard.writeText(all); onToast('All copied', 'success')
               }}>Copy All</Button>
             </div>
           </div>
@@ -594,6 +535,45 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
           <EmptyState emoji="✍️" title="Ad Copy Variants" subtitle="Generated ad copy will appear here" />
         )}
       </div>
+    </div>
+  )
+}
+
+// Reusable refine input component
+function RefineInput({ text, onRefined, onToast }: { text: string; onRefined: (refined: string) => void; onToast: (msg: string, type: 'success' | 'error' | 'info') => void }) {
+  const [feedback, setFeedback] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleRefine = async () => {
+    if (!feedback.trim()) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, feedback: feedback.trim() }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      if (data.refined) {
+        onRefined(data.refined)
+        setFeedback('')
+        onToast('Refined', 'success')
+      }
+    } catch (err: unknown) { onToast(`Refine failed: ${err instanceof Error ? err.message : String(err)}`, 'error') }
+    setLoading(false)
+  }
+
+  return (
+    <div className="flex gap-2">
+      <input type="text" value={feedback} onChange={e => setFeedback(e.target.value)}
+        placeholder="Tell Claude what to change..."
+        className="flex-1 px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+        onKeyDown={e => { if (e.key === 'Enter') handleRefine() }}
+        disabled={loading} />
+      <Button size="sm" onClick={handleRefine} disabled={!feedback.trim() || loading}>
+        {loading ? <LoadingSpinner size={12} /> : '→'}
+      </Button>
     </div>
   )
 }

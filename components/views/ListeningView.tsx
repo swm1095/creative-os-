@@ -654,14 +654,13 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                       if (e.key !== 'Enter') return
                       const input = e.target as HTMLInputElement
                       const feedback = input.value.trim()
-                      if (!feedback || !brand?.id) return
+                      if (!feedback) return
                       input.value = ''; input.disabled = true
                       try {
-                        const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ persona: h.persona, tone: 'Empathetic', platform: 'TikTok', brandId: brand.id, contentType: 'ugc-hook',
-                            prompt: `REFINE THIS SINGLE UGC HOOK:\n"${editableHooks[i] || h.hook}"\n\nFEEDBACK: ${feedback}\n\nReturn ONLY the refined hook text.` }) })
+                        const res = await fetch('/api/refine', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ text: editableHooks[i] || h.hook, feedback }) })
                         const data = await res.json()
-                        if (data.variants?.[0]?.headline) { const next = [...editableHooks]; next[i] = data.variants[0].headline; setEditableHooks(next); onToast(`Hook ${i + 1} refined`, 'success') }
+                        if (data.refined) { const next = [...editableHooks]; next[i] = data.refined; setEditableHooks(next); onToast(`Hook ${i + 1} refined`, 'success') }
                       } catch { onToast('Refine failed', 'error') }
                       input.disabled = false
                     }} />
@@ -693,11 +692,10 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                     if (!feedback || !brand?.id) return
                     input.value = ''; input.disabled = true
                     try {
-                      const res = await fetch('/api/copy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ persona: 'general', tone: 'Empathetic', platform: 'TikTok', brandId: brand.id, contentType: 'ugc-body',
-                          prompt: `REFINE THIS UGC BODY:\n"${editableBody}${editableCta ? `\n\n${editableCta}` : ''}"\n\nFEEDBACK: ${feedback}\n\nReturn ONLY the refined body text.` }) })
+                      const res = await fetch('/api/refine', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: `${editableBody}${editableCta ? `\n\n${editableCta}` : ''}`, feedback }) })
                       const data = await res.json()
-                      if (data.variants?.[0]?.body) { setEditableBody(data.variants[0].body); setEditableCta(''); onToast('Body refined', 'success') }
+                      if (data.refined) { setEditableBody(data.refined); setEditableCta(''); onToast('Body refined', 'success') }
                     } catch { onToast('Refine failed', 'error') }
                     input.disabled = false
                   }} />
