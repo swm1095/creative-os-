@@ -624,68 +624,101 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
 
         {/* Themes */}
         <div>
-          <SectionHeader title="Themes" subtitle="Campaign themes, product vibes, seasonal angles - used as alternatives to personas for UGC hooks" />
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {((brand as Brand & { themes?: string[] })?.themes || []).map((t, i) => (
-              <div key={i} className="relative group">
-                <input type="text" value={t} onChange={e => {
-                  const updated = [...((brand as Brand & { themes?: string[] })?.themes || [])]
-                  updated[i] = e.target.value
-                  if (brand) onBrandUpdate(brand.id, { themes: updated } as Partial<Brand>)
-                }} className="px-3 py-1.5 bg-blue-light border border-blue/30 rounded text-sm text-blue font-semibold focus:border-blue focus:outline-none min-w-[100px]" />
-                <button onClick={() => {
-                  const updated = ((brand as Brand & { themes?: string[] })?.themes || []).filter((_, idx) => idx !== i)
-                  if (brand) onBrandUpdate(brand.id, { themes: updated } as Partial<Brand>)
-                }} className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center">x</button>
-              </div>
+          <SectionHeader title="Themes" subtitle="Campaign themes, vibes, angles - auto-researched when added" />
+          <div className="space-y-3 mb-3">
+            {((brand as Brand & { theme_profiles?: { name: string; description?: string; targetAudience?: string; keyAngles?: string[]; hookSuggestions?: string[]; trendContext?: string }[] })?.theme_profiles || []).map((t, i) => (
+              <Card key={i} className="relative group">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-sm font-bold text-blue">{t.name}</div>
+                  <button onClick={() => {
+                    const updated = ((brand as Brand & { theme_profiles?: unknown[] })?.theme_profiles || []).filter((_, idx) => idx !== i)
+                    const names = updated.map((tp: any) => tp.name)
+                    if (brand) { onBrandUpdate(brand.id, { theme_profiles: updated, themes: names } as Partial<Brand>) }
+                  }} className="text-2xs text-red opacity-0 group-hover:opacity-100">Remove</button>
+                </div>
+                {t.description && <div className="text-xs text-text-dim mb-1">{t.description}</div>}
+                {t.targetAudience && <div className="text-2xs text-text-muted mb-1">Audience: {t.targetAudience}</div>}
+                {t.keyAngles?.length ? <div className="flex flex-wrap gap-1 mb-1">{t.keyAngles.map((a, j) => <span key={j} className="text-2xs bg-blue-light text-blue px-1.5 py-0.5 rounded">{a}</span>)}</div> : null}
+                {t.hookSuggestions?.length ? <div className="mt-1">{t.hookSuggestions.map((h, j) => <div key={j} className="text-2xs text-text-secondary italic">&quot;{h}&quot;</div>)}</div> : null}
+              </Card>
             ))}
-            <form onSubmit={e => {
-              e.preventDefault()
-              const input = (e.target as HTMLFormElement).elements.namedItem('theme') as HTMLInputElement
-              if (!input.value.trim() || !brand) return
-              const updated = [...((brand as Brand & { themes?: string[] })?.themes || []), input.value.trim()]
-              onBrandUpdate(brand.id, { themes: updated } as Partial<Brand>)
-              input.value = ''
-            }} className="flex gap-1">
-              <input name="theme" type="text" placeholder="+ Add theme" className="px-3 py-1.5 border-2 border-dashed border-border rounded text-sm text-text-dim focus:border-blue focus:outline-none w-32" />
-            </form>
           </div>
-          {!((brand as Brand & { themes?: string[] })?.themes || []).length && (
-            <div className="text-xs text-text-dim">e.g. Summer Collection, Woody Scents, Clean Beauty, Gift Guide</div>
-          )}
+          <form onSubmit={async e => {
+            e.preventDefault()
+            const input = (e.target as HTMLFormElement).elements.namedItem('theme') as HTMLInputElement
+            const name = input.value.trim()
+            if (!name || !brand) return
+            input.value = ''; input.disabled = true
+            onToast(`Researching "${name}"...`, 'info')
+            try {
+              const res = await fetch('/api/research-item', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'theme', name, brandName: brand.name, brandIndustry: brand.research?.industry, brandCategory: brand.research?.productCategory }) })
+              const data = await res.json()
+              const profile = { name, ...(data.research || {}) }
+              const existing = (brand as Brand & { theme_profiles?: unknown[] }).theme_profiles || []
+              const updated = [...existing, profile]
+              const names = updated.map((tp: any) => tp.name)
+              onBrandUpdate(brand.id, { theme_profiles: updated, themes: names } as Partial<Brand>)
+              onToast(`"${name}" researched and added`, 'success')
+            } catch { onToast('Research failed - theme added without insights', 'error') }
+            input.disabled = false
+          }} className="flex gap-2">
+            <input name="theme" type="text" placeholder="Add theme (e.g. Woody Scents, Summer Glow)" className="flex-1 px-3 py-2 border-2 border-dashed border-border rounded text-sm text-text-dim focus:border-blue focus:outline-none" />
+            <Button size="sm" type="submit">Add + Research</Button>
+          </form>
         </div>
 
         {/* Product Collections */}
         <div>
-          <SectionHeader title="Product Collections" subtitle="Group products for targeted UGC hooks and copy - used alongside personas and themes" />
-          <div className="flex flex-wrap gap-1.5 mb-2">
-            {((brand as Brand & { product_collections?: string[] })?.product_collections || []).map((c, i) => (
-              <div key={i} className="relative group">
-                <input type="text" value={c} onChange={e => {
-                  const updated = [...((brand as Brand & { product_collections?: string[] })?.product_collections || [])]
-                  updated[i] = e.target.value
-                  if (brand) onBrandUpdate(brand.id, { product_collections: updated } as Partial<Brand>)
-                }} className="px-3 py-1.5 bg-green/10 border border-green/30 rounded text-sm text-green font-semibold focus:border-green focus:outline-none min-w-[100px]" />
-                <button onClick={() => {
-                  const updated = ((brand as Brand & { product_collections?: string[] })?.product_collections || []).filter((_, idx) => idx !== i)
-                  if (brand) onBrandUpdate(brand.id, { product_collections: updated } as Partial<Brand>)
-                }} className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center">x</button>
-              </div>
+          <SectionHeader title="Product Collections" subtitle="Product groupings with URLs - auto-researched when added" />
+          <div className="space-y-3 mb-3">
+            {((brand as Brand & { collection_profiles?: { name: string; productUrl?: string; description?: string; keyFeatures?: string[]; usps?: string[]; targetAudience?: string; painPoints?: string[]; hookSuggestions?: string[] }[] })?.collection_profiles || []).map((c, i) => (
+              <Card key={i} className="relative group">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-sm font-bold text-green">{c.name}</div>
+                  <button onClick={() => {
+                    const updated = ((brand as Brand & { collection_profiles?: unknown[] })?.collection_profiles || []).filter((_, idx) => idx !== i)
+                    const names = updated.map((cp: any) => cp.name)
+                    if (brand) { onBrandUpdate(brand.id, { collection_profiles: updated, product_collections: names } as Partial<Brand>) }
+                  }} className="text-2xs text-red opacity-0 group-hover:opacity-100">Remove</button>
+                </div>
+                {c.productUrl && <div className="text-2xs text-blue truncate mb-1">{c.productUrl}</div>}
+                {c.description && <div className="text-xs text-text-dim mb-1">{c.description}</div>}
+                {c.keyFeatures?.length ? <div className="flex flex-wrap gap-1 mb-1">{c.keyFeatures.map((f, j) => <span key={j} className="text-2xs bg-elevated border border-border px-1.5 py-0.5 rounded">{f}</span>)}</div> : null}
+                {c.usps?.length ? <div className="flex flex-wrap gap-1 mb-1">{c.usps.map((u, j) => <span key={j} className="text-2xs bg-green/10 text-green px-1.5 py-0.5 rounded">{u}</span>)}</div> : null}
+                {c.hookSuggestions?.length ? <div className="mt-1">{c.hookSuggestions.map((h, j) => <div key={j} className="text-2xs text-text-secondary italic">&quot;{h}&quot;</div>)}</div> : null}
+              </Card>
             ))}
-            <form onSubmit={e => {
-              e.preventDefault()
-              const input = (e.target as HTMLFormElement).elements.namedItem('collection') as HTMLInputElement
-              if (!input.value.trim() || !brand) return
-              const updated = [...((brand as Brand & { product_collections?: string[] })?.product_collections || []), input.value.trim()]
-              onBrandUpdate(brand.id, { product_collections: updated } as Partial<Brand>)
-              input.value = ''
-            }} className="flex gap-1">
-              <input name="collection" type="text" placeholder="+ Add collection" className="px-3 py-1.5 border-2 border-dashed border-border rounded text-sm text-text-dim focus:border-green focus:outline-none w-36" />
-            </form>
           </div>
-          {!((brand as Brand & { product_collections?: string[] })?.product_collections || []).length && (
-            <div className="text-xs text-text-dim">e.g. Serums, Moisturizers, Bestsellers, New Arrivals</div>
-          )}
+          <form onSubmit={async e => {
+            e.preventDefault()
+            const nameInput = (e.target as HTMLFormElement).elements.namedItem('collection') as HTMLInputElement
+            const urlInput = (e.target as HTMLFormElement).elements.namedItem('collectionUrl') as HTMLInputElement
+            const name = nameInput.value.trim()
+            const productUrl = urlInput?.value.trim() || ''
+            if (!name || !brand) return
+            nameInput.value = ''; if (urlInput) urlInput.value = ''
+            nameInput.disabled = true
+            onToast(`Researching "${name}"...`, 'info')
+            try {
+              const res = await fetch('/api/research-item', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'collection', name, productUrl, brandName: brand.name, brandIndustry: brand.research?.industry, brandCategory: brand.research?.productCategory }) })
+              const data = await res.json()
+              const profile = { name, productUrl, ...(data.research || {}) }
+              const existing = (brand as Brand & { collection_profiles?: unknown[] }).collection_profiles || []
+              const updated = [...existing, profile]
+              const names = updated.map((cp: any) => cp.name)
+              onBrandUpdate(brand.id, { collection_profiles: updated, product_collections: names } as Partial<Brand>)
+              onToast(`"${name}" researched and added`, 'success')
+            } catch { onToast('Research failed - collection added without insights', 'error') }
+            nameInput.disabled = false
+          }} className="space-y-2">
+            <div className="flex gap-2">
+              <input name="collection" type="text" placeholder="Collection name (e.g. Serums)" className="flex-1 px-3 py-2 border-2 border-dashed border-border rounded text-sm text-text-dim focus:border-green focus:outline-none" />
+              <Button size="sm" type="submit">Add + Research</Button>
+            </div>
+            <input name="collectionUrl" type="url" placeholder="Product page URL (optional)" className="w-full px-3 py-2 bg-page border border-border rounded text-xs text-text-primary focus:border-green focus:outline-none" />
+          </form>
         </div>
 
         {/* Do / Don't */}

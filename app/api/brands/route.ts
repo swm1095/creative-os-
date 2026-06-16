@@ -67,6 +67,8 @@ export async function POST(req: NextRequest) {
       if (body.products !== undefined) updates.products = body.products
       if (body.themes !== undefined) updates.themes = body.themes
       if (body.product_collections !== undefined) updates.product_collections = body.product_collections
+      if (body.theme_profiles !== undefined) updates.theme_profiles = body.theme_profiles
+      if (body.collection_profiles !== undefined) updates.collection_profiles = body.collection_profiles
 
       const { data, error } = await supabase.from('brands').update(updates).eq('id', id).select().single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
