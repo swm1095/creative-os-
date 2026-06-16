@@ -84,6 +84,14 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [scriptFeedback, setScriptFeedback] = useState('')
   const [refiningScript, setRefiningScript] = useState(false)
   const [scriptFeedbackHistory, setScriptFeedbackHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([])
+
+  // Hook mode for UGC generation
+  const [showHookModeSelector, setShowHookModeSelector] = useState(false)
+  const [pendingInsight, setPendingInsight] = useState<EnrichedInsight | null>(null)
+  const [listeningHookMode, setListeningHookMode] = useState<'personas' | 'themes' | 'products'>('personas')
+  const brandThemes: string[] = (brand as Brand & { themes?: string[] })?.themes || []
+  const brandProducts: { id: string; name: string }[] = (brand as Brand & { products?: { id: string; name: string }[] })?.products || []
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [generatingVideoPrompt, setGeneratingVideoPrompt] = useState<string | null>(null)
   const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
   const [showVideoModal, setShowVideoModal] = useState(false)
@@ -194,20 +202,51 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
     setSavingInsight(null)
   }
 
+  const startUGCGeneration = (insight: EnrichedInsight) => {
+    if (!brand?.id) { onToast('No brand selected', 'error'); return }
+    setPendingInsight(insight)
+    setUgcInsightTitle(insight.title)
+    // Default select all items for the current mode
+    const personas = brand.research?.personas || []
+    if (listeningHookMode === 'personas') setSelectedItems(new Set(personas.map((_, i) => i)))
+    else if (listeningHookMode === 'themes') setSelectedItems(new Set(brandThemes.map((_, i) => i)))
+    else if (listeningHookMode === 'products') setSelectedItems(new Set(brandProducts.map((_, i) => i)))
+    setShowHookModeSelector(true)
+  }
+
   const generateUGCScripts = async (insight: EnrichedInsight) => {
     if (!brand?.id) { onToast('No brand selected', 'error'); return }
-    if (!brand.research?.personas?.length) {
-      onToast('Brand research required with at least 1 persona', 'error')
-      return
-    }
+    setShowHookModeSelector(false)
     setGeneratingUGC(insight.id)
-    setUgcInsightTitle(insight.title)
-    onToast(`Generating 4 UGC scripts based on "${insight.title}"...`, 'info')
+
+    const selected = [...selectedItems]
+    let themesParam: string[] | undefined
+    let personaIndices: number[] | undefined
+    let productNames: string[] | undefined
+
+    if (listeningHookMode === 'themes') {
+      themesParam = brandThemes.filter((_, i) => selected.includes(i))
+      if (!themesParam.length) { onToast('Select at least one theme', 'error'); setGeneratingUGC(null); return }
+    } else if (listeningHookMode === 'products') {
+      productNames = brandProducts.filter((_, i) => selected.includes(i)).map(p => p.name)
+      if (!productNames.length) { onToast('Select at least one product', 'error'); setGeneratingUGC(null); return }
+      // Use product names as themes
+      themesParam = productNames
+    } else {
+      personaIndices = selected
+      if (!personaIndices.length) { onToast('Select at least one persona', 'error'); setGeneratingUGC(null); return }
+    }
+
+    onToast(`Generating UGC scripts based on "${insight.title}"...`, 'info')
     try {
       const res = await fetch('/api/ugc-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandId: brand.id, insight }),
+        body: JSON.stringify({
+          brandId: brand.id, insight,
+          selectedPersonaIndices: personaIndices,
+          themes: themesParam,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -490,7 +529,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
 
                         {/* Action buttons */}
                         <div className="flex gap-2 flex-wrap">
-                          <Button size="sm" onClick={() => generateUGCScripts(insight)} disabled={generatingUGC === insight.id}>
+                          <Button size="sm" onClick={() => startUGCGeneration(insight)} disabled={generatingUGC === insight.id}>
                             {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '🎬 UGC Scripts'}
                           </Button>
                           <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'copy')}>
@@ -595,6 +634,71 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           )}
         </>
       )}
+
+      {/* Hook Mode Selector */}
+      <Modal open={showHookModeSelector} onClose={() => setShowHookModeSelector(false)}
+        title="Generate UGC Script" subtitle={`From: "${ugcInsightTitle}"`} maxWidth="max-w-md">
+        <div className="space-y-4">
+          <div>
+            <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-2">Generate Hooks By</div>
+            <div className="flex bg-elevated rounded overflow-hidden border border-border">
+              {(['personas', 'themes', 'products'] as const).map(mode => (
+                <button key={mode} onClick={() => {
+                  setListeningHookMode(mode)
+                  const items = mode === 'personas' ? (brand?.research?.personas || []) : mode === 'themes' ? brandThemes : brandProducts
+                  setSelectedItems(new Set(items.map((_, i) => i)))
+                }} className={`flex-1 px-3 py-2 text-xs font-bold transition-all capitalize ${listeningHookMode === mode ? 'bg-fulton text-white' : 'text-text-dim'}`}>
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-2xs text-text-dim">Click to toggle - one hook per selected item</span>
+              <button onClick={() => {
+                const items = listeningHookMode === 'personas' ? (brand?.research?.personas || []) : listeningHookMode === 'themes' ? brandThemes : brandProducts
+                if (selectedItems.size === items.length) setSelectedItems(new Set())
+                else setSelectedItems(new Set(items.map((_, i) => i)))
+              }} className="text-2xs text-fulton hover:underline">
+                {(() => { const items = listeningHookMode === 'personas' ? (brand?.research?.personas || []) : listeningHookMode === 'themes' ? brandThemes : brandProducts; return selectedItems.size === items.length ? 'Deselect All' : 'Select All' })()}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {listeningHookMode === 'personas' && (brand?.research?.personas || []).map((p, i) => (
+                <button key={i} onClick={() => { const next = new Set(selectedItems); if (next.has(i)) next.delete(i); else next.add(i); setSelectedItems(next) }}
+                  className={`text-2xs px-2 py-1 rounded font-bold transition-all ${selectedItems.has(i) ? 'bg-fulton-light text-fulton border border-fulton/30' : 'bg-elevated text-text-dim border border-border line-through'}`}>
+                  P{i + 1}: {p.name}
+                </button>
+              ))}
+              {listeningHookMode === 'themes' && brandThemes.map((t, i) => (
+                <button key={i} onClick={() => { const next = new Set(selectedItems); if (next.has(i)) next.delete(i); else next.add(i); setSelectedItems(next) }}
+                  className={`text-2xs px-2 py-1 rounded font-bold transition-all ${selectedItems.has(i) ? 'bg-blue-light text-blue border border-blue/30' : 'bg-elevated text-text-dim border border-border line-through'}`}>
+                  {t}
+                </button>
+              ))}
+              {listeningHookMode === 'products' && brandProducts.map((p, i) => (
+                <button key={i} onClick={() => { const next = new Set(selectedItems); if (next.has(i)) next.delete(i); else next.add(i); setSelectedItems(next) }}
+                  className={`text-2xs px-2 py-1 rounded font-bold transition-all ${selectedItems.has(i) ? 'bg-green/10 text-green border border-green/30' : 'bg-elevated text-text-dim border border-border line-through'}`}>
+                  {p.name}
+                </button>
+              ))}
+            </div>
+            {listeningHookMode === 'themes' && brandThemes.length === 0 && (
+              <div className="text-2xs text-text-dim mt-2">No themes added yet. Add themes in HyperCopy settings.</div>
+            )}
+            {listeningHookMode === 'products' && brandProducts.length === 0 && (
+              <div className="text-2xs text-text-dim mt-2">No products added yet. Add products in Brand Research.</div>
+            )}
+          </div>
+
+          <Button className="w-full justify-center" disabled={selectedItems.size === 0}
+            onClick={() => { if (pendingInsight) generateUGCScripts(pendingInsight) }}>
+            Generate {selectedItems.size} Hook{selectedItems.size !== 1 ? 's' : ''} + Body Script
+          </Button>
+        </div>
+      </Modal>
 
       {/* UGC Scripts Modal */}
       <Modal
