@@ -44,10 +44,12 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
   const [newPersonaHook, setNewPersonaHook] = useState('')
 
   // Themes mode
-  const [hookMode, setHookMode] = useState<'personas' | 'themes'>('personas')
+  const [hookMode, setHookMode] = useState<'personas' | 'themes' | 'collections'>('personas')
   const [themes, setThemes] = useState<string[]>((brand as Brand & { themes?: string[] })?.themes || [])
   const [activeThemes, setActiveThemes] = useState<Set<number>>(new Set())
   const [newTheme, setNewTheme] = useState('')
+  const [collections, setCollections] = useState<string[]>((brand as Brand & { product_collections?: string[] })?.product_collections || [])
+  const [activeCollections, setActiveCollections] = useState<Set<number>>(new Set())
   const [tone, setTone] = useState('Empathetic')
   const [platform, setPlatform] = useState(PLATFORMS[0])
   const [prompt, setPrompt] = useState('')
@@ -82,6 +84,8 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
     if (personas?.length) { setPersona(personas[0].name); setActivePersonas(new Set(personas.map((_, i) => i))) }
     setThemes((brand as Brand & { themes?: string[] })?.themes || [])
     setActiveThemes(new Set())
+    setCollections((brand as Brand & { product_collections?: string[] })?.product_collections || [])
+    setActiveCollections(new Set())
   }, [brand?.id])
 
   const handleRefine = async () => {
@@ -149,8 +153,9 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
       const productContext = activeProduct
         ? `Product: ${activeProduct.name}. ${activeProduct.description}. Features: ${activeProduct.features.join(', ')}. USPs: ${activeProduct.usps.join(', ')}. Price: ${activeProduct.price}. Target: ${activeProduct.targetUseCase}`
         : ''
-      const selectedThemeNames = hookMode === 'themes' ? themes.filter((_, i) => activeThemes.has(i)) : []
-      if (hookMode === 'themes' && selectedThemeNames.length === 0) { onToast('Select at least one theme', 'error'); setGenerating(false); return }
+      const selectedThemeNames = hookMode === 'themes' ? themes.filter((_, i) => activeThemes.has(i))
+        : hookMode === 'collections' ? collections.filter((_, i) => activeCollections.has(i)) : []
+      if ((hookMode === 'themes' || hookMode === 'collections') && selectedThemeNames.length === 0) { onToast(`Select at least one ${hookMode === 'themes' ? 'theme' : 'collection'}`, 'error'); setGenerating(false); return }
       if (hookMode === 'personas' && activePersonas.size === 0) { onToast('Select at least one persona', 'error'); setGenerating(false); return }
 
       onToast(`Generating UGC scripts${activeProduct ? ` for ${activeProduct.name}` : ''}...`, 'info')
@@ -167,7 +172,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
           body: JSON.stringify({
             brandId, insight, productContext,
             selectedPersonaIndices: hookMode === 'personas' ? [...activePersonas] : undefined,
-            themes: hookMode === 'themes' ? selectedThemeNames : undefined,
+            themes: (hookMode === 'themes' || hookMode === 'collections') ? selectedThemeNames : undefined,
           }),
         })
         const data = await res.json()
@@ -311,14 +316,12 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                 <div className="flex items-center gap-2 mb-2">
                   <label className="text-2xs font-bold tracking-wider uppercase text-text-muted">Generate Hooks By</label>
                   <div className="flex bg-elevated rounded overflow-hidden border border-border">
-                    <button onClick={() => setHookMode('personas')}
-                      className={`px-3 py-1 text-2xs font-bold transition-all ${hookMode === 'personas' ? 'bg-fulton text-white' : 'text-text-dim'}`}>
-                      Personas
-                    </button>
-                    <button onClick={() => setHookMode('themes')}
-                      className={`px-3 py-1 text-2xs font-bold transition-all ${hookMode === 'themes' ? 'bg-fulton text-white' : 'text-text-dim'}`}>
-                      Themes
-                    </button>
+                    {(['personas', 'themes', 'collections'] as const).map(mode => (
+                      <button key={mode} onClick={() => setHookMode(mode)}
+                        className={`px-3 py-1 text-2xs font-bold transition-all capitalize ${hookMode === mode ? 'bg-fulton text-white' : 'text-text-dim'}`}>
+                        {mode}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -400,7 +403,38 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
                         if (brand?.id) fetch('/api/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: brand.id, themes: updated }) })
                       }}>Add</Button>
                     </div>
-                    {themes.length === 0 && <div className="text-2xs text-text-dim mt-2">Add themes like product collections, vibes, seasonal angles, or campaign concepts</div>}
+                    {themes.length === 0 && <div className="text-2xs text-text-dim mt-2">Add themes in Brand Kit or type above</div>}
+                  </div>
+                )}
+
+                {/* Collections */}
+                {hookMode === 'collections' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xs text-text-dim">One hook per collection</span>
+                      {collections.length > 0 && (
+                        <button onClick={() => {
+                          if (activeCollections.size === collections.length) setActiveCollections(new Set())
+                          else setActiveCollections(new Set(collections.map((_, i) => i)))
+                        }} className="text-2xs text-fulton hover:underline">
+                          {activeCollections.size === collections.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {collections.map((c, i) => (
+                        <button key={i} onClick={() => {
+                          const next = new Set(activeCollections)
+                          if (next.has(i)) next.delete(i); else next.add(i)
+                          setActiveCollections(next)
+                        }} className={`text-2xs px-2 py-1 rounded font-bold transition-all ${
+                          activeCollections.has(i) ? 'bg-green/10 text-green border border-green/30' : 'bg-elevated text-text-dim border border-border line-through'
+                        }`}>
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                    {collections.length === 0 && <div className="text-2xs text-text-dim mt-2">Add product collections in Brand Kit</div>}
                   </div>
                 )}
               </div>
@@ -461,7 +495,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
 
             <Button onClick={handleGenerate} disabled={generating} className="w-full justify-center py-3">
               {generating ? <><LoadingSpinner size={16} /> Generating...</> :
-                contentType === 'ugc-script' ? `Generate ${hookMode === 'themes' ? activeThemes.size : activePersonas.size} Hook${(hookMode === 'themes' ? activeThemes.size : activePersonas.size) !== 1 ? 's' : ''} + Body Script` :
+                contentType === 'ugc-script' ? `Generate ${hookMode === 'personas' ? activePersonas.size : hookMode === 'themes' ? activeThemes.size : activeCollections.size} Hook${(hookMode === 'personas' ? activePersonas.size : hookMode === 'themes' ? activeThemes.size : activeCollections.size) !== 1 ? 's' : ''} + Body Script` :
                 contentType === 'static-headlines' ? 'Generate Headlines Per Persona' :
                 'Generate 4 Ad Copy Variants'}
             </Button>

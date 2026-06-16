@@ -90,7 +90,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [pendingInsight, setPendingInsight] = useState<EnrichedInsight | null>(null)
   const [listeningHookMode, setListeningHookMode] = useState<'personas' | 'themes' | 'products'>('personas')
   const brandThemes: string[] = (brand as Brand & { themes?: string[] })?.themes || []
-  const brandProducts: { id: string; name: string }[] = (brand as Brand & { products?: { id: string; name: string }[] })?.products || []
+  const brandCollections: string[] = (brand as Brand & { product_collections?: string[] })?.product_collections || []
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
   const [generatingVideoPrompt, setGeneratingVideoPrompt] = useState<string | null>(null)
   const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
@@ -210,7 +210,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
     const personas = brand.research?.personas || []
     if (listeningHookMode === 'personas') setSelectedItems(new Set(personas.map((_, i) => i)))
     else if (listeningHookMode === 'themes') setSelectedItems(new Set(brandThemes.map((_, i) => i)))
-    else if (listeningHookMode === 'products') setSelectedItems(new Set(brandProducts.map((_, i) => i)))
+    else if (listeningHookMode === 'products') setSelectedItems(new Set(brandCollections.map((_, i) => i)))
     setShowHookModeSelector(true)
   }
 
@@ -228,9 +228,8 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       themesParam = brandThemes.filter((_, i) => selected.includes(i))
       if (!themesParam.length) { onToast('Select at least one theme', 'error'); setGeneratingUGC(null); return }
     } else if (listeningHookMode === 'products') {
-      productNames = brandProducts.filter((_, i) => selected.includes(i)).map(p => p.name)
-      if (!productNames.length) { onToast('Select at least one product', 'error'); setGeneratingUGC(null); return }
-      // Use product names as themes
+      productNames = brandCollections.filter((_, i) => selected.includes(i))
+      if (!productNames.length) { onToast('Select at least one collection', 'error'); setGeneratingUGC(null); return }
       themesParam = productNames
     } else {
       personaIndices = selected
@@ -645,7 +644,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
               {(['personas', 'themes', 'products'] as const).map(mode => (
                 <button key={mode} onClick={() => {
                   setListeningHookMode(mode)
-                  const items = mode === 'personas' ? (brand?.research?.personas || []) : mode === 'themes' ? brandThemes : brandProducts
+                  const items = mode === 'personas' ? (brand?.research?.personas || []) : mode === 'themes' ? brandThemes : brandCollections
                   setSelectedItems(new Set(items.map((_, i) => i)))
                 }} className={`flex-1 px-3 py-2 text-xs font-bold transition-all capitalize ${listeningHookMode === mode ? 'bg-fulton text-white' : 'text-text-dim'}`}>
                   {mode}
@@ -658,11 +657,11 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-2xs text-text-dim">Click to toggle - one hook per selected item</span>
               <button onClick={() => {
-                const items = listeningHookMode === 'personas' ? (brand?.research?.personas || []) : listeningHookMode === 'themes' ? brandThemes : brandProducts
+                const items = listeningHookMode === 'personas' ? (brand?.research?.personas || []) : listeningHookMode === 'themes' ? brandThemes : brandCollections
                 if (selectedItems.size === items.length) setSelectedItems(new Set())
                 else setSelectedItems(new Set(items.map((_, i) => i)))
               }} className="text-2xs text-fulton hover:underline">
-                {(() => { const items = listeningHookMode === 'personas' ? (brand?.research?.personas || []) : listeningHookMode === 'themes' ? brandThemes : brandProducts; return selectedItems.size === items.length ? 'Deselect All' : 'Select All' })()}
+                {(() => { const items = listeningHookMode === 'personas' ? (brand?.research?.personas || []) : listeningHookMode === 'themes' ? brandThemes : brandCollections; return selectedItems.size === items.length ? 'Deselect All' : 'Select All' })()}
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -678,17 +677,17 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                   {t}
                 </button>
               ))}
-              {listeningHookMode === 'products' && brandProducts.map((p, i) => (
+              {listeningHookMode === 'products' && brandCollections.map((c, i) => (
                 <button key={i} onClick={() => { const next = new Set(selectedItems); if (next.has(i)) next.delete(i); else next.add(i); setSelectedItems(next) }}
                   className={`text-2xs px-2 py-1 rounded font-bold transition-all ${selectedItems.has(i) ? 'bg-green/10 text-green border border-green/30' : 'bg-elevated text-text-dim border border-border line-through'}`}>
-                  {p.name}
+                  {c}
                 </button>
               ))}
             </div>
             {listeningHookMode === 'themes' && brandThemes.length === 0 && (
               <div className="text-2xs text-text-dim mt-2">No themes added yet. Add themes in HyperCopy settings.</div>
             )}
-            {listeningHookMode === 'products' && brandProducts.length === 0 && (
+            {listeningHookMode === 'products' && brandCollections.length === 0 && (
               <div className="text-2xs text-text-dim mt-2">No products added yet. Add products in Brand Research.</div>
             )}
           </div>

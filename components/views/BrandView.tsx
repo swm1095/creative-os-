@@ -622,6 +622,72 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
           )}
         </div>
 
+        {/* Themes */}
+        <div>
+          <SectionHeader title="Themes" subtitle="Campaign themes, product vibes, seasonal angles - used as alternatives to personas for UGC hooks" />
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {((brand as Brand & { themes?: string[] })?.themes || []).map((t, i) => (
+              <div key={i} className="relative group">
+                <input type="text" value={t} onChange={e => {
+                  const updated = [...((brand as Brand & { themes?: string[] })?.themes || [])]
+                  updated[i] = e.target.value
+                  if (brand) onBrandUpdate(brand.id, { themes: updated } as Partial<Brand>)
+                }} className="px-3 py-1.5 bg-blue-light border border-blue/30 rounded text-sm text-blue font-semibold focus:border-blue focus:outline-none min-w-[100px]" />
+                <button onClick={() => {
+                  const updated = ((brand as Brand & { themes?: string[] })?.themes || []).filter((_, idx) => idx !== i)
+                  if (brand) onBrandUpdate(brand.id, { themes: updated } as Partial<Brand>)
+                }} className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center">x</button>
+              </div>
+            ))}
+            <form onSubmit={e => {
+              e.preventDefault()
+              const input = (e.target as HTMLFormElement).elements.namedItem('theme') as HTMLInputElement
+              if (!input.value.trim() || !brand) return
+              const updated = [...((brand as Brand & { themes?: string[] })?.themes || []), input.value.trim()]
+              onBrandUpdate(brand.id, { themes: updated } as Partial<Brand>)
+              input.value = ''
+            }} className="flex gap-1">
+              <input name="theme" type="text" placeholder="+ Add theme" className="px-3 py-1.5 border-2 border-dashed border-border rounded text-sm text-text-dim focus:border-blue focus:outline-none w-32" />
+            </form>
+          </div>
+          {!((brand as Brand & { themes?: string[] })?.themes || []).length && (
+            <div className="text-xs text-text-dim">e.g. Summer Collection, Woody Scents, Clean Beauty, Gift Guide</div>
+          )}
+        </div>
+
+        {/* Product Collections */}
+        <div>
+          <SectionHeader title="Product Collections" subtitle="Group products for targeted UGC hooks and copy - used alongside personas and themes" />
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {((brand as Brand & { product_collections?: string[] })?.product_collections || []).map((c, i) => (
+              <div key={i} className="relative group">
+                <input type="text" value={c} onChange={e => {
+                  const updated = [...((brand as Brand & { product_collections?: string[] })?.product_collections || [])]
+                  updated[i] = e.target.value
+                  if (brand) onBrandUpdate(brand.id, { product_collections: updated } as Partial<Brand>)
+                }} className="px-3 py-1.5 bg-green/10 border border-green/30 rounded text-sm text-green font-semibold focus:border-green focus:outline-none min-w-[100px]" />
+                <button onClick={() => {
+                  const updated = ((brand as Brand & { product_collections?: string[] })?.product_collections || []).filter((_, idx) => idx !== i)
+                  if (brand) onBrandUpdate(brand.id, { product_collections: updated } as Partial<Brand>)
+                }} className="absolute -top-1 -right-1 w-4 h-4 bg-red text-white text-2xs rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center">x</button>
+              </div>
+            ))}
+            <form onSubmit={e => {
+              e.preventDefault()
+              const input = (e.target as HTMLFormElement).elements.namedItem('collection') as HTMLInputElement
+              if (!input.value.trim() || !brand) return
+              const updated = [...((brand as Brand & { product_collections?: string[] })?.product_collections || []), input.value.trim()]
+              onBrandUpdate(brand.id, { product_collections: updated } as Partial<Brand>)
+              input.value = ''
+            }} className="flex gap-1">
+              <input name="collection" type="text" placeholder="+ Add collection" className="px-3 py-1.5 border-2 border-dashed border-border rounded text-sm text-text-dim focus:border-green focus:outline-none w-36" />
+            </form>
+          </div>
+          {!((brand as Brand & { product_collections?: string[] })?.product_collections || []).length && (
+            <div className="text-xs text-text-dim">e.g. Serums, Moisturizers, Bestsellers, New Arrivals</div>
+          )}
+        </div>
+
         {/* Do / Don't */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-green-light border border-green/20 rounded-lg p-4">
