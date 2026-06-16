@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
-    const { brandId, insight } = await req.json()
+    const { brandId, insight, selectedPersonaIndices } = await req.json()
     if (!brandId || !insight) {
       return NextResponse.json({ error: 'brandId and insight required' }, { status: 400 })
     }
@@ -24,7 +24,11 @@ export async function POST(req: NextRequest) {
     }
 
     const research: BrandResearch = brand.research
-    const personas = (research.personas || []).slice(0, 4)
+    const allPersonas = (research.personas || []).slice(0, 8)
+    // Filter to selected personas if specified, otherwise use first 4
+    const personas = selectedPersonaIndices?.length
+      ? allPersonas.filter((_: ResearchPersona, i: number) => selectedPersonaIndices.includes(i))
+      : allPersonas.slice(0, 4)
     if (!personas.length) {
       return NextResponse.json({ error: 'No personas found in brand research' }, { status: 400 })
     }
@@ -43,7 +47,7 @@ GOLDEN NON-NEGOTIABLE RULES:
 6. The CTA should feel like a casual suggestion, not a command.
 
 CRITICAL STRUCTURE:
-- Generate 4 DIFFERENT HOOKS, one per persona. Each hook must be unique to that persona's real life moment and pain point. No repetitive openings.
+- Generate ${personas.length} DIFFERENT HOOKS, one per persona. Each hook must be unique to that persona's real life moment and pain point. No repetitive openings.
 - Generate ONE SHARED BODY script that flows seamlessly from ANY of the 4 hooks. The body explains how the person discovered ${brand.name}, their experience with it, and what changed.
 - Generate ONE SHARED CTA.
 - The body should NOT reference a specific persona - it should be universal enough to work after any of the 4 hooks.

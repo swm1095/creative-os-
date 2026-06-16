@@ -38,6 +38,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
     : DEFAULT_PERSONAS
 
   const [persona, setPersona] = useState(brandPersonas[0]?.name || '')
+  const [activePersonas, setActivePersonas] = useState<Set<number>>(new Set(brandPersonas.map((_, i) => i)))
   const [showAddPersona, setShowAddPersona] = useState(false)
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
@@ -72,7 +73,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
     setVariants([]); setUgcScripts(null); setHeadlines([])
     setPrompt(''); setSelectedProduct('all')
     const personas = brand?.research?.personas
-    if (personas?.length) setPersona(personas[0].name)
+    if (personas?.length) { setPersona(personas[0].name); setActivePersonas(new Set(personas.map((_, i) => i))) }
   }, [brand?.id])
 
   const handleRefine = async () => {
@@ -151,7 +152,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
         const res = await fetch('/api/ugc-script', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brandId, insight, productContext }),
+          body: JSON.stringify({ brandId, insight, productContext, selectedPersonaIndices: [...activePersonas] }),
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
@@ -287,15 +288,33 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
               </div>
             )}
 
-            {/* Show all personas being used for UGC/Headlines */}
+            {/* Persona selector for UGC/Headlines - click to toggle */}
             {(contentType === 'ugc-script' || contentType === 'static-headlines') && (
               <div>
-                <label className="text-2xs font-bold tracking-wider uppercase text-text-muted mb-1.5 block">Using All Personas</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-2xs font-bold tracking-wider uppercase text-text-muted">Select Personas</label>
+                  <button onClick={() => {
+                    if (activePersonas.size === brandPersonas.length) setActivePersonas(new Set())
+                    else setActivePersonas(new Set(brandPersonas.map((_, i) => i)))
+                  }} className="text-2xs text-fulton hover:underline">
+                    {activePersonas.size === brandPersonas.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   {brandPersonas.map((p, i) => (
-                    <span key={i} className="text-2xs bg-fulton-light text-fulton px-2 py-1 rounded font-bold">P{i + 1}: {p.name}</span>
+                    <button key={i} onClick={() => {
+                      const next = new Set(activePersonas)
+                      if (next.has(i)) next.delete(i); else next.add(i)
+                      if (next.size === 0) { onToast('Select at least one persona', 'error'); return }
+                      setActivePersonas(next)
+                    }} className={`text-2xs px-2 py-1 rounded font-bold transition-all ${
+                      activePersonas.has(i) ? 'bg-fulton-light text-fulton border border-fulton/30' : 'bg-elevated text-text-dim border border-border line-through'
+                    }`}>
+                      P{i + 1}: {p.name}
+                    </button>
                   ))}
                 </div>
+                <div className="text-2xs text-text-dim mt-1">{activePersonas.size} of {brandPersonas.length} selected - click to toggle</div>
               </div>
             )}
 
@@ -354,7 +373,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
 
             <Button onClick={handleGenerate} disabled={generating} className="w-full justify-center py-3">
               {generating ? <><LoadingSpinner size={16} /> Generating...</> :
-                contentType === 'ugc-script' ? 'Generate 4 Hooks + Body Script' :
+                contentType === 'ugc-script' ? `Generate ${activePersonas.size} Hook${activePersonas.size !== 1 ? 's' : ''} + Body Script` :
                 contentType === 'static-headlines' ? 'Generate Headlines Per Persona' :
                 'Generate 4 Ad Copy Variants'}
             </Button>
