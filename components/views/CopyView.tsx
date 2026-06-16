@@ -42,6 +42,12 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
   const [showAddPersona, setShowAddPersona] = useState(false)
   const [newPersonaName, setNewPersonaName] = useState('')
   const [newPersonaHook, setNewPersonaHook] = useState('')
+
+  // Themes mode
+  const [hookMode, setHookMode] = useState<'personas' | 'themes'>('personas')
+  const [themes, setThemes] = useState<string[]>((brand as Brand & { themes?: string[] })?.themes || [])
+  const [activeThemes, setActiveThemes] = useState<Set<number>>(new Set())
+  const [newTheme, setNewTheme] = useState('')
   const [tone, setTone] = useState('Empathetic')
   const [platform, setPlatform] = useState(PLATFORMS[0])
   const [prompt, setPrompt] = useState('')
@@ -74,6 +80,8 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
     setPrompt(''); setSelectedProduct('all')
     const personas = brand?.research?.personas
     if (personas?.length) { setPersona(personas[0].name); setActivePersonas(new Set(personas.map((_, i) => i))) }
+    setThemes((brand as Brand & { themes?: string[] })?.themes || [])
+    setActiveThemes(new Set())
   }, [brand?.id])
 
   const handleRefine = async () => {
@@ -141,6 +149,10 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
       const productContext = activeProduct
         ? `Product: ${activeProduct.name}. ${activeProduct.description}. Features: ${activeProduct.features.join(', ')}. USPs: ${activeProduct.usps.join(', ')}. Price: ${activeProduct.price}. Target: ${activeProduct.targetUseCase}`
         : ''
+      const selectedThemeNames = hookMode === 'themes' ? themes.filter((_, i) => activeThemes.has(i)) : []
+      if (hookMode === 'themes' && selectedThemeNames.length === 0) { onToast('Select at least one theme', 'error'); setGenerating(false); return }
+      if (hookMode === 'personas' && activePersonas.size === 0) { onToast('Select at least one persona', 'error'); setGenerating(false); return }
+
       onToast(`Generating UGC scripts${activeProduct ? ` for ${activeProduct.name}` : ''}...`, 'info')
       try {
         const insight = {
@@ -152,7 +164,11 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
         const res = await fetch('/api/ugc-script', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ brandId, insight, productContext, selectedPersonaIndices: [...activePersonas] }),
+          body: JSON.stringify({
+            brandId, insight, productContext,
+            selectedPersonaIndices: hookMode === 'personas' ? [...activePersonas] : undefined,
+            themes: hookMode === 'themes' ? selectedThemeNames : undefined,
+          }),
         })
         const data = await res.json()
         if (data.error) throw new Error(data.error)
@@ -288,33 +304,105 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
               </div>
             )}
 
-            {/* Persona selector for UGC/Headlines - click to toggle */}
+            {/* Hook mode selector for UGC/Headlines */}
             {(contentType === 'ugc-script' || contentType === 'static-headlines') && (
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-2xs font-bold tracking-wider uppercase text-text-muted">Select Personas</label>
-                  <button onClick={() => {
-                    if (activePersonas.size === brandPersonas.length) setActivePersonas(new Set())
-                    else setActivePersonas(new Set(brandPersonas.map((_, i) => i)))
-                  }} className="text-2xs text-fulton hover:underline">
-                    {activePersonas.size === brandPersonas.length ? 'Deselect All' : 'Select All'}
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {brandPersonas.map((p, i) => (
-                    <button key={i} onClick={() => {
-                      const next = new Set(activePersonas)
-                      if (next.has(i)) next.delete(i); else next.add(i)
-                      if (next.size === 0) { onToast('Select at least one persona', 'error'); return }
-                      setActivePersonas(next)
-                    }} className={`text-2xs px-2 py-1 rounded font-bold transition-all ${
-                      activePersonas.has(i) ? 'bg-fulton-light text-fulton border border-fulton/30' : 'bg-elevated text-text-dim border border-border line-through'
-                    }`}>
-                      P{i + 1}: {p.name}
+                {/* Mode toggle */}
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="text-2xs font-bold tracking-wider uppercase text-text-muted">Generate Hooks By</label>
+                  <div className="flex bg-elevated rounded overflow-hidden border border-border">
+                    <button onClick={() => setHookMode('personas')}
+                      className={`px-3 py-1 text-2xs font-bold transition-all ${hookMode === 'personas' ? 'bg-fulton text-white' : 'text-text-dim'}`}>
+                      Personas
                     </button>
-                  ))}
+                    <button onClick={() => setHookMode('themes')}
+                      className={`px-3 py-1 text-2xs font-bold transition-all ${hookMode === 'themes' ? 'bg-fulton text-white' : 'text-text-dim'}`}>
+                      Themes
+                    </button>
+                  </div>
                 </div>
-                <div className="text-2xs text-text-dim mt-1">{activePersonas.size} of {brandPersonas.length} selected - click to toggle</div>
+
+                {/* Personas */}
+                {hookMode === 'personas' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xs text-text-dim">Click to toggle</span>
+                      <button onClick={() => {
+                        if (activePersonas.size === brandPersonas.length) setActivePersonas(new Set())
+                        else setActivePersonas(new Set(brandPersonas.map((_, i) => i)))
+                      }} className="text-2xs text-fulton hover:underline">
+                        {activePersonas.size === brandPersonas.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {brandPersonas.map((p, i) => (
+                        <button key={i} onClick={() => {
+                          const next = new Set(activePersonas)
+                          if (next.has(i)) next.delete(i); else next.add(i)
+                          if (next.size === 0) { onToast('Select at least one', 'error'); return }
+                          setActivePersonas(next)
+                        }} className={`text-2xs px-2 py-1 rounded font-bold transition-all ${
+                          activePersonas.has(i) ? 'bg-fulton-light text-fulton border border-fulton/30' : 'bg-elevated text-text-dim border border-border line-through'
+                        }`}>
+                          P{i + 1}: {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Themes */}
+                {hookMode === 'themes' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-2xs text-text-dim">One hook per theme</span>
+                      {themes.length > 0 && (
+                        <button onClick={() => {
+                          if (activeThemes.size === themes.length) setActiveThemes(new Set())
+                          else setActiveThemes(new Set(themes.map((_, i) => i)))
+                        }} className="text-2xs text-fulton hover:underline">
+                          {activeThemes.size === themes.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {themes.map((t, i) => (
+                        <button key={i} onClick={() => {
+                          const next = new Set(activeThemes)
+                          if (next.has(i)) next.delete(i); else next.add(i)
+                          setActiveThemes(next)
+                        }} className={`text-2xs px-2 py-1 rounded font-bold transition-all ${
+                          activeThemes.has(i) ? 'bg-blue-light text-blue border border-blue/30' : 'bg-elevated text-text-dim border border-border line-through'
+                        }`}>
+                          {t}
+                          <span onClick={e => { e.stopPropagation()
+                            const next = themes.filter((_, idx) => idx !== i)
+                            setThemes(next); setActiveThemes(prev => { const n = new Set<number>(); prev.forEach(v => { if (v < i) n.add(v); else if (v > i) n.add(v - 1) }); return n })
+                            if (brand?.id) fetch('/api/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: brand.id, themes: next }) })
+                          }} className="ml-1 text-text-dim hover:text-red">x</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input type="text" value={newTheme} onChange={e => setNewTheme(e.target.value)}
+                        placeholder="Add theme (e.g. Woody Scents, Summer Collection)"
+                        className="flex-1 px-2.5 py-1.5 bg-page border border-border rounded text-xs text-text-primary focus:border-blue focus:outline-none"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && newTheme.trim()) {
+                            const updated = [...themes, newTheme.trim()]
+                            setThemes(updated); setActiveThemes(prev => new Set([...prev, updated.length - 1])); setNewTheme('')
+                            if (brand?.id) fetch('/api/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: brand.id, themes: updated }) })
+                          }
+                        }} />
+                      <Button size="sm" disabled={!newTheme.trim()} onClick={() => {
+                        const updated = [...themes, newTheme.trim()]
+                        setThemes(updated); setActiveThemes(prev => new Set([...prev, updated.length - 1])); setNewTheme('')
+                        if (brand?.id) fetch('/api/brands', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: brand.id, themes: updated }) })
+                      }}>Add</Button>
+                    </div>
+                    {themes.length === 0 && <div className="text-2xs text-text-dim mt-2">Add themes like product collections, vibes, seasonal angles, or campaign concepts</div>}
+                  </div>
+                )}
               </div>
             )}
 
@@ -373,7 +461,7 @@ export default function CopyView({ brandId, brand, onToast, onBrandUpdate }: Cop
 
             <Button onClick={handleGenerate} disabled={generating} className="w-full justify-center py-3">
               {generating ? <><LoadingSpinner size={16} /> Generating...</> :
-                contentType === 'ugc-script' ? `Generate ${activePersonas.size} Hook${activePersonas.size !== 1 ? 's' : ''} + Body Script` :
+                contentType === 'ugc-script' ? `Generate ${hookMode === 'themes' ? activeThemes.size : activePersonas.size} Hook${(hookMode === 'themes' ? activeThemes.size : activePersonas.size) !== 1 ? 's' : ''} + Body Script` :
                 contentType === 'static-headlines' ? 'Generate Headlines Per Persona' :
                 'Generate 4 Ad Copy Variants'}
             </Button>

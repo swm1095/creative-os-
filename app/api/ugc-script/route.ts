@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
-    const { brandId, insight, selectedPersonaIndices } = await req.json()
+    const { brandId, insight, selectedPersonaIndices, themes: themeList } = await req.json()
     if (!brandId || !insight) {
       return NextResponse.json({ error: 'brandId and insight required' }, { status: 400 })
     }
@@ -47,10 +47,10 @@ GOLDEN NON-NEGOTIABLE RULES:
 6. The CTA should feel like a casual suggestion, not a command.
 
 CRITICAL STRUCTURE:
-- Generate ${personas.length} DIFFERENT HOOKS, one per persona. Each hook must be unique to that persona's real life moment and pain point. No repetitive openings.
-- Generate ONE SHARED BODY script that flows seamlessly from ANY of the 4 hooks. The body explains how the person discovered ${brand.name}, their experience with it, and what changed.
+${themeList?.length ? `- Generate ${themeList.length} DIFFERENT HOOKS, one per theme. Themes: ${themeList.join(', ')}. Each hook must capture the vibe/angle of that theme.` : `- Generate ${personas.length} DIFFERENT HOOKS, one per persona. Each hook must be unique to that persona's real life moment and pain point. No repetitive openings.`}
+- Generate ONE SHARED BODY script that flows seamlessly from ANY of the hooks. The body explains how the person discovered ${brand.name}, their experience with it, and what changed.
 - Generate ONE SHARED CTA.
-- The body should NOT reference a specific persona - it should be universal enough to work after any of the 4 hooks.
+- The body should NOT reference a specific ${themeList?.length ? 'theme' : 'persona'} - it should be universal enough to work after any of the hooks.
 
 INSIGHT CONTEXT: Scripts should tie into this insight:
 Title: ${insight.title}
@@ -72,19 +72,18 @@ ${CONTENT_FILTER}
 Respond in this EXACT JSON format:
 {
   "hooks": [
-    { "persona": "persona 1 name", "persona_number": 1, "hook": "specific opening moment for this persona, 3-5 seconds" },
-    { "persona": "persona 2 name", "persona_number": 2, "hook": "different angle for this persona" },
-    { "persona": "persona 3 name", "persona_number": 3, "hook": "another different angle" },
-    { "persona": "persona 4 name", "persona_number": 4, "hook": "another different angle" }
+    { "persona": "${themeList?.length ? 'theme name' : 'persona name'}", "persona_number": 1, "hook": "specific opening moment, 3-5 seconds" }
   ],
-  "body": "Shared body script that flows from any hook. 15-20 seconds. How they discovered the product, their experience, what changed. Universal, not persona-specific.",
+  "body": "Shared body script that flows from any hook. 15-20 seconds.",
   "cta": "Shared casual CTA. 3-5 seconds.",
   "scene_notes": "Quick visual/setting suggestions for filming"
-}`
+}
 
-    const userMsg = `Write a UGC script framework based on these 4 personas:
+Generate exactly ${themeList?.length || personas.length} hooks in the hooks array.`
 
-${personas.map((p: ResearchPersona, i: number) => `
+    const userMsg = themeList?.length
+      ? `Write a UGC script framework based on these ${themeList.length} themes:\n\n${themeList.map((t: string, i: number) => `Theme ${i + 1}: ${t}`).join('\n')}\n\nEach hook should capture a different vibe/angle based on the theme. The body should work after any hook.`
+      : `Write a UGC script framework based on these ${personas.length} personas:\n\n${personas.map((p: ResearchPersona, i: number) => `
 Persona ${i + 1}: ${p.name}
 Description: ${p.description || ''}
 Pain Points: ${(p.painPoints || []).join(', ')}
@@ -93,7 +92,7 @@ Angle: ${p.hook || ''}
 `).join('\n')}
 
 Generate:
-- 4 unique hooks (one per persona, each opening with THEIR specific real-life moment/pain point)
+- ${personas.length} unique hooks (one per persona, each opening with THEIR specific real-life moment/pain point)
 - ONE shared body that flows from any of the hooks
 - ONE shared CTA
 - Scene notes
