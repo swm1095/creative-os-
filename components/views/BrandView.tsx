@@ -169,8 +169,8 @@ export default function BrandView({ brand, onToast, onBrandUpdate, isClient }: B
   const handleGuidelinesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !brand?.id) return
-    if (file.size > 50 * 1024 * 1024) {
-      onToast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 50MB.`, 'error')
+    if (file.size > 500 * 1024 * 1024) {
+      onToast(`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 500MB.`, 'error')
       return
     }
     setGuidelinesFile(file)
