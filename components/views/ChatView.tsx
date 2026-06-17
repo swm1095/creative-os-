@@ -39,6 +39,7 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [savingChat, setSavingChat] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -146,11 +147,27 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
             className="flex-1 px-4 py-3 bg-surface border border-border rounded-xl text-sm text-text-primary placeholder:text-text-dim resize-none focus:border-fulton focus:outline-none min-h-[44px] max-h-[120px]"
             rows={1}
           />
+          {messages.length > 0 && (
+            <Button variant="secondary" onClick={async () => {
+              if (!brandId || savingChat) return
+              setSavingChat(true)
+              const chatText = messages.map(m => `${m.role === 'user' ? 'You' : 'Claude'}: ${m.content}`).join('\n\n')
+              const title = messages.find(m => m.role === 'user')?.content.slice(0, 60) || 'Chat'
+              try {
+                await fetch('/api/insights', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ brandId, title: `Chat: ${title}`, detail: chatText, insight_type: 'chat', priority: 'low' }) })
+                onToast('Chat saved to Insights', 'success')
+              } catch { onToast('Save failed', 'error') }
+              setSavingChat(false)
+            }} disabled={savingChat} className="h-[44px]">
+              {savingChat ? '...' : 'Save'}
+            </Button>
+          )}
           <Button onClick={() => send()} disabled={sending || !input.trim()} className="h-[44px]">
             Send
           </Button>
         </div>
-        <div className="text-2xs text-text-dim mt-1.5 px-1">Shift+Enter for new line · Powered by Claude</div>
+        <div className="text-2xs text-text-dim mt-1.5 px-1">Shift+Enter for new line · {messages.length > 0 ? 'Save to keep this chat' : 'Powered by Claude'}</div>
       </div>
     </div>
   )
