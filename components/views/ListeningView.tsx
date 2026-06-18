@@ -81,6 +81,59 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [editableBody, setEditableBody] = useState('')
   const [editableCta, setEditableCta] = useState('')
   const [savingScript, setSavingScript] = useState(false)
+  // Search / Ask a question
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [searchAnswer, setSearchAnswer] = useState('')
+  const [searchSources, setSearchSources] = useState<string[]>([])
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !brand?.id) return
+    setSearching(true)
+    setSearchAnswer('')
+    setSearchSources([])
+    try {
+      // Build context from stored signals and trends
+      const signalContext = signals.slice(0, 20).map(s =>
+        `[${s.source}] ${s.title}${s.content ? ': ' + s.content.slice(0, 200) : ''}`
+      ).join('\n')
+      const trendContext = trends.map(t =>
+        `"${t.keyword}" - ${t.trending ? 'TRENDING' : 'normal'}`
+      ).join(', ')
+      const insightContext = insights.slice(0, 5).map(i =>
+        `${i.title}: ${i.detail}`
+      ).join('\n')
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: brand.id,
+          messages: [{
+            role: 'user',
+            content: `Based on REAL social listening data for ${brand.name}, answer this question:\n\n"${searchQuery}"\n\nHere is the actual data to base your answer on:\n\nSIGNALS FROM SOCIAL MEDIA:\n${signalContext}\n\nTRENDING KEYWORDS: ${trendContext}\n\nEXISTING INSIGHTS:\n${insightContext}\n\nAnswer specifically using the data above. Cite which sources support your answer. If the data doesn't cover this topic, say so honestly. Keep it concise and actionable for a creative team.`,
+          }],
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setSearchAnswer(data.message || 'No answer generated')
+
+      // Extract mentioned sources
+      const sources = new Set<string>()
+      signals.slice(0, 20).forEach(s => {
+        if (data.message?.toLowerCase().includes(s.source.toLowerCase()) ||
+            data.message?.toLowerCase().includes(s.title?.slice(0, 30).toLowerCase())) {
+          sources.add(s.source)
+        }
+      })
+      setSearchSources([...sources].slice(0, 6))
+    } catch (err: unknown) {
+      onToast(`Search failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setSearching(false)
+  }
+
   const [scriptFeedback, setScriptFeedback] = useState('')
   const [refiningScript, setRefiningScript] = useState(false)
   const [scriptFeedbackHistory, setScriptFeedbackHistory] = useState<{ role: 'user' | 'ai'; text: string }[]>([])
@@ -356,6 +409,47 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           </div>
         ) : undefined}
       />
+
+      {/* Ask a Question - prominent search */}
+      {hasRun && signals.length > 0 && (
+        <div className="mb-5">
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-lg">🔍</span>
+              <div>
+                <div className="text-sm font-bold">Ask a Question</div>
+                <div className="text-2xs text-text-dim">Search your signals - Claude will answer using real social data</div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder={`e.g. "What are people saying about ${brand?.research?.productCategory || brand?.name || 'this product'}?"`}
+                className="flex-1 px-4 py-3 bg-page border border-border rounded-lg text-sm text-text-primary focus:border-fulton focus:outline-none"
+                onKeyDown={e => { if (e.key === 'Enter' && searchQuery.trim()) handleSearch() }}
+              />
+              <Button onClick={handleSearch} disabled={!searchQuery.trim() || searching} className="px-5">
+                {searching ? <LoadingSpinner size={16} /> : 'Ask'}
+              </Button>
+            </div>
+            {searchAnswer && (
+              <div className="mt-4 bg-fulton/5 border border-fulton/20 rounded-lg p-4">
+                <div className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">{searchAnswer}</div>
+                {searchSources.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3 pt-3 border-t border-border">
+                    <span className="text-2xs text-text-dim">Sources:</span>
+                    {searchSources.map((s, i) => (
+                      <span key={i} className="text-2xs bg-elevated text-text-muted px-1.5 py-0.5 rounded">{s}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Keyword editor */}
       {!isClient && brand?.research && (
