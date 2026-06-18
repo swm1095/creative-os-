@@ -411,7 +411,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
       />
 
       {/* Ask a Question - prominent search */}
-      {hasRun && signals.length > 0 && (
+      {hasRun && (signals.length > 0 || insights.length > 0 || trends.length > 0) && (
         <div className="mb-5">
           <div className="bg-surface border border-border rounded-xl p-4">
             <div className="flex items-center gap-3 mb-2">
