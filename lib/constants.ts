@@ -105,25 +105,6 @@ export const DEFAULT_BRAND = {
   ],
 }
 
-// ── Mock performance data ────────────────────────────────────
-export const MOCK_STATS = {
-  totalCreatives: 189,
-  avgROAS: 4.1,
-  liveSignals: 3,
-  automationRules: 3,
-  qcPassRate: 96,
-  activeBrands: 6,
-  weeklyCreatives: 24,
-}
-
-export const MOCK_TOP_CREATORS = [
-  { name: 'Jess Martinez', roas: 7.6, adCount: 12, color: '#2d7a54' },
-  { name: 'Alex Chen', roas: 5.4, adCount: 8, color: '#2138ff' },
-  { name: 'Marcus Johnson', roas: 4.8, adCount: 15, color: '#d9a033' },
-  { name: 'Sarah Kim', roas: 3.9, adCount: 6, color: '#f87171' },
-  { name: 'David Okafor', roas: 2.8, adCount: 11, color: '#34d399' },
-]
-
 // ── Platform options for copy generation ─────────────────────
 export const PLATFORMS = ['Meta (Facebook/Instagram)', 'Google Ads', 'TikTok', 'Email', 'Landing Page']
 export const TONES = ['Professional', 'Conversational', 'Urgent', 'Empathetic', 'Bold', 'Playful']
