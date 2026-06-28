@@ -36,16 +36,18 @@ export default function DashboardPage() {
   const { tasks, addTask, dismissTask } = useBackgroundTasks()
 
   const isClient = user?.role === 'client'
-  const [currentTool, setCurrentTool] = useState<ToolId>(isClient ? 'hypeimage' : null)
-  const [activeView, setActiveView] = useState<ViewId>(isClient ? 'brand' : 'hub')
+  const [currentTool, setCurrentTool] = useState<ToolId>(null)
+  const [activeView, setActiveView] = useState<ViewId>('hub')
 
-  // Auto-select the client's brand when they log in
+  // Auto-select the client's brand and lock them to their view
   useEffect(() => {
-    if (isClient && user?.brand_id && brands.length && !activeBrand) {
+    if (isClient && user?.brand_id && brands.length) {
       const clientBrand = brands.find(b => b.id === user.brand_id)
       if (clientBrand) setActiveBrand(clientBrand)
+      setActiveView('brand')
+      setCurrentTool(null)
     }
-  }, [isClient, user?.brand_id, brands, activeBrand, setActiveBrand])
+  }, [isClient, user?.brand_id, brands, setActiveBrand])
   const [showBrandModal, setShowBrandModal] = useState(false)
   const [showAddBrandForm, setShowAddBrandForm] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -172,10 +174,10 @@ export default function DashboardPage() {
         currentTool={currentTool}
         activeView={activeView}
         activeBrand={activeBrand}
-        brands={brands}
+        brands={isClient ? brands.filter(b => b.id === user?.brand_id) : brands}
         onNavigate={navigate}
-        onBrandSelect={setActiveBrand}
-        onShowBrandModal={() => setShowBrandModal(true)}
+        onBrandSelect={isClient ? () => {} : setActiveBrand}
+        onShowBrandModal={isClient ? () => {} : () => setShowBrandModal(true)}
         userName={user?.name}
         userEmail={user?.email}
         userRole={user?.role}
