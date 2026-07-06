@@ -20,6 +20,7 @@ export type ViewId =
   | 'admin'
   | 'design'
   | 'competitor-research'
+  | 'concept-creator'
   | 'coming-soon'
 
 // ── Brand ────────────────────────────────────────────────────
@@ -45,6 +46,9 @@ export interface Brand {
   assigned_to?: string
   // Competitor product URLs for Amazon review mining
   competitor_urls?: string[]
+  // Motion Creative Analytics
+  motion_workspace_id?: string
+  motion_data?: import('./motion').MotionPerformance | null
 }
 
 export interface BrandResearch {

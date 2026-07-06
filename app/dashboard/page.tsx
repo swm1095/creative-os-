@@ -28,6 +28,7 @@ import AdminDashboardView from '@/components/views/AdminDashboardView'
 import BrandResearchView from '@/components/views/BrandResearchView'
 import SavedInsightsView from '@/components/views/SavedInsightsView'
 import BrandOnboarding from '@/components/views/BrandOnboarding'
+import ConceptCreatorView from '@/components/views/ConceptCreatorView'
 
 export default function DashboardPage() {
   const { user, loading: authLoading, login, loginWithGoogle, logout, isAdmin } = useAuth()
@@ -86,6 +87,8 @@ export default function DashboardPage() {
         return <ChatView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} />
       case 'copy':
         return <CopyView brandId={activeBrand?.id} brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
+      case 'concept-creator':
+        return <ConceptCreatorView brand={activeBrand} onToast={addToast} onBrandUpdate={updateBrand} />
       case 'listening':
         return <ListeningView brand={activeBrand} onToast={addToast} onNavigate={navigate} onBrandUpdate={isClient ? undefined : updateBrand} addBackgroundTask={isClient ? undefined : addTask} isClient={isClient} />
       case 'brand-research':

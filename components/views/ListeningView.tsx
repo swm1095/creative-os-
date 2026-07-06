@@ -138,6 +138,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const brandThemes: string[] = (brand as Brand & { themes?: string[] })?.themes || []
   const brandCollections: string[] = (brand as Brand & { product_collections?: string[] })?.product_collections || []
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set())
+  const [customDirections, setCustomDirections] = useState('')
   const [generatingVideoPrompt, setGeneratingVideoPrompt] = useState<string | null>(null)
   const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
   const [showVideoModal, setShowVideoModal] = useState(false)
@@ -291,6 +292,7 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           brandId: brand.id, insight,
           selectedPersonaIndices: personaIndices,
           themes: themesParam,
+          customDirections: customDirections.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -799,6 +801,17 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
             {listeningHookMode === 'products' && brandCollections.length === 0 && (
               <div className="text-2xs text-text-dim mt-2">No products added yet. Add products in Brand Research.</div>
             )}
+          </div>
+
+          <div>
+            <div className="text-2xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Additional Directions <span className="font-normal text-text-dim">(optional)</span></div>
+            <textarea
+              value={customDirections}
+              onChange={e => setCustomDirections(e.target.value)}
+              placeholder="e.g. This should be from a nurse's perspective, focus on the morning routine angle, make it feel like a TikTok story time..."
+              className="w-full px-3 py-2 bg-elevated border border-border rounded-lg text-xs text-text-primary placeholder:text-text-dim resize-none focus:border-fulton focus:outline-none"
+              rows={2}
+            />
           </div>
 
           <Button className="w-full justify-center" disabled={selectedItems.size === 0}

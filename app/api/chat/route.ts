@@ -4,12 +4,14 @@ import { createServiceClient as createClient } from '@/lib/supabase-server'
 import { CONTENT_FILTER } from '@/lib/content-filter'
 import { trackUsage } from '@/lib/usage-tracker'
 import { BrandResearch, ResearchPersona } from '@/lib/types'
+import { buildMotionContext } from '@/lib/motion'
 
 export const maxDuration = 60
 
 const BASE_PROMPT = `You are HyperChat, an AI creative strategist built into the HyperInsights platform by Hype10 agency.
 
 You help creative teams with ad strategy, copy angles, audience insights, and performance interpretation.
+You have access to Motion Creative Analytics data (Meta/Facebook ad performance) when available. Use this data to ground your recommendations in actual performance metrics - reference specific creatives, ROAS, hook rates, and winning patterns when the data is provided.
 
 FORMATTING RULES - THIS IS CRITICAL:
 - Write like a sharp creative director talking to their team, NOT like an AI or developer
@@ -58,19 +60,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
-    const { messages, brandId } = await req.json()
+    const { messages, brandId, includePerformance } = await req.json()
     if (!messages?.length) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 })
     }
 
-    // Load brand research from Supabase if brandId provided
+    // Load brand research and motion data from Supabase if brandId provided
     let brandContextText = ''
+    let motionContextText = ''
     if (brandId) {
       try {
         const supabase = createClient()
         const { data: brand } = await supabase.from('brands').select('*').eq('id', brandId).single()
         if (brand) {
           brandContextText = buildBrandContext(brand.research, brand.name)
+          if (includePerformance !== false && brand.motion_data) {
+            motionContextText = buildMotionContext(brand.motion_data)
+          }
         }
       } catch (e) {
         console.error('Failed to load brand context:', e)
@@ -82,7 +88,7 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system: BASE_PROMPT + brandContextText,
+      system: BASE_PROMPT + brandContextText + motionContextText,
       messages: messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,

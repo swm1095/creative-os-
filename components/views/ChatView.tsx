@@ -26,16 +26,24 @@ const FALLBACK_SUGGESTIONS = [
   'Suggest a testing framework for 4 persona variants',
 ]
 
-function buildBrandSuggestions(brand: Brand | null | undefined): string[] {
+function buildBrandSuggestions(brand: Brand | null | undefined, hasMotion: boolean): string[] {
   if (!brand?.research) return FALLBACK_SUGGESTIONS
   const r = brand.research
   const brandName = brand.name
-  return [
+
+  const base = [
     `Write 3 hook variations for ${brandName} targeting "${r.personas?.[0]?.name || 'our audience'}"`,
     `What's the best ad angle for "${r.painPoints?.[0] || 'the main pain point'}" for ${brandName}?`,
     `How should we differentiate ${brandName} from ${r.competitors?.[0] || 'competitors'}?`,
-    `Suggest a creative testing framework for all ${r.personas?.length || 4} ${brandName} personas`,
   ]
+
+  if (hasMotion) {
+    base.push(`What creative formats are working best for ${brandName} right now?`)
+  } else {
+    base.push(`Suggest a creative testing framework for all ${r.personas?.length || 4} ${brandName} personas`)
+  }
+
+  return base
 }
 
 // Store chats in localStorage per brand
@@ -56,10 +64,12 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [includePerformance, setIncludePerformance] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const suggestions = buildBrandSuggestions(brand)
+  const hasMotionData = !!(brand?.motion_data)
+  const suggestions = buildBrandSuggestions(brand, hasMotionData && includePerformance)
 
   // Load chats when brand changes
   useEffect(() => {
@@ -108,7 +118,11 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages.map(m => ({ role: m.role, content: m.content })), brandId }),
+        body: JSON.stringify({
+          messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+          brandId,
+          includePerformance,
+        }),
       })
       const data = await res.json()
       if (data.error) throw new Error(data.error)
@@ -162,6 +176,38 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
         <div className="p-3 border-b border-border">
           <Button onClick={startNewChat} className="w-full justify-center" size="sm">+ New Chat</Button>
         </div>
+
+        {/* Motion Performance Toggle */}
+        <div className="px-3 py-2 border-b border-border">
+          <button
+            onClick={() => setIncludePerformance(!includePerformance)}
+            className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+              hasMotionData
+                ? includePerformance
+                  ? 'bg-green/10 border border-green/30 text-green'
+                  : 'bg-surface border border-border text-text-dim hover:border-green/30'
+                : 'bg-surface border border-border text-text-dim opacity-60 cursor-not-allowed'
+            }`}
+            disabled={!hasMotionData}
+            title={hasMotionData ? 'Toggle Motion ad performance data in chat context' : 'No Motion data synced for this brand'}
+          >
+            <span className="text-sm">{hasMotionData && includePerformance ? '📊' : '📊'}</span>
+            <span className="flex-1 text-left">Motion Data</span>
+            <span className={`text-2xs px-1.5 py-0.5 rounded-full font-bold ${
+              hasMotionData
+                ? includePerformance ? 'bg-green/20 text-green' : 'bg-surface text-text-dim'
+                : 'bg-surface text-text-dim'
+            }`}>
+              {hasMotionData ? (includePerformance ? 'ON' : 'OFF') : 'No data'}
+            </span>
+          </button>
+          {hasMotionData && brand?.motion_data?.syncedAt && (
+            <div className="text-2xs text-text-dim mt-1 px-1">
+              Synced {new Date(brand.motion_data.syncedAt).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+
         <div className="flex-1 overflow-y-auto">
           {chats.length === 0 ? (
             <div className="p-4 text-center text-2xs text-text-dim">No saved chats yet. Start a conversation and it'll appear here.</div>
@@ -194,10 +240,15 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="text-4xl mb-4">💬</div>
               <h3 className="text-xl font-black mb-2">HyperChat</h3>
-              <p className="text-sm text-text-dim mb-6 max-w-md">
+              <p className="text-sm text-text-dim mb-2 max-w-md">
                 {brand?.name ? `Your AI creative strategist for ${brand.name}. ` : 'Your AI creative strategist. '}
                 Ask about ad strategy, copy angles, audience insights, or anything creative.
               </p>
+              {hasMotionData && includePerformance && (
+                <p className="text-xs text-green mb-4 flex items-center gap-1.5">
+                  <span>📊</span> Motion performance data active - ask about ad performance, winning creatives, and trends
+                </p>
+              )}
               <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
                 {suggestions.map(s => (
                   <button key={s} onClick={() => send(s)}
@@ -248,7 +299,10 @@ export default function ChatView({ brandId, brand, onToast }: ChatViewProps) {
               Send
             </Button>
           </div>
-          <div className="text-2xs text-text-dim mt-1.5 px-1">Shift+Enter for new line · Chats auto-save</div>
+          <div className="text-2xs text-text-dim mt-1.5 px-1">
+            Shift+Enter for new line · Chats auto-save
+            {hasMotionData && includePerformance && ' · 📊 Motion data included'}
+          </div>
         </div>
       </div>
     </div>

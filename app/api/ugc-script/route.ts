@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
     }
 
-    const { brandId, insight, selectedPersonaIndices, themes: themeList } = await req.json()
+    const { brandId, insight, selectedPersonaIndices, themes: themeList, customDirections } = await req.json()
     if (!brandId || !insight) {
       return NextResponse.json({ error: 'brandId and insight required' }, { status: 400 })
     }
@@ -68,7 +68,7 @@ ${(brand.customer_reviews as Array<{text: string}> || []).length > 0 ? `\nREAL C
 
 NEVER use emdashes. Use hyphens or commas.
 ${CONTENT_FILTER}
-
+${customDirections ? `\nADDITIONAL CREATIVE DIRECTIONS FROM THE TEAM:\n${customDirections}\n\nIncorporate these directions into the scripts. They take priority over default assumptions about tone, perspective, or angle.\n` : ''}
 Respond in this EXACT JSON format:
 {
   "hooks": [

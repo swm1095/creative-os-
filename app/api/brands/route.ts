@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
       if (body.product_collections !== undefined) updates.product_collections = body.product_collections
       if (body.theme_profiles !== undefined) updates.theme_profiles = body.theme_profiles
       if (body.collection_profiles !== undefined) updates.collection_profiles = body.collection_profiles
+      if (body.motion_workspace_id !== undefined) updates.motion_workspace_id = body.motion_workspace_id
+      if (body.motion_data !== undefined) updates.motion_data = body.motion_data
 
       const { data, error } = await supabase.from('brands').update(updates).eq('id', id).select().single()
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
