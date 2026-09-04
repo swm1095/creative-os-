@@ -5,7 +5,7 @@ export type QCStatus = 'pass' | 'fail' | 'pending' | 'warning'
 export type JobStatus = 'queued' | 'running' | 'done' | 'error'
 
 // ── Navigation ───────────────────────────────────────────────
-export type ToolId = 'hypeimage' | 'hyperchat' | 'hypercopy' | 'hyperinsights' | 'hyperlistening' | 'hyperresearch' | 'hypervideo' | 'hyperdesign' | null
+export type ToolId = 'hypeimage' | 'hyperchat' | 'hypercopy' | 'hyperlistening' | 'hyperresearch' | 'hypervideo' | 'hyperdesign' | null
 export type ViewId =
   | 'hub'
   | 'image-dashboard' | 'generate' | 'resize' | 'qc' | 'brand' | 'integrations'
@@ -20,7 +20,6 @@ export type ViewId =
   | 'admin'
   | 'design'
   | 'competitor-research'
-  | 'concept-creator'
   | 'coming-soon'
 
 // ── Brand ────────────────────────────────────────────────────

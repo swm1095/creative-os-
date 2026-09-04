@@ -60,18 +60,6 @@ export const TOOLS: ToolDef[] = [
     ],
     implemented: true,
   },
-  {
-    id: 'hyperinsights',
-    name: 'Concept Creator',
-    shortName: 'Concepts',
-    emoji: '🧪',
-    description: 'Performance-driven concept generation',
-    defaultView: 'concept-creator' as ViewId,
-    views: [
-      { id: 'concept-creator' as ViewId, label: 'Concept Studio' },
-    ],
-    implemented: true,
-  },
 ]
 
 // ── Default Fulton personas ──────────────────────────────────
