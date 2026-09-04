@@ -24,7 +24,7 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
   const activeTool = TOOLS.find(t => t.id === currentTool)
 
   return (
-    <nav className="w-sidebar min-w-sidebar bg-[#060c16] border-r border-border flex flex-col h-screen fixed left-0 top-0 z-10">
+    <nav className="w-sidebar min-w-sidebar bg-surface border-r border-border flex flex-col h-screen fixed left-0 top-0 z-10">
       {/* Logo */}
       <div className="px-4 pt-4 pb-3 border-b border-border">
         <button onClick={() => onNavigate(null, 'hub')} className="text-left flex items-center gap-2.5">
@@ -70,21 +70,21 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
             {isClient ? (
               <>
                 <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Your Dashboard</div>
-                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate(null, 'brand')} />
-                <NavItem label="HyperChat" emoji="💬" active={activeView === 'chat'} onClick={() => onNavigate('hyperchat', 'chat')} />
-                <NavItem label="HyperCopy" emoji="✍️" active={activeView === 'copy'} onClick={() => onNavigate('hypercopy', 'copy')} />
-                <NavItem label="HyperListening" emoji="👂" active={activeView === 'listening'} onClick={() => onNavigate('hyperlistening', 'listening')} />
-                <NavItem label="HyperResearch" emoji="🔬" active={activeView === 'brand-research'} onClick={() => onNavigate('hyperresearch', 'brand-research')} />
+                <NavItem label="Brand Kit" active={activeView === 'brand'} onClick={() => onNavigate(null, 'brand')} />
+                <NavItem label="HyperChat" active={activeView === 'chat'} onClick={() => onNavigate('hyperchat', 'chat')} />
+                <NavItem label="HyperCopy" active={activeView === 'copy'} onClick={() => onNavigate('hypercopy', 'copy')} />
+                <NavItem label="HyperListening" active={activeView === 'listening'} onClick={() => onNavigate('hyperlistening', 'listening')} />
+                <NavItem label="HyperResearch" active={activeView === 'brand-research'} onClick={() => onNavigate('hyperresearch', 'brand-research')} />
               </>
             ) : (
               <>
                 <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mb-0.5">Platform</div>
-                <NavItem label="Home" emoji="🏠" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
-                <NavItem label="Brand Kit" emoji="🎨" active={activeView === 'brand'} onClick={() => onNavigate(null, 'brand')} />
-                <NavItem label="UGC Team" emoji="👥" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
-                <NavItem label="Connections" emoji="🔌" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
+                <NavItem label="Home" active={activeView === 'hub'} onClick={() => onNavigate(null, 'hub')} />
+                <NavItem label="Brand Kit" active={activeView === 'brand'} onClick={() => onNavigate(null, 'brand')} />
+                <NavItem label="UGC Team" active={activeView === 'tracker'} onClick={() => onNavigate(null, 'tracker' as ViewId)} />
+                <NavItem label="Connections" active={activeView === 'integrations'} onClick={() => onNavigate(null, 'integrations' as ViewId)} />
                 {(userRole === 'admin' || userEmail === 'sam@hype10agency.com') && (
-                  <NavItem label="Admin" emoji="⚙️" active={activeView === 'admin'} onClick={() => onNavigate(null, 'admin' as ViewId)} />
+                  <NavItem label="Admin" active={activeView === 'admin'} onClick={() => onNavigate(null, 'admin' as ViewId)} />
                 )}
 
                 <div className="text-2xs font-bold tracking-wider uppercase text-text-muted px-2 py-1.5 mt-3 mb-0.5">Your Tools</div>
@@ -92,7 +92,6 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
                   <NavItem
                     key={tool.id}
                     label={tool.name}
-                    emoji={tool.emoji}
                     onClick={() => onNavigate(tool.id, tool.defaultView)}
                   />
                 ))}
@@ -103,7 +102,6 @@ export default function Sidebar({ currentTool, activeView, activeBrand, brands, 
                   <NavItem
                     key={tool.id}
                     label={tool.name}
-                    emoji={tool.emoji}
                     badge="Soon"
                     badgeVariant="gold"
                     onClick={() => {}}

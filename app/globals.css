@@ -4,17 +4,84 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html, body { height: 100%; font-family: 'Inter', sans-serif; font-size: 14.5px; }
-body { background: #080e1a; color: #feffff; overflow: hidden; }
+/* ── Theme tokens ─────────────────────────────────────────────
+   Light is the default. Dark is applied via [data-theme="dark"]
+   on <html> (set by the no-flash script in layout.tsx + the
+   theme toggle). Components reference these through the Tailwind
+   token names in tailwind.config.ts, so the whole app re-themes
+   from here.                                                     */
+:root {
+  --c-page:          #f6f7f9;
+  --c-surface:       #ffffff;
+  --c-elevated:      #f1f3f7;
+  --c-border:        #e4e7ec;
+  --c-text-primary:  #101828;
+  --c-text-secondary:#475467;
+  --c-text-muted:    #667085;
+  --c-text-dim:      #98a2b3;
+  --c-text-faint:    #b3bac7;
+  --c-text-subtle:   #e4e7ec;
+  --c-accent:        #2138ff;
+  --c-accent-hover:  #1a2ecc;
+  --c-accent-light:  #eaecff;
+  --c-accent-mid:    #dfe3ff;
+  --c-accent-glow:   rgba(33,56,255,0.18);
+  --c-gold:          #b7791f;
+  --c-gold-light:    #fbf1da;
+  --c-ok:            #067a55;
+  --c-ok-light:      #e6f5ef;
+  --c-warn:          #b54708;
+  --c-warn-light:    #fdf0e6;
+  --c-bad:           #d92d20;
+  --c-bad-light:     #fdeceb;
+  --c-scrollbar:     #d0d5dd;
+  --c-scrollbar-hover:#b3bac7;
+}
 
-/* Scrollbar - branded */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-thumb { background: #1e2d44; border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: #2a3d58; }
+:root[data-theme="dark"] {
+  --c-page:          #0a0f1c;
+  --c-surface:       #111a2e;
+  --c-elevated:      #17223a;
+  --c-border:        #22314c;
+  --c-text-primary:  #f2f5fc;
+  --c-text-secondary:#cdd5e8;
+  --c-text-muted:    #8f99b6;
+  --c-text-dim:      #616c8e;
+  --c-text-faint:    #4a5578;
+  --c-text-subtle:   #22314c;
+  --c-accent:        #3a4dff;
+  --c-accent-hover:  #5262ff;
+  --c-accent-light:  rgba(58,77,255,0.16);
+  --c-accent-mid:    rgba(58,77,255,0.24);
+  --c-accent-glow:   rgba(58,77,255,0.28);
+  --c-gold:          #fbbf24;
+  --c-gold-light:    #2a1f08;
+  --c-ok:            #35d6a0;
+  --c-ok-light:      #0b2819;
+  --c-warn:          #fbbf24;
+  --c-warn-light:    #281e08;
+  --c-bad:           #fb7185;
+  --c-bad-light:     #280d0d;
+  --c-scrollbar:     #22314c;
+  --c-scrollbar-hover:#2e405f;
+}
+
+html, body { height: 100%; font-family: 'Inter', sans-serif; font-size: 14.5px; }
+body {
+  background: var(--c-page);
+  color: var(--c-text-primary);
+  overflow: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--c-scrollbar); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--c-scrollbar-hover); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 /* Selection */
-::selection { background: rgba(33, 56, 255, 0.3); }
+::selection { background: var(--c-accent-light); }
 
 @layer components {
   .transition-default {

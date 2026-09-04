@@ -9,26 +9,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Hype10 dark mode base
-        page: '#080e1a',
-        surface: '#0f1729',
-        elevated: '#172236',
-        border: '#1e2d44',
+        // Themed via CSS variables (light default + dark override in globals.css)
+        page: 'var(--c-page)',
+        surface: 'var(--c-surface)',
+        elevated: 'var(--c-elevated)',
+        border: 'var(--c-border)',
         // Text scale
-        'text-primary': '#feffff',
-        'text-secondary': '#d8dce8',
-        'text-muted': '#b0b6cc',
-        'text-dim': '#8890b0',
-        'text-faint': '#6870a0',
-        'text-subtle': '#2a3650',
-        // Hype10 brand accents
-        blue: { DEFAULT: '#2138ff', dark: '#1a2ecc', light: '#0c1640', mid: '#111d4a' },
-        hype: { DEFAULT: '#2138ff', glow: 'rgba(33,56,255,0.15)' },
-        fulton: { DEFAULT: '#2d7a54', dark: '#1B4332', light: '#0d2518', gold: '#d9a033', 'gold-light': '#271c08' },
+        'text-primary': 'var(--c-text-primary)',
+        'text-secondary': 'var(--c-text-secondary)',
+        'text-muted': 'var(--c-text-muted)',
+        'text-dim': 'var(--c-text-dim)',
+        'text-faint': 'var(--c-text-faint)',
+        'text-subtle': 'var(--c-text-subtle)',
+        // Unified Hype10 blue accent (blue + legacy fulton both point here)
+        blue: { DEFAULT: 'var(--c-accent)', dark: 'var(--c-accent-hover)', light: 'var(--c-accent-light)', mid: 'var(--c-accent-mid)' },
+        hype: { DEFAULT: 'var(--c-accent)', glow: 'var(--c-accent-glow)' },
+        fulton: { DEFAULT: 'var(--c-accent)', dark: 'var(--c-accent-hover)', light: 'var(--c-accent-light)', gold: 'var(--c-gold)', 'gold-light': 'var(--c-gold-light)' },
         // Status
-        green: { DEFAULT: '#34d399', light: '#0b2819' },
-        amber: { DEFAULT: '#fbbf24', light: '#281e08' },
-        red: { DEFAULT: '#f87171', light: '#280d0d' },
+        green: { DEFAULT: 'var(--c-ok)', light: 'var(--c-ok-light)' },
+        amber: { DEFAULT: 'var(--c-warn)', light: 'var(--c-warn-light)' },
+        red: { DEFAULT: 'var(--c-bad)', light: 'var(--c-bad-light)' },
       },
       fontFamily: { sans: ['Inter', 'sans-serif'] },
       fontSize: {

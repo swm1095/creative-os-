@@ -1,5 +1,7 @@
 'use client'
 
+import ThemeToggle from './ThemeToggle'
+
 interface TopbarProps {
   title: string
   subtitle?: string
@@ -14,6 +16,7 @@ export default function Topbar({ title, subtitle, actions }: TopbarProps) {
         {subtitle && <p className="text-xs text-text-muted font-medium">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
+      <ThemeToggle />
     </div>
   )
 }
