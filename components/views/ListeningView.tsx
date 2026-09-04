@@ -143,6 +143,13 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
   const [videoPromptData, setVideoPromptData] = useState<{ title: string; scenes: Array<{ sceneNumber: number; description: string; prompt: string; camera: string; duration: number }>; full_prompt: string; recommended_model: string; recommended_style: string } | null>(null)
   const [showVideoModal, setShowVideoModal] = useState(false)
 
+  // Generate Headlines from an insight (editable, per-headline AI refine)
+  const [generatingHeadlines, setGeneratingHeadlines] = useState<string | null>(null)
+  const [showHeadlinesModal, setShowHeadlinesModal] = useState(false)
+  const [headlinesInsightTitle, setHeadlinesInsightTitle] = useState('')
+  const [editableHeadlines, setEditableHeadlines] = useState<{ persona: string; headlines: string[] }[]>([])
+  const [savingHeadlines, setSavingHeadlines] = useState(false)
+
   const hasResearch = brand?.research_completed || !!brand?.research
 
   useEffect(() => {
@@ -336,6 +343,81 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
     localStorage.setItem('hc-brief-draft', brief)
     onNavigate('hypercopy', 'copy')
     onToast(`Opening HyperCopy with brief from "${insight.title}"`, 'info')
+  }
+
+  const generateHeadlines = async (insight: EnrichedInsight) => {
+    if (!brand?.id) { onToast('No brand selected', 'error'); return }
+    setGeneratingHeadlines(insight.id)
+    setHeadlinesInsightTitle(insight.title)
+    onToast(`Generating headlines from "${insight.title}"...`, 'info')
+    try {
+      const personas = brand.research?.personas || []
+      const res = await fetch('/api/design', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-copy',
+          brandName: brand.name,
+          brandResearch: brand.research || null,
+          persona: personas.map(p => p.name).join(', '),
+          angle: `Based on this insight: "${insight.title}". ${insight.detail}${insight.actionable ? ' Action: ' + insight.actionable : ''}`,
+          referenceAnalysis: null,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      const allHeadlines = [...(data.copy?.hooks || []), ...(data.copy?.subheadlines || [])]
+      const base = personas.length ? personas : [{ name: brand.name }]
+      const perPersona = base.map((p, i) => {
+        const slice = allHeadlines.slice(i * 2, i * 2 + 3)
+        return {
+          persona: p.name,
+          headlines: slice.length > 0 ? slice : [allHeadlines[i % Math.max(allHeadlines.length, 1)] || ''],
+        }
+      })
+      setEditableHeadlines(perPersona)
+      setShowHeadlinesModal(true)
+      onToast('Headlines generated - edit or refine any of them', 'success')
+    } catch (err: unknown) {
+      onToast(`Headlines failed: ${err instanceof Error ? err.message : String(err)}`, 'error')
+    }
+    setGeneratingHeadlines(null)
+  }
+
+  const refineHeadline = async (pi: number, hi: number, feedback: string) => {
+    const current = editableHeadlines[pi]?.headlines[hi]
+    if (!current || !feedback) return
+    try {
+      const res = await fetch('/api/refine', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: current, feedback }),
+      })
+      const data = await res.json()
+      if (data.refined) {
+        setEditableHeadlines(prev => {
+          const next = prev.map(g => ({ ...g, headlines: [...g.headlines] }))
+          next[pi].headlines[hi] = data.refined
+          return next
+        })
+        onToast('Headline refined', 'success')
+      }
+    } catch { onToast('Refine failed', 'error') }
+  }
+
+  const saveHeadlinesToBrand = async () => {
+    if (!brand?.id) return
+    setSavingHeadlines(true)
+    const detail = editableHeadlines.map(g => `${g.persona}:\n${g.headlines.filter(Boolean).join('\n')}`).join('\n\n')
+    try {
+      await fetch('/api/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: brand.id, title: `Headlines: ${headlinesInsightTitle}`, detail, insight_type: 'headlines', priority: 'medium' }),
+      })
+      onToast('Headlines saved to Insights', 'success')
+    } catch { onToast('Save failed', 'error') }
+    setSavingHeadlines(false)
   }
 
   const updateCadence = async (cadence: string) => {
@@ -640,13 +722,16 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
                         {/* Action buttons */}
                         <div className="flex gap-2 flex-wrap">
                           <Button size="sm" onClick={() => startUGCGeneration(insight)} disabled={generatingUGC === insight.id}>
-                            {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : '🎬 UGC Scripts'}
+                            {generatingUGC === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : 'Generate UGC'}
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => generateHeadlines(insight)} disabled={generatingHeadlines === insight.id}>
+                            {generatingHeadlines === insight.id ? <><LoadingSpinner size={12} /> Generating...</> : 'Generate Headlines'}
                           </Button>
                           <Button size="sm" variant="secondary" onClick={() => generateFromInsight(insight, 'copy')}>
-                            ✍ Copy
+                            Open in HyperCopy
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => saveInsight(insight)} disabled={savingInsight === insight.id}>
-                            {savingInsight === insight.id ? 'Saving...' : '📁 Save'}
+                            {savingInsight === insight.id ? 'Saving...' : 'Save'}
                           </Button>
                         </div>
 
@@ -940,6 +1025,83 @@ export default function ListeningView({ brand, onToast, onNavigate, onBrandUpdat
           </div>
         ) : (
           <div className="text-center py-8 text-text-dim">No scripts generated</div>
+        )}
+      </Modal>
+
+      {/* Headlines Modal */}
+      <Modal
+        open={showHeadlinesModal}
+        onClose={() => setShowHeadlinesModal(false)}
+        title="Generate Headlines"
+        subtitle={headlinesInsightTitle ? `From "${headlinesInsightTitle}" - edit or refine any headline, then save` : undefined}
+        maxWidth="max-w-2xl"
+      >
+        {editableHeadlines.length > 0 ? (
+          <div className="space-y-4">
+            {/* SAVE BANNER */}
+            <div className="bg-fulton/10 border border-fulton/30 rounded-lg p-4 flex items-center justify-between">
+              <div>
+                <div className="text-sm font-bold text-fulton">Save these headlines to {brand?.name}</div>
+                <div className="text-2xs text-text-dim">Edit text directly + use feedback inputs to refine with AI</div>
+              </div>
+              <Button disabled={savingHeadlines} onClick={saveHeadlinesToBrand}>
+                {savingHeadlines ? <><LoadingSpinner size={14} /> Saving...</> : 'Save to Brand'}
+              </Button>
+            </div>
+
+            {editableHeadlines.map((group, pi) => (
+              <div key={pi} className="bg-page border border-border rounded-lg p-4">
+                <div className="text-2xs font-bold text-fulton bg-fulton-light px-2 py-0.5 rounded inline-block mb-3">{group.persona}</div>
+                {group.headlines.map((h, hi) => (
+                  <div key={hi} className="mb-3 last:mb-0">
+                    <input
+                      type="text"
+                      value={h}
+                      onChange={e => {
+                        const val = e.target.value
+                        setEditableHeadlines(prev => {
+                          const next = prev.map(g => ({ ...g, headlines: [...g.headlines] }))
+                          next[pi].headlines[hi] = val
+                          return next
+                        })
+                      }}
+                      className="w-full text-sm text-text-primary font-medium bg-transparent border border-border rounded p-2 focus:border-fulton focus:outline-none mb-1.5"
+                    />
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Refine this headline: e.g. punchier, add the price angle..."
+                        className="flex-1 px-2.5 py-1.5 bg-elevated border border-border rounded text-xs text-text-primary focus:border-fulton focus:outline-none"
+                        onKeyDown={async e => {
+                          if (e.key !== 'Enter') return
+                          const input = e.target as HTMLInputElement
+                          const feedback = input.value.trim()
+                          if (!feedback) return
+                          input.value = ''; input.disabled = true
+                          await refineHeadline(pi, hi, feedback)
+                          input.disabled = false
+                        }}
+                      />
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(editableHeadlines[pi].headlines[hi]); onToast('Headline copied', 'success') }}
+                        className="text-2xs text-text-dim hover:text-text-primary px-2 shrink-0"
+                      >Copy</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1 justify-center" onClick={() => {
+                const all = editableHeadlines.map(g => `${g.persona}:\n${g.headlines.filter(Boolean).join('\n')}`).join('\n\n')
+                navigator.clipboard.writeText(all)
+                onToast('All headlines copied', 'success')
+              }}>Copy All</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-text-dim">No headlines generated</div>
         )}
       </Modal>
 
